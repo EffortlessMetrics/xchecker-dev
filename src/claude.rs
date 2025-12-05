@@ -709,14 +709,14 @@ mod tests {
             // Expected in test environment where Claude CLI may not be available
         }
 
-        // Test with no model (should use default)
+        // Test with no model (should use default: haiku)
         let wrapper =
             ClaudeWrapper::new(None, Runner::new(RunnerMode::Native, WslOptions::default()));
 
         if let Ok(wrapper) = wrapper {
             let (model_alias, model_full_name) = wrapper.get_model_info();
             assert_eq!(model_alias, None);
-            assert_eq!(model_full_name, "claude-3-5-sonnet-20241022"); // Default model
+            assert_eq!(model_full_name, "haiku"); // Default model alias
         } else {
             // Expected in test environment where Claude CLI may not be available
         }
