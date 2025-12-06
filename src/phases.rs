@@ -73,12 +73,25 @@ impl Phase for RequirementsPhase {
     }
 
     fn prompt(&self, ctx: &PhaseContext) -> String {
-        // Generate the requirements phase prompt
-        // This will be enhanced with actual problem statement from context
+        // Generate the requirements phase prompt with problem statement from config
+        let problem_statement = ctx
+            .config
+            .get("problem_statement")
+            .map(String::as_str)
+            .unwrap_or("No explicit problem statement was provided. Please analyze the context packet for requirements.");
+
         format!(
             r"You are a requirements analyst helping to transform a rough feature idea into structured requirements.
 
-Your task is to create a comprehensive requirements document that follows this format:
+Spec ID: {}
+
+# Problem Statement
+
+{}
+
+# Your Task
+
+Create a comprehensive requirements document that follows this format:
 
 # Requirements Document
 
@@ -122,16 +135,9 @@ Guidelines:
 - Be specific and testable - avoid vague language
 - Focus on WHAT the system should do, not HOW it should do it
 
-Spec ID: {}
-Available context: {}
-
-Please analyze the problem statement and create structured requirements following the format above.{}",
+Please analyze the problem statement above and create structured requirements following the format.{}",
             ctx.spec_id,
-            if ctx.artifacts.is_empty() {
-                "Initial problem statement from user input"
-            } else {
-                "Previous artifacts and context"
-            },
+            problem_statement.trim(),
             ANTI_SUMMARY_INSTRUCTIONS,
         )
     }

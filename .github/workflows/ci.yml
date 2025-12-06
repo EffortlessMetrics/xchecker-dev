@@ -23,10 +23,8 @@ jobs:
         run: cargo fmt -- --check
 
       - name: Run clippy
-        # TODO: Flip to `cargo clippy -D warnings` after M3 (contracts complete)
-        # Currently running without -D warnings to avoid churn during wiring.
-        # Module-scoped #[allow] must include TODO(M#) comments until wired.
-        run: cargo clippy --all-targets --all-features
+        # Enforcing -D warnings as of v1.0 release
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
   test-serial:
     name: Test (Serial - Required)

@@ -278,7 +278,12 @@ fn translate_path_heuristic(windows_path: &str) -> String {
 
     // Handle drive letters: C:\path → /mnt/c/path
     if path.len() >= 2 && path.chars().nth(1) == Some(':') {
-        let drive_letter = path.chars().next().unwrap().to_ascii_lowercase();
+        // Safety: We've verified path.len() >= 2, so .next() always succeeds
+        let drive_letter = path
+            .chars()
+            .next()
+            .expect("path length already verified >= 2")
+            .to_ascii_lowercase();
         let rest = if path.len() > 2 { &path[2..] } else { "" };
 
         // Remove leading backslash or forward slash from rest

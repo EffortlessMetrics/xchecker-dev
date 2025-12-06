@@ -59,6 +59,13 @@ pub enum FixupError {
 
     #[error("Hardlink not allowed (use --allow-links to permit): {0}")]
     HardlinkNotAllowed(PathBuf),
+
+    #[error("Could not find matching context for hunk at line {expected_line} in {file} (searched ±{search_window} lines)")]
+    FuzzyMatchFailed {
+        file: String,
+        expected_line: usize,
+        search_window: usize,
+    },
 }
 
 impl UserFriendlyError for FixupError {
@@ -122,6 +129,16 @@ impl UserFriendlyError for FixupError {
                     path.display()
                 )
             }
+            Self::FuzzyMatchFailed {
+                file,
+                expected_line,
+                search_window,
+            } => {
+                format!(
+                    "Could not find matching context for diff hunk at line {} in '{}' (searched ±{} lines)",
+                    expected_line, file, search_window
+                )
+            }
         }
     }
 
@@ -153,6 +170,9 @@ impl UserFriendlyError for FixupError {
             }
             Self::SymlinkNotAllowed(_) | Self::HardlinkNotAllowed(_) => {
                 Some("Symlinks and hardlinks are blocked by default for security. Use --allow-links to permit them.".to_string())
+            }
+            Self::FuzzyMatchFailed { .. } => {
+                Some("The diff hunk's context lines couldn't be matched to the file, which may indicate the file has changed since the diff was generated.".to_string())
             }
         }
     }
@@ -251,6 +271,12 @@ impl UserFriendlyError for FixupError {
                 "Consider modifying one of the linked files directly".to_string(),
                 "Hardlinks are blocked by default for security".to_string(),
             ],
+            Self::FuzzyMatchFailed { file, .. } => vec![
+                format!("The file '{}' may have changed since the review phase", file),
+                "Run the review phase again to generate fresh diffs".to_string(),
+                "Check if the file has been modified by another process".to_string(),
+                "Use 'xchecker resume <id> --phase review' to regenerate fixups".to_string(),
+            ],
         }
     }
 
@@ -271,6 +297,7 @@ impl UserFriendlyError for FixupError {
             Self::GitApplyValidationFailed { .. } | Self::GitApplyExecutionFailed { .. } => {
                 ErrorCategory::PhaseExecution
             }
+            Self::FuzzyMatchFailed { .. } => ErrorCategory::PhaseExecution,
         }
     }
 }
@@ -800,14 +827,19 @@ impl FixupParser {
         })
     }
 
-    /// Apply a diff to content string (simple line-based patching)
+    /// Apply a diff to content string with fuzzy matching support
     ///
-    /// Line endings are normalized to LF before applying the diff (FR-FIX-010)
+    /// Line endings are normalized to LF before applying the diff (FR-FIX-010).
+    /// If the hunk's expected line position doesn't match, we search within a
+    /// window (±FUZZY_SEARCH_WINDOW lines) to find the best matching context.
     fn apply_diff_to_content(
         &self,
         content: &str,
         diff: &UnifiedDiff,
     ) -> Result<String, FixupError> {
+        const FUZZY_SEARCH_WINDOW: usize = 50;
+        const MIN_CONTEXT_MATCH_RATIO: f64 = 0.7;
+
         // Normalize line endings before applying diff (FR-FIX-010, FR-FS-005)
         let normalized_content = normalize_line_endings_for_diff(content);
         let mut lines: Vec<String> = normalized_content
@@ -815,14 +847,68 @@ impl FixupParser {
             .map(std::string::ToString::to_string)
             .collect();
 
+        // Track cumulative offset from previous hunks' additions/deletions
+        let mut cumulative_offset: i64 = 0;
+
         // Apply each hunk in order
         for hunk in &diff.hunks {
             let (old_start, _old_count) = hunk.old_range;
             let hunk_lines: Vec<&str> = hunk.content.lines().collect();
 
-            // Skip the hunk header line
+            // Extract context lines from hunk (lines starting with ' ' or no prefix)
+            let context_lines: Vec<&str> = hunk_lines
+                .iter()
+                .skip(1) // Skip @@ header
+                .filter(|line| {
+                    line.starts_with(' ')
+                        || (!line.starts_with('+')
+                            && !line.starts_with('-')
+                            && !line.starts_with("@@"))
+                })
+                .map(|line| line.strip_prefix(' ').unwrap_or(line))
+                .collect();
+
+            // Calculate expected position with cumulative offset
+            let expected_pos = ((old_start as i64 - 1) + cumulative_offset).max(0) as usize;
+
+            // Try exact match first, then fuzzy match if needed
+            let actual_start = if self.context_matches_at(&lines, expected_pos, &context_lines) {
+                expected_pos
+            } else {
+                // Fuzzy search within window
+                match self.find_best_context_match(
+                    &lines,
+                    expected_pos,
+                    &context_lines,
+                    FUZZY_SEARCH_WINDOW,
+                    MIN_CONTEXT_MATCH_RATIO,
+                ) {
+                    Some((pos, _confidence)) => {
+                        tracing::warn!(
+                            "Fuzzy match: hunk at line {} shifted to line {} in '{}'",
+                            old_start,
+                            pos + 1,
+                            diff.target_file
+                        );
+                        pos
+                    }
+                    None => {
+                        return Err(FixupError::FuzzyMatchFailed {
+                            file: diff.target_file.clone(),
+                            expected_line: old_start,
+                            search_window: FUZZY_SEARCH_WINDOW,
+                        });
+                    }
+                }
+            };
+
+            // Track additions and deletions for offset calculation
+            let mut additions = 0i64;
+            let mut deletions = 0i64;
+
+            // Apply hunk at actual_start position
             let mut hunk_idx = 1; // Start after @@ line
-            let mut file_idx = old_start - 1; // Convert to 0-based index
+            let mut file_idx = actual_start;
 
             while hunk_idx < hunk_lines.len() {
                 let line = hunk_lines[hunk_idx];
@@ -830,12 +916,18 @@ impl FixupParser {
                 if line.starts_with('+') && !line.starts_with("+++") {
                     // Add line
                     let new_line = line[1..].to_string();
-                    lines.insert(file_idx, new_line);
+                    if file_idx <= lines.len() {
+                        lines.insert(file_idx, new_line);
+                    } else {
+                        lines.push(new_line);
+                    }
                     file_idx += 1;
+                    additions += 1;
                 } else if line.starts_with('-') && !line.starts_with("---") {
                     // Remove line
                     if file_idx < lines.len() {
                         lines.remove(file_idx);
+                        deletions += 1;
                     }
                 } else if line.starts_with(' ') {
                     // Context line - just advance
@@ -847,9 +939,104 @@ impl FixupParser {
 
                 hunk_idx += 1;
             }
+
+            // Update cumulative offset for subsequent hunks
+            cumulative_offset += additions - deletions;
         }
 
         Ok(lines.join("\n") + "\n")
+    }
+
+    /// Check if context lines match at a specific position
+    fn context_matches_at(&self, lines: &[String], pos: usize, context: &[&str]) -> bool {
+        if context.is_empty() {
+            return true; // No context to match
+        }
+
+        // Check if we have enough lines
+        if pos >= lines.len() {
+            return false;
+        }
+
+        // Try to match context lines starting at pos
+        let mut matches = 0;
+        for (i, ctx_line) in context.iter().enumerate() {
+            let file_pos = pos + i;
+            if file_pos >= lines.len() {
+                break;
+            }
+            if self.lines_match(&lines[file_pos], ctx_line) {
+                matches += 1;
+            }
+        }
+
+        // Require all context lines to match for exact match
+        matches == context.len()
+    }
+
+    /// Find the best matching position for context within a search window
+    fn find_best_context_match(
+        &self,
+        lines: &[String],
+        expected_pos: usize,
+        context: &[&str],
+        window: usize,
+        min_ratio: f64,
+    ) -> Option<(usize, f64)> {
+        if context.is_empty() {
+            return Some((expected_pos, 1.0));
+        }
+
+        let start = expected_pos.saturating_sub(window);
+        let end = (expected_pos + window).min(lines.len());
+
+        let mut best_match: Option<(usize, f64)> = None;
+
+        for candidate in start..end {
+            let score = self.context_match_score(lines, candidate, context);
+            if score >= min_ratio
+                && best_match.is_none_or(|(_, best_score)| score > best_score)
+            {
+                best_match = Some((candidate, score));
+            }
+        }
+
+        best_match
+    }
+
+    /// Calculate match score for context at a position (0.0 to 1.0)
+    fn context_match_score(&self, lines: &[String], pos: usize, context: &[&str]) -> f64 {
+        if context.is_empty() {
+            return 1.0;
+        }
+
+        let mut matches = 0;
+        for (i, ctx_line) in context.iter().enumerate() {
+            let file_pos = pos + i;
+            if file_pos >= lines.len() {
+                break;
+            }
+            if self.lines_match(&lines[file_pos], ctx_line) {
+                matches += 1;
+            }
+        }
+
+        (matches as f64) / (context.len() as f64)
+    }
+
+    /// Compare two lines with whitespace normalization
+    fn lines_match(&self, file_line: &str, context_line: &str) -> bool {
+        // Exact match
+        if file_line == context_line {
+            return true;
+        }
+
+        // Whitespace-normalized match (collapse multiple spaces, trim)
+        let normalize = |s: &str| -> String {
+            s.split_whitespace().collect::<Vec<_>>().join(" ")
+        };
+
+        normalize(file_line) == normalize(context_line)
     }
 
     /// Compute BLAKE3 hash of content

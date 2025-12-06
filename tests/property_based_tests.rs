@@ -1598,8 +1598,9 @@ mod json_size_limits_property {
                 "Status JSON should not contain prompt field"
             );
 
-            // Verify only expected top-level fields are present (v2 adds artifacts, effective_config, lock_drift)
-            let expected_fields = ["schema_version", "spec_id", "phase_statuses", "pending_fixups", "has_errors", "artifacts", "effective_config", "lock_drift"];
+            // Verify only expected top-level fields are present
+            // v2 adds artifacts, effective_config, lock_drift, strict_validation
+            let expected_fields = ["schema_version", "spec_id", "phase_statuses", "pending_fixups", "has_errors", "artifacts", "effective_config", "lock_drift", "strict_validation"];
             for (key, _) in parsed.as_object().unwrap() {
                 prop_assert!(
                     expected_fields.contains(&key.as_str()),

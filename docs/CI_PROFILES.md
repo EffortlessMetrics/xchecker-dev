@@ -684,6 +684,149 @@ cargo test --tests --include-ignored -- --skip requires_real_claude
 
 ---
 
+## Gate Workflow Patterns
+
+xchecker provides a `gate` command for enforcing spec completion policies in CI. There are two patterns for integrating the gate into your workflow:
+
+### Smoke Gate Pattern (Default)
+
+The **Smoke Gate** pattern validates that the gate command and JSON output work correctly, but does NOT fail the CI job when the spec doesn't meet requirements. This is useful for:
+
+- Initial integration testing
+- Demonstrating gate functionality
+- Non-blocking informational checks
+
+**Behavior**: Always exits 0 if the gate command runs successfully, regardless of `passed` status.
+
+```yaml
+- name: Run gate check (smoke)
+  run: |
+    set +e
+    ./target/release/xchecker gate my-spec --min-phase tasks --json > gate-result.json
+    GATE_STATUS=$?
+
+    # Validate JSON structure
+    PASSED=$(cat gate-result.json | jq -r '.passed')
+
+    if [ "$PASSED" = "true" ]; then
+      echo "Gate PASSED"
+    else
+      echo "Gate returned passed=false (informational)"
+      echo "Failure reasons:"
+      cat gate-result.json | jq -r '.failure_reasons[]'
+    fi
+
+    # Always exit 0 for smoke test
+    exit 0
+```
+
+### Strict Gate Pattern (Production)
+
+The **Strict Gate** pattern enforces spec policies as blocking CI checks. When the gate returns `passed=false`, the CI job fails and blocks the merge. This is the recommended pattern for production use.
+
+**Behavior**: Exits non-zero when `passed=false`, blocking the PR/merge.
+
+```yaml
+- name: Run gate check (strict)
+  run: |
+    # Run gate and capture exit code
+    ./target/release/xchecker gate my-spec \
+      --min-phase tasks \
+      --fail-on-pending-fixups \
+      --json > gate-result.json
+
+    GATE_STATUS=$?
+
+    # Display result
+    cat gate-result.json | jq .
+
+    # Check if gate passed
+    PASSED=$(cat gate-result.json | jq -r '.passed')
+
+    if [ "$PASSED" = "true" ]; then
+      echo "✓ Gate PASSED - spec meets all policy requirements"
+      exit 0
+    else
+      echo "✗ Gate FAILED - spec does not meet policy requirements"
+      echo ""
+      echo "Failure reasons:"
+      cat gate-result.json | jq -r '.failure_reasons[]'
+      echo ""
+      echo "To resolve:"
+      echo "  1. Run 'xchecker status my-spec' to see current progress"
+      echo "  2. Complete required phases: 'xchecker spec my-spec --phase <phase>'"
+      echo "  3. Address any pending fixups"
+      exit 1
+    fi
+```
+
+### Converting Smoke to Strict
+
+To convert from the smoke pattern to strict enforcement:
+
+1. Remove the `set +e` that suppresses errors
+2. Remove the `exit 0` at the end
+3. Add explicit `exit 1` when `passed=false`
+4. Configure the job as a required status check in GitHub settings
+
+**GitHub Repository Settings**:
+1. Go to Settings → Branches
+2. Add/edit branch protection rule for `main`
+3. Enable "Require status checks to pass before merging"
+4. Add "Gate Check" as a required status check
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Gate passed - all policy conditions met |
+| 1 | Gate failed - one or more policy violations |
+| 2+ | Runtime error (config, I/O, etc.) |
+
+### Policy Parameters
+
+```bash
+xchecker gate <spec-id> [OPTIONS]
+
+Options:
+  --min-phase <phase>         Require at least this phase completed
+                              Values: requirements, design, tasks, review, fixup, final
+
+  --fail-on-pending-fixups    Fail if any pending fixups exist
+
+  --max-phase-age <duration>  Fail if latest success is older than threshold
+                              Format: 7d (days), 24h (hours), 30m (minutes)
+
+  --json                      Output structured JSON for CI parsing
+```
+
+### Example: Tiered Gate Policies
+
+Different policies for different environments:
+
+```yaml
+jobs:
+  gate-development:
+    # Lenient policy for feature branches
+    runs-on: ubuntu-latest
+    steps:
+      - run: xchecker gate $SPEC --min-phase requirements --json
+
+  gate-staging:
+    # Moderate policy for staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: xchecker gate $SPEC --min-phase design --max-phase-age 7d --json
+
+  gate-production:
+    # Strict policy for production
+    runs-on: ubuntu-latest
+    steps:
+      - run: xchecker gate $SPEC --min-phase tasks --fail-on-pending-fixups --max-phase-age 24h --json
+```
+
+---
+
 ## See Also
 
 - [TEST_MATRIX.md](TEST_MATRIX.md) - Detailed test inventory and statistics
@@ -691,6 +834,7 @@ cargo test --tests --include-ignored -- --skip requires_real_claude
 - [CONFIGURATION.md](CONFIGURATION.md) - Runtime configuration options
 - [INDEX.md](INDEX.md) - Documentation index
 - `.github/workflows/ci.yml` - Current CI configuration
+- `.github/workflows/xchecker-gate.yml` - Gate workflow example
 
 ---
 

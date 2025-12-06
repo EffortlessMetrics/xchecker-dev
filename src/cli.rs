@@ -912,7 +912,7 @@ async fn execute_spec_command(
 
     // Resolve source input (R6.4)
     logger.start_timing("source_resolution");
-    let _source_content = match source_type {
+    let source_content = match source_type {
         "gh" => {
             let gh_repo = gh_repo.ok_or_else(|| {
                 XCheckerError::Config(ConfigError::MissingRequired("--gh owner/repo".to_string()))
@@ -1006,7 +1006,31 @@ async fn execute_spec_command(
     };
     logger.end_timing("source_resolution");
 
+    // Extract problem statement from resolved source
+    let problem_statement = source_content.content.clone();
     logger.verbose(&format!("Source resolved successfully from: {source_type}"));
+
+    // Persist problem statement to spec directory (FR-PKT: problem statement in packet)
+    // This ensures the problem statement is available for packet building
+    let spec_root = crate::paths::spec_root(spec_id);
+    let source_dir = spec_root.join("source");
+    crate::paths::ensure_dir_all(&source_dir)
+        .with_context(|| format!("Failed to create source directory: {}", source_dir))?;
+
+    let problem_path = source_dir.join("00-problem-statement.md");
+    std::fs::write(
+        &problem_path,
+        format!(
+            "# Problem Statement\n\n{}\n",
+            problem_statement.trim()
+        ),
+    )
+    .with_context(|| format!("Failed to write problem statement: {}", problem_path))?;
+
+    logger.verbose(&format!(
+        "Problem statement written to: {}",
+        problem_path
+    ));
 
     // Check for lockfile drift (R10.2, R10.4)
     let model_full_name = config.defaults.model.as_deref().unwrap_or("haiku");
@@ -1014,9 +1038,15 @@ async fn execute_spec_command(
     let _lock_drift =
         check_lockfile_drift(spec_id, strict_lock, model_full_name, &claude_cli_version)?;
 
-    // Configure execution using shared helper
-    let orchestrator_config =
-        build_orchestrator_config(dry_run, verbose, apply_fixups, config, cli_args);
+    // Configure execution using shared helper, passing problem statement for prompt construction
+    let orchestrator_config = build_orchestrator_config(
+        dry_run,
+        verbose,
+        apply_fixups,
+        config,
+        cli_args,
+        Some(&problem_statement),
+    );
 
     // Create orchestrator handle (this will acquire the file lock)
     logger.start_timing("orchestrator_setup");
@@ -2033,8 +2063,9 @@ async fn execute_resume_command(
         check_lockfile_drift(spec_id, strict_lock, model_full_name, &claude_cli_version)?;
 
     // Configure execution using shared helper
+    // Note: Problem statement is not passed for resume - it's already persisted in spec dir
     let orchestrator_config =
-        build_orchestrator_config(dry_run, verbose, apply_fixups, config, cli_args);
+        build_orchestrator_config(dry_run, verbose, apply_fixups, config, cli_args, None);
 
     // Create orchestrator handle (this will acquire the file lock)
     logger.start_timing("orchestrator_setup");
@@ -2243,7 +2274,10 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
     if !hard {
         println!("\nThis will permanently delete all artifacts and receipts for spec '{spec_id}'.");
         print!("Are you sure? (y/N): ");
-        std::io::stdout().flush().unwrap();
+        // Flush stdout, logging a warning if it fails (non-fatal)
+        if let Err(e) = std::io::stdout().flush() {
+            tracing::warn!("Failed to flush stdout: {}", e);
+        }
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
@@ -2391,16 +2425,23 @@ fn create_default_config(
 /// * `apply_fixups` - Whether to apply fixups (true) or preview (false)
 /// * `config` - The loaded xchecker configuration
 /// * `cli_args` - CLI arguments passed by the user
+/// * `problem_statement` - Optional problem statement to include in phase prompts
 fn build_orchestrator_config(
     dry_run: bool,
     verbose: bool,
     apply_fixups: bool,
     config: &Config,
     cli_args: &CliArgs,
+    problem_statement: Option<&str>,
 ) -> OrchestratorConfig {
     let mut config_map = create_default_config(verbose, config, cli_args);
     config_map.insert("logger_enabled".to_string(), verbose.to_string());
     config_map.insert("apply_fixups".to_string(), apply_fixups.to_string());
+
+    // Include problem statement in config for prompt construction (FR-PKT)
+    if let Some(ps) = problem_statement {
+        config_map.insert("problem_statement".to_string(), ps.to_string());
+    }
 
     OrchestratorConfig {
         dry_run,

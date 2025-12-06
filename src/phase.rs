@@ -28,9 +28,9 @@ pub struct PhaseContext {
     /// Base directory for the spec artifacts
     pub spec_dir: std::path::PathBuf,
     /// Configuration and runtime parameters
-    #[allow(dead_code)] // Configuration used by phase implementations
     pub config: HashMap<String, String>,
     /// Available artifacts from previous phases
+    #[allow(dead_code)] // Reserved for cross-phase artifact references
     pub artifacts: Vec<String>,
     /// Content selectors for packet building (from config)
     ///
