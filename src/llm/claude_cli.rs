@@ -130,9 +130,9 @@ impl LlmBackend for ClaudeCliBackend {
         // Build Claude CLI arguments
         // Claude Code 2.0+ requires -p for non-interactive output
         let mut args = vec![
-            "-p".to_string(),                     // Print mode (non-interactive)
-            "--output-format".to_string(),        // Output format
-            "json".to_string(),                   // JSON format for structured output
+            "-p".to_string(),              // Print mode (non-interactive)
+            "--output-format".to_string(), // Output format
+            "json".to_string(),            // JSON format for structured output
         ];
 
         // Add model if specified in metadata
@@ -148,17 +148,19 @@ impl LlmBackend for ClaudeCliBackend {
 
         // Add max_tokens if specified
         if let Some(max_tokens_value) = inv.metadata.get("max_tokens")
-            && let Some(max_tokens) = max_tokens_value.as_u64() {
-                args.push("--max-tokens".to_string());
-                args.push(max_tokens.to_string());
-            }
+            && let Some(max_tokens) = max_tokens_value.as_u64()
+        {
+            args.push("--max-tokens".to_string());
+            args.push(max_tokens.to_string());
+        }
 
         // Add temperature if specified
         if let Some(temp_value) = inv.metadata.get("temperature")
-            && let Some(temp) = temp_value.as_f64() {
-                args.push("--temperature".to_string());
-                args.push(temp.to_string());
-            }
+            && let Some(temp) = temp_value.as_f64()
+        {
+            args.push("--temperature".to_string());
+            args.push(temp.to_string());
+        }
 
         // Execute Claude CLI with timeout
         let response = self

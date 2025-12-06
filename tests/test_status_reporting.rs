@@ -67,16 +67,16 @@ fn create_test_receipt(
         None,
         HashMap::new(),
         packet,
-        None,                   // stderr_tail
-        None,                   // stderr_redacted
-        vec![],                 // warnings
-        Some(false),            // fallback_used
-        runner,                 // runner
-        runner_distro,            // runner_distro
-        None,                   // error_kind
-        None,                   // error_reason
-        None,                   // diff_context,
-        None,                   // pipeline
+        None,          // stderr_tail
+        None,          // stderr_redacted
+        vec![],        // warnings
+        Some(false),   // fallback_used
+        runner,        // runner
+        runner_distro, // runner_distro
+        None,          // error_kind
+        None,          // error_reason
+        None,          // diff_context,
+        None,          // pipeline
     );
 
     receipt_manager.write_receipt(&receipt).unwrap();
@@ -101,10 +101,7 @@ fn test_status_generation_with_effective_config() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
     effective_config.insert(
         "max_turns".to_string(),
@@ -152,10 +149,7 @@ fn test_source_attribution() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
     effective_config.insert(
         "max_turns".to_string(),
@@ -192,10 +186,7 @@ fn test_source_attribution() -> Result<()> {
     );
 
     // Verify values are correct types
-    assert_eq!(
-        model_config.value.as_str().unwrap(),
-        "haiku"
-    );
+    assert_eq!(model_config.value.as_str().unwrap(), "haiku");
     assert_eq!(max_turns_config.value.as_i64().unwrap(), 10);
     assert_eq!(timeout_config.value.as_i64().unwrap(), 600);
 
@@ -216,17 +207,18 @@ fn test_artifact_enumeration_with_blake3() -> Result<()> {
         max_lines: 1200,
     };
 
-    let mut outputs = vec![];
-    outputs.push(FileHash {
-        path: "artifacts/00-requirements.md".to_string(),
-        blake3_canonicalized: "abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            .to_string(),
-    });
-    outputs.push(FileHash {
-        path: "artifacts/00-requirements.core.yaml".to_string(),
-        blake3_canonicalized: "1234abcd567890abcdef1234567890abcdef1234567890abcdef1234567890cd"
-            .to_string(),
-    });
+    let outputs = vec![
+        FileHash {
+            path: "artifacts/00-requirements.md".to_string(),
+            blake3_canonicalized:
+                "abcd1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab".to_string(),
+        },
+        FileHash {
+            path: "artifacts/00-requirements.core.yaml".to_string(),
+            blake3_canonicalized:
+                "1234abcd567890abcdef1234567890abcdef1234567890abcdef1234567890cd".to_string(),
+        },
+    ];
 
     let receipt = receipt_manager.create_receipt(
         "test-status-artifacts",
@@ -266,10 +258,7 @@ fn test_artifact_enumeration_with_blake3() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status
@@ -312,10 +301,7 @@ fn test_fresh_spec_no_receipts() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status - should succeed with sensible defaults
@@ -331,12 +317,30 @@ fn test_fresh_spec_no_receipts() -> Result<()> {
     let status = result.unwrap();
 
     // Verify sensible defaults for fresh spec
-    assert!(status.artifacts.is_empty(), "Fresh spec should have no artifacts");
-    assert!(status.last_receipt_path.is_empty(), "Fresh spec should have empty receipt path");
-    assert_eq!(status.runner, "auto", "Fresh spec should default to auto runner");
-    assert_eq!(status.canonicalization_version, "1.0.0", "Should use default canonicalization version");
-    assert_eq!(status.canonicalization_backend, "jcs-rfc8785", "Should use default canonicalization backend");
-    assert!(!status.fallback_used, "Fresh spec should not have used fallback");
+    assert!(
+        status.artifacts.is_empty(),
+        "Fresh spec should have no artifacts"
+    );
+    assert!(
+        status.last_receipt_path.is_empty(),
+        "Fresh spec should have empty receipt path"
+    );
+    assert_eq!(
+        status.runner, "auto",
+        "Fresh spec should default to auto runner"
+    );
+    assert_eq!(
+        status.canonicalization_version, "1.0.0",
+        "Should use default canonicalization version"
+    );
+    assert_eq!(
+        status.canonicalization_backend, "jcs-rfc8785",
+        "Should use default canonicalization backend"
+    );
+    assert!(
+        !status.fallback_used,
+        "Fresh spec should not have used fallback"
+    );
 
     // Verify effective config is present
     assert!(
@@ -367,10 +371,7 @@ fn test_lock_drift_reporting() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Create lock drift with all three fields
@@ -445,10 +446,7 @@ fn test_status_jcs_emission() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status
@@ -498,10 +496,7 @@ fn test_status_with_wsl_runner() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status
@@ -534,10 +529,7 @@ fn test_status_no_lock_drift() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status without drift
@@ -565,22 +557,23 @@ fn test_status_artifacts_sorted() -> Result<()> {
         max_lines: 1200,
     };
 
-    let mut outputs = vec![];
-    outputs.push(FileHash {
-        path: "artifacts/99-final.md".to_string(),
-        blake3_canonicalized: "zzzz1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            .to_string(),
-    });
-    outputs.push(FileHash {
-        path: "artifacts/00-requirements.md".to_string(),
-        blake3_canonicalized: "aaaa1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            .to_string(),
-    });
-    outputs.push(FileHash {
-        path: "artifacts/50-middle.md".to_string(),
-        blake3_canonicalized: "mmmm1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab"
-            .to_string(),
-    });
+    let outputs = vec![
+        FileHash {
+            path: "artifacts/99-final.md".to_string(),
+            blake3_canonicalized:
+                "zzzz1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab".to_string(),
+        },
+        FileHash {
+            path: "artifacts/00-requirements.md".to_string(),
+            blake3_canonicalized:
+                "aaaa1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab".to_string(),
+        },
+        FileHash {
+            path: "artifacts/50-middle.md".to_string(),
+            blake3_canonicalized:
+                "mmmm1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab".to_string(),
+        },
+    ];
 
     let receipt = receipt_manager.create_receipt(
         "test-status-sorted",
@@ -618,10 +611,7 @@ fn test_status_artifacts_sorted() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status
@@ -687,10 +677,7 @@ fn test_pending_fixup_summary() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Create pending fixups summary
@@ -765,10 +752,7 @@ fn test_pending_fixups_omitted_when_none() -> Result<()> {
     let mut effective_config = BTreeMap::new();
     effective_config.insert(
         "model".to_string(),
-        (
-            "haiku".to_string(),
-            "defaults".to_string(),
-        ),
+        ("haiku".to_string(), "defaults".to_string()),
     );
 
     // Generate status without pending fixups

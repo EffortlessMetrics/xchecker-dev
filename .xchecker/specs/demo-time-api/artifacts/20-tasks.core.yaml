@@ -1,0 +1,25 @@
+# Core tasks data for spec demo-time-api
+# This file contains structured data extracted from the tasks document
+
+spec_id: "demo-time-api"
+phase: "tasks"
+version: "1.0"
+
+# Metadata about the tasks
+metadata:
+  total_tasks: 0           # Would be parsed from markdown
+  total_subtasks: 0        # Would be parsed from markdown
+  optional_tasks: 0        # Would be counted from "*" marked tasks
+  has_test_tasks: false    # Would be detected from task content
+
+# Structured tasks data (would be extracted from markdown)
+tasks: []
+
+# Task dependencies and ordering (would be extracted from markdown)
+dependencies: []
+
+# Requirements coverage (would be mapped from task requirements references)
+requirements_coverage: []
+
+# Generated timestamp
+generated_at: "2025-12-05T23:32:22.145261+00:00"

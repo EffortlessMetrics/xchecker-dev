@@ -261,9 +261,10 @@ impl LlmBackend for AnthropicBackend {
         let mut content_parts = Vec::new();
         for content_block in &response_body.content {
             if content_block.content_type == "text"
-                && let Some(text) = &content_block.text {
-                    content_parts.push(text.clone());
-                }
+                && let Some(text) = &content_block.text
+            {
+                content_parts.push(text.clone());
+            }
         }
 
         // Concatenate all text segments

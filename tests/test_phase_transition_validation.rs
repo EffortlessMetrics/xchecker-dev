@@ -252,7 +252,7 @@ async fn test_failed_dependency_prevents_transition() -> Result<()> {
         xchecker::receipt::ReceiptManager::new(orchestrator.artifact_manager().base_path());
 
     let failed_receipt = receipt_manager.create_receipt(
-        &format!("test-transition-failed-dep"),
+        "test-transition-failed-dep",
         PhaseId::Requirements,
         1, // Non-zero exit code indicates failure
         vec![],

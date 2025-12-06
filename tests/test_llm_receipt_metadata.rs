@@ -163,10 +163,7 @@ fn test_llm_metadata_in_receipt() {
     assert!(receipt.llm.is_some());
     let llm_info = receipt.llm.as_ref().unwrap();
     assert_eq!(llm_info.provider, Some("claude-cli".to_string()));
-    assert_eq!(
-        llm_info.model_used,
-        Some("haiku".to_string())
-    );
+    assert_eq!(llm_info.model_used, Some("haiku".to_string()));
     assert_eq!(llm_info.tokens_input, Some(1024));
     assert_eq!(llm_info.tokens_output, Some(512));
     assert_eq!(llm_info.timed_out, Some(false));
@@ -249,6 +246,8 @@ async fn test_dry_run_receipt_has_llm_metadata() {
     let config = xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     let spec_id = format!("test-dry-run-metadata-{}", std::process::id());
@@ -332,6 +331,8 @@ async fn test_dry_run_receipt_has_full_llm_metadata() {
     let config = xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     };
 
     let spec_id = format!("test-dry-run-full-metadata-{}", std::process::id());
@@ -448,8 +449,8 @@ fn test_successful_invocation_records_provider_and_model() {
 #[test]
 fn test_token_counts_recorded_when_available() {
     // Create an LlmResult with token counts
-    let llm_result = xchecker::llm::LlmResult::new("Response", "anthropic", "sonnet")
-        .with_tokens(1500, 750);
+    let llm_result =
+        xchecker::llm::LlmResult::new("Response", "anthropic", "sonnet").with_tokens(1500, 750);
 
     // Convert to LlmInfo for receipt
     let llm_info = llm_result.into_llm_info();
@@ -472,8 +473,7 @@ fn test_token_counts_recorded_when_available() {
 #[test]
 fn test_token_counts_none_when_not_provided() {
     // Create an LlmResult without token counts
-    let llm_result =
-        xchecker::llm::LlmResult::new("Response", "claude-cli", "haiku");
+    let llm_result = xchecker::llm::LlmResult::new("Response", "claude-cli", "haiku");
 
     // Convert to LlmInfo for receipt
     let llm_info = llm_result.into_llm_info();
@@ -578,14 +578,10 @@ fn test_complete_provider_metadata_in_receipt() {
     );
 
     // Create LlmResult with all metadata
-    let llm_result = xchecker::llm::LlmResult::new(
-        "Complete response",
-        "anthropic",
-        "haiku",
-    )
-    .with_tokens(2048, 1024)
-    .with_timeout(false)
-    .with_timeout_seconds(600);
+    let llm_result = xchecker::llm::LlmResult::new("Complete response", "anthropic", "haiku")
+        .with_tokens(2048, 1024)
+        .with_timeout(false)
+        .with_timeout_seconds(600);
 
     // Attach LLM info to receipt
     receipt.llm = Some(llm_result.into_llm_info());
@@ -593,10 +589,7 @@ fn test_complete_provider_metadata_in_receipt() {
     // Verify all fields are present
     let llm_info = receipt.llm.as_ref().unwrap();
     assert_eq!(llm_info.provider, Some("anthropic".to_string()));
-    assert_eq!(
-        llm_info.model_used,
-        Some("haiku".to_string())
-    );
+    assert_eq!(llm_info.model_used, Some("haiku".to_string()));
     assert_eq!(llm_info.tokens_input, Some(2048));
     assert_eq!(llm_info.tokens_output, Some(1024));
     assert_eq!(llm_info.timed_out, Some(false));

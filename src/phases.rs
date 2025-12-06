@@ -8,6 +8,7 @@ use camino::Utf8PathBuf;
 use std::collections::HashMap;
 
 use crate::artifact::{Artifact, ArtifactType};
+use crate::extraction::{summarize_design, summarize_requirements, summarize_tasks};
 use crate::fixup::{FixupMode, FixupParser};
 use crate::packet::PacketBuilder;
 use crate::phase::{
@@ -15,6 +16,31 @@ use crate::phase::{
 };
 use crate::types::PacketEvidence;
 use crate::types::PhaseId;
+use crate::validation::OutputValidator;
+
+/// Common anti-summary instructions appended to all generative phase prompts.
+/// This prevents the LLM from outputting meta-commentary instead of actual content.
+const ANTI_SUMMARY_INSTRUCTIONS: &str = "
+
+CRITICAL OUTPUT RULES - YOU MUST FOLLOW THESE:
+1. Output the ACTUAL document content directly - no meta-commentary
+2. Do NOT start with phrases like 'I will create...', 'Here is...', 'I have created...', 'Perfect!', 'Great!', etc.
+3. Start IMMEDIATELY with the document header (e.g., '# Requirements Document')
+4. Do NOT summarize or describe what the document contains - BE the document
+5. Do NOT include phrases like 'based on the context' or 'as requested'
+6. Your entire response should be the document itself, nothing else
+
+WRONG (will be rejected):
+  'I have created a comprehensive requirements document with 5 user stories...'
+  'Here is the design document you requested...'
+  'Perfect! Based on the requirements, I will create...'
+
+CORRECT (start immediately with content):
+  # Requirements Document
+
+  ## Introduction
+
+  This system provides...";
 
 /// Implementation of the Requirements phase
 ///
@@ -99,13 +125,14 @@ Guidelines:
 Spec ID: {}
 Available context: {}
 
-Please analyze the problem statement and create structured requirements following the format above.",
+Please analyze the problem statement and create structured requirements following the format above.{}",
             ctx.spec_id,
             if ctx.artifacts.is_empty() {
                 "Initial problem statement from user input"
             } else {
                 "Previous artifacts and context"
-            }
+            },
+            ANTI_SUMMARY_INSTRUCTIONS,
         )
     }
 
@@ -120,8 +147,8 @@ Please analyze the problem statement and create structured requirements followin
         // Create context directory path
         let context_dir = base_path.join("context");
 
-        // Create PacketBuilder with default limits
-        let mut builder = PacketBuilder::new()?;
+        // Create PacketBuilder with selectors from context (if configured)
+        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
 
         // Build packet from base path
         // PacketBuilder will:
@@ -137,11 +164,26 @@ Please analyze the problem statement and create structured requirements followin
 
     fn postprocess(&self, raw: &str, ctx: &PhaseContext) -> Result<PhaseResult> {
         // Process Claude's response into requirements artifacts
-
-        // For now, assume the raw response is the requirements document
-        // In a real implementation, this would parse and validate the response
-
         let requirements_content = raw.trim().to_string();
+
+        // Validate the response content
+        if let Err(errors) = OutputValidator::validate(&requirements_content, PhaseId::Requirements)
+        {
+            // Always log validation issues
+            for err in &errors {
+                eprintln!("[WARN] Validation issue in requirements output: {}", err);
+            }
+
+            // In strict mode, fail the phase
+            if ctx.strict_validation {
+                return Err(crate::error::XCheckerError::ValidationFailed {
+                    phase: "requirements".to_string(),
+                    issue_count: errors.len(),
+                    issues: errors,
+                }
+                .into());
+            }
+        }
 
         // Create the main requirements.md artifact
         let requirements_artifact = Artifact {
@@ -182,11 +224,11 @@ impl RequirementsPhase {
     /// Generate a core YAML file with structured requirements data
     ///
     /// This creates a machine-readable representation of the requirements
-    /// that can be used by subsequent phases.
-    fn generate_core_yaml(&self, _requirements_md: &str, ctx: &PhaseContext) -> Result<String> {
-        // For now, create a basic YAML structure
-        // In a real implementation, this would parse the markdown and extract
-        // structured data about requirements, user stories, and acceptance criteria
+    /// that can be used by subsequent phases. Uses B3.0 minimal extraction
+    /// to populate metadata counts from the markdown content.
+    fn generate_core_yaml(&self, requirements_md: &str, ctx: &PhaseContext) -> Result<String> {
+        // B3.0: Extract summary metadata from the markdown
+        let summary = summarize_requirements(requirements_md);
 
         let yaml_content = format!(
             r#"# Core requirements data for spec {}
@@ -196,17 +238,18 @@ spec_id: "{}"
 phase: "requirements"
 version: "1.0"
 
-# Metadata about the requirements
+# Metadata about the requirements (B3.0 extraction)
 metadata:
-  total_requirements: 0  # Would be parsed from markdown
-  total_user_stories: 0  # Would be parsed from markdown
-  total_acceptance_criteria: 0  # Would be parsed from markdown
-  has_nfrs: false  # Would be detected from markdown
+  total_requirements: {}
+  total_user_stories: {}
+  total_acceptance_criteria: {}
+  total_nfrs: {}
+  has_nfrs: {}
 
-# Structured requirements data (would be extracted from markdown)
+# Structured requirements data (B3.1 - future)
 requirements: []
 
-# Non-functional requirements (would be extracted from markdown)  
+# Non-functional requirements (B3.1 - future)
 nfrs: []
 
 # Dependencies and relationships
@@ -217,6 +260,11 @@ generated_at: "{}"
 "#,
             ctx.spec_id,
             ctx.spec_id,
+            summary.requirement_count,
+            summary.user_story_count,
+            summary.acceptance_criteria_count,
+            summary.nfr_count,
+            summary.nfr_count > 0,
             chrono::Utc::now().to_rfc3339()
         );
 
@@ -303,8 +351,8 @@ Guidelines:
 Spec ID: {}
 Phase: Design
 
-Please analyze the requirements and create a comprehensive design document following the format above.",
-            ctx.spec_id
+Please analyze the requirements and create a comprehensive design document following the format above.{}",
+            ctx.spec_id, ANTI_SUMMARY_INSTRUCTIONS,
         )
     }
 
@@ -319,8 +367,8 @@ Please analyze the requirements and create a comprehensive design document follo
         // Create context directory path
         let context_dir = base_path.join("context");
 
-        // Create PacketBuilder with default limits
-        let mut builder = PacketBuilder::new()?;
+        // Create PacketBuilder with selectors from context (if configured)
+        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
 
         // Build packet from base path
         // PacketBuilder will:
@@ -337,8 +385,25 @@ Please analyze the requirements and create a comprehensive design document follo
 
     fn postprocess(&self, raw: &str, ctx: &PhaseContext) -> Result<PhaseResult> {
         // Process Claude's response into design artifacts
-
         let design_content = raw.trim().to_string();
+
+        // Validate the response content
+        if let Err(errors) = OutputValidator::validate(&design_content, PhaseId::Design) {
+            // Always log validation issues
+            for err in &errors {
+                eprintln!("[WARN] Validation issue in design output: {}", err);
+            }
+
+            // In strict mode, fail the phase
+            if ctx.strict_validation {
+                return Err(crate::error::XCheckerError::ValidationFailed {
+                    phase: "design".to_string(),
+                    issue_count: errors.len(),
+                    issues: errors,
+                }
+                .into());
+            }
+        }
 
         // Create the main design.md artifact
         let design_artifact = Artifact {
@@ -374,7 +439,12 @@ Please analyze the requirements and create a comprehensive design document follo
 
 impl DesignPhase {
     /// Generate a core YAML file with structured design data
-    fn generate_core_yaml(&self, _design_md: &str, ctx: &PhaseContext) -> Result<String> {
+    ///
+    /// Uses B3.0 minimal extraction to populate metadata from the markdown content.
+    fn generate_core_yaml(&self, design_md: &str, ctx: &PhaseContext) -> Result<String> {
+        // B3.0: Extract summary metadata from the markdown
+        let summary = summarize_design(design_md);
+
         let yaml_content = format!(
             r#"# Core design data for spec {}
 # This file contains structured data extracted from the design document
@@ -383,28 +453,27 @@ spec_id: "{}"
 phase: "design"
 version: "1.0"
 
-# Metadata about the design
+# Metadata about the design (B3.0 extraction)
 metadata:
-  has_architecture_section: false  # Would be parsed from markdown
-  has_components_section: false    # Would be parsed from markdown
-  has_data_models_section: false   # Would be parsed from markdown
-  has_error_handling_section: false # Would be parsed from markdown
-  has_testing_strategy_section: false # Would be parsed from markdown
-  has_mermaid_diagrams: false      # Would be detected from markdown
+  has_architecture_section: {}
+  has_mermaid_diagrams: {}
+  total_components: {}
+  total_interfaces: {}
+  total_data_models: {}
 
-# Structured design data (would be extracted from markdown)
+# Structured design data (B3.1 - future)
 architecture:
   components: []
   interfaces: []
   data_flow: []
 
-# Data models (would be extracted from markdown)
+# Data models (B3.1 - future)
 data_models: []
 
-# Error handling strategies (would be extracted from markdown)
+# Error handling strategies (B3.1 - future)
 error_handling: []
 
-# Testing strategies (would be extracted from markdown)
+# Testing strategies (B3.1 - future)
 testing_strategy: []
 
 # Dependencies on requirements
@@ -415,6 +484,11 @@ generated_at: "{}"
 "#,
             ctx.spec_id,
             ctx.spec_id,
+            summary.has_architecture,
+            summary.has_diagrams,
+            summary.component_count,
+            summary.interface_count,
+            summary.data_model_count,
             chrono::Utc::now().to_rfc3339()
         );
 
@@ -505,8 +579,8 @@ Guidelines:
 Spec ID: {}
 Phase: Tasks
 
-Please analyze the design and requirements to create a comprehensive implementation plan following the format above."#,
-            ctx.spec_id
+Please analyze the design and requirements to create a comprehensive implementation plan following the format above.{}"#,
+            ctx.spec_id, ANTI_SUMMARY_INSTRUCTIONS,
         )
     }
 
@@ -521,8 +595,8 @@ Please analyze the design and requirements to create a comprehensive implementat
         // Create context directory path
         let context_dir = base_path.join("context");
 
-        // Create PacketBuilder with default limits
-        let mut builder = PacketBuilder::new()?;
+        // Create PacketBuilder with selectors from context (if configured)
+        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
 
         // Build packet from base path
         // PacketBuilder will:
@@ -539,8 +613,25 @@ Please analyze the design and requirements to create a comprehensive implementat
 
     fn postprocess(&self, raw: &str, ctx: &PhaseContext) -> Result<PhaseResult> {
         // Process Claude's response into tasks artifacts
-
         let tasks_content = raw.trim().to_string();
+
+        // Validate the response content
+        if let Err(errors) = OutputValidator::validate(&tasks_content, PhaseId::Tasks) {
+            // Always log validation issues
+            for err in &errors {
+                eprintln!("[WARN] Validation issue in tasks output: {}", err);
+            }
+
+            // In strict mode, fail the phase
+            if ctx.strict_validation {
+                return Err(crate::error::XCheckerError::ValidationFailed {
+                    phase: "tasks".to_string(),
+                    issue_count: errors.len(),
+                    issues: errors,
+                }
+                .into());
+            }
+        }
 
         // Create the main tasks.md artifact
         let tasks_artifact = Artifact {
@@ -576,7 +667,12 @@ Please analyze the design and requirements to create a comprehensive implementat
 
 impl TasksPhase {
     /// Generate a core YAML file with structured tasks data
-    fn generate_core_yaml(&self, _tasks_md: &str, ctx: &PhaseContext) -> Result<String> {
+    ///
+    /// Uses B3.0 minimal extraction to populate metadata from the markdown content.
+    fn generate_core_yaml(&self, tasks_md: &str, ctx: &PhaseContext) -> Result<String> {
+        // B3.0: Extract summary metadata from the markdown
+        let summary = summarize_tasks(tasks_md);
+
         let yaml_content = format!(
             r#"# Core tasks data for spec {}
 # This file contains structured data extracted from the tasks document
@@ -585,20 +681,20 @@ spec_id: "{}"
 phase: "tasks"
 version: "1.0"
 
-# Metadata about the tasks
+# Metadata about the tasks (B3.0 extraction)
 metadata:
-  total_tasks: 0           # Would be parsed from markdown
-  total_subtasks: 0        # Would be parsed from markdown
-  optional_tasks: 0        # Would be counted from "*" marked tasks
-  has_test_tasks: false    # Would be detected from task content
+  total_tasks: {}
+  total_subtasks: {}
+  total_milestones: {}
+  total_dependencies: {}
 
-# Structured tasks data (would be extracted from markdown)
+# Structured tasks data (B3.1 - future)
 tasks: []
 
-# Task dependencies and ordering (would be extracted from markdown)
+# Task dependencies and ordering (B3.1 - future)
 dependencies: []
 
-# Requirements coverage (would be mapped from task requirements references)
+# Requirements coverage (B3.1 - future)
 requirements_coverage: []
 
 # Generated timestamp
@@ -606,6 +702,10 @@ generated_at: "{}"
 "#,
             ctx.spec_id,
             ctx.spec_id,
+            summary.task_count,
+            summary.subtask_count,
+            summary.milestone_count,
+            summary.dependency_count,
             chrono::Utc::now().to_rfc3339()
         );
 
@@ -630,6 +730,8 @@ mod tests {
             spec_dir: PathBuf::from("/tmp/test-spec"),
             config: HashMap::new(),
             artifacts: Vec::new(),
+            selectors: None,
+            strict_validation: false,
         }
     }
 
@@ -770,6 +872,146 @@ This is a test requirements document.
         assert!(prompt.contains("test-123"));
         assert!(prompt.contains("test-driven manner"));
         assert!(prompt.contains("coding steps"));
+    }
+
+    // ===== Strict Validation Phase Behavior Tests (P1 feature) =====
+
+    fn create_strict_context() -> PhaseContext {
+        PhaseContext {
+            spec_id: "test-strict".to_string(),
+            spec_dir: PathBuf::from("/tmp/test-spec"),
+            config: HashMap::new(),
+            artifacts: Vec::new(),
+            selectors: None,
+            strict_validation: true,
+        }
+    }
+
+    #[test]
+    fn test_requirements_postprocess_soft_mode_allows_invalid_output() {
+        let phase = RequirementsPhase::new();
+        let ctx = create_test_context(); // strict_validation: false
+
+        // Invalid output with meta-summary
+        let raw_response = "I've created a requirements document for you.";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // In soft mode (default), should succeed despite validation issues
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_requirements_postprocess_strict_mode_fails_on_meta_summary() {
+        let phase = RequirementsPhase::new();
+        let ctx = create_strict_context(); // strict_validation: true
+
+        // Invalid output with meta-summary
+        let raw_response = "I've created a requirements document for you.";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // In strict mode, should fail due to validation issues
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_design_postprocess_soft_mode_allows_invalid_output() {
+        let phase = DesignPhase::new();
+        let ctx = create_test_context(); // strict_validation: false
+
+        // Invalid output with meta-summary
+        let raw_response = "Here is the design document I generated.";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // In soft mode (default), should succeed despite validation issues
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_design_postprocess_strict_mode_fails_on_meta_summary() {
+        let phase = DesignPhase::new();
+        let ctx = create_strict_context(); // strict_validation: true
+
+        // Invalid output with meta-summary
+        let raw_response = "Here is the design document I generated.";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // In strict mode, should fail due to validation issues
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_tasks_postprocess_soft_mode_allows_invalid_output() {
+        let phase = TasksPhase::new();
+        let ctx = create_test_context(); // strict_validation: false
+
+        // Invalid output with meta-summary
+        let raw_response = "I've generated the implementation tasks.";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // In soft mode (default), should succeed despite validation issues
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_tasks_postprocess_strict_mode_fails_on_meta_summary() {
+        let phase = TasksPhase::new();
+        let ctx = create_strict_context(); // strict_validation: true
+
+        // Invalid output with meta-summary
+        let raw_response = "I've generated the implementation tasks.";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // In strict mode, should fail due to validation issues
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_requirements_postprocess_strict_mode_passes_valid_output() {
+        let phase = RequirementsPhase::new();
+        let ctx = create_strict_context(); // strict_validation: true
+
+        // Valid requirements document (not a meta-summary, meets minimum length)
+        let raw_response = r"# Requirements Document
+
+## Introduction
+
+This requirements document specifies the functional and non-functional requirements for the system.
+The document follows the EARS (Easy Approach to Requirements Syntax) format for clarity and precision.
+
+## Scope
+
+This document covers the core functionality of the spec generation system.
+
+## Requirements
+
+### Requirement 1
+
+**User Story:** As a user, I want feature X, so that I can achieve goal Y.
+
+**Priority:** High
+
+#### Acceptance Criteria
+
+1. WHEN the user performs action A THEN the system SHALL do B
+2. GIVEN condition C WHEN event D THEN outcome E
+3. WHEN the user submits input THEN the system SHALL validate it
+
+### Requirement 2
+
+**User Story:** As an admin, I want to manage users, so that I can control access.
+
+**Priority:** Medium
+
+#### Acceptance Criteria
+
+1. WHEN admin logs in THEN they SHALL see the dashboard
+2. WHEN admin creates a user THEN the system SHALL send a notification
+3. GIVEN a user exists WHEN admin deletes them THEN access SHALL be revoked
+";
+
+        let result = phase.postprocess(raw_response, &ctx);
+        // Valid output should pass in strict mode
+        assert!(result.is_ok());
     }
 }
 // Implementation of the Review phase

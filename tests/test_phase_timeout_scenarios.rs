@@ -33,6 +33,8 @@ fn create_config_with_timeout(timeout_secs: u64, dry_run: bool) -> OrchestratorC
     OrchestratorConfig {
         dry_run,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     }
 }
 
@@ -332,6 +334,8 @@ fn test_timeout_invalid_config_uses_default() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     let timeout = PhaseTimeout::from_config(&config);
@@ -351,6 +355,8 @@ fn test_timeout_negative_config_uses_default() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     let timeout = PhaseTimeout::from_config(&config);

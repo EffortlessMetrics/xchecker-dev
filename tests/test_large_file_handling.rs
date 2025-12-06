@@ -77,8 +77,8 @@ fn test_file_size_limit_enforcement() -> Result<()> {
 
     // Note: This might still fail if there's overhead from packet formatting
     // The important thing is that the error is about overflow, not other issues
-    if result.is_err() {
-        let err_string = result.unwrap_err().to_string();
+    if let Err(err) = result {
+        let err_string = err.to_string();
         assert!(
             err_string.contains("PacketOverflow") || err_string.contains("overflow"),
             "If it fails, should be due to overflow"

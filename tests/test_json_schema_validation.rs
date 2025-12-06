@@ -211,12 +211,11 @@ fn test_doctor_schema_constraints() {
     assert_eq!(schema["additionalProperties"], true);
 }
 
-
 #[test]
 fn test_gate_schema_validates_examples() {
     // Load schema
-    let schema_content = fs::read_to_string("docs/schemas/gate-json.v1.json")
-        .expect("Failed to read gate schema");
+    let schema_content =
+        fs::read_to_string("docs/schemas/gate-json.v1.json").expect("Failed to read gate schema");
     let schema: serde_json::Value =
         serde_json::from_str(&schema_content).expect("Failed to parse gate schema");
 
@@ -236,8 +235,8 @@ fn test_gate_schema_validates_examples() {
 #[test]
 fn test_gate_schema_constraints() {
     // Load schema
-    let schema_content = fs::read_to_string("docs/schemas/gate-json.v1.json")
-        .expect("Failed to read gate schema");
+    let schema_content =
+        fs::read_to_string("docs/schemas/gate-json.v1.json").expect("Failed to read gate schema");
     let schema: serde_json::Value =
         serde_json::from_str(&schema_content).expect("Failed to parse gate schema");
 
@@ -267,10 +266,7 @@ fn test_gate_schema_constraints() {
     let required = schema["required"]
         .as_array()
         .expect("Schema should have required array");
-    let required_fields: Vec<&str> = required
-        .iter()
-        .filter_map(|v| v.as_str())
-        .collect();
+    let required_fields: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
     assert!(required_fields.contains(&"schema_version"));
     assert!(required_fields.contains(&"spec_id"));
     assert!(required_fields.contains(&"passed"));
@@ -281,21 +277,19 @@ fn test_gate_schema_constraints() {
 
 #[test]
 fn test_gate_json_output_matches_schema() {
-    use xchecker::gate::{emit_gate_json, GateCondition, GateResult};
+    use xchecker::gate::{GateCondition, GateResult, emit_gate_json};
 
     // Create a test gate result
     let result = GateResult {
         passed: true,
         spec_id: "test-spec".to_string(),
-        conditions: vec![
-            GateCondition {
-                name: "min_phase".to_string(),
-                passed: true,
-                description: "Required phase 'tasks' is completed".to_string(),
-                actual: Some("tasks completed".to_string()),
-                expected: Some("tasks or later".to_string()),
-            },
-        ],
+        conditions: vec![GateCondition {
+            name: "min_phase".to_string(),
+            passed: true,
+            description: "Required phase 'tasks' is completed".to_string(),
+            actual: Some("tasks completed".to_string()),
+            expected: Some("tasks or later".to_string()),
+        }],
         failure_reasons: vec![],
         summary: "Gate PASSED: Spec 'test-spec' meets all policy requirements".to_string(),
     };
@@ -306,8 +300,8 @@ fn test_gate_json_output_matches_schema() {
         serde_json::from_str(&json_str).expect("Failed to parse emitted JSON");
 
     // Load schema
-    let schema_content = fs::read_to_string("docs/schemas/gate-json.v1.json")
-        .expect("Failed to read gate schema");
+    let schema_content =
+        fs::read_to_string("docs/schemas/gate-json.v1.json").expect("Failed to read gate schema");
     let schema: serde_json::Value =
         serde_json::from_str(&schema_content).expect("Failed to parse gate schema");
 

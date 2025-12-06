@@ -24,10 +24,7 @@ fn test_lockfile_creation_with_init() -> Result<()> {
     let spec_id = "test-lockfile-creation";
 
     // Create lockfile
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
 
     lock.save(spec_id)?;
 
@@ -55,10 +52,7 @@ fn test_drift_detection_model_field() -> Result<()> {
     let spec_id = "test-drift-model";
 
     // Create lockfile with specific model
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     // Load and check drift with different model
@@ -99,10 +93,7 @@ fn test_drift_detection_cli_version_field() -> Result<()> {
     let spec_id = "test-drift-cli";
 
     // Create lockfile with specific CLI version
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     // Load and check drift with different CLI version
@@ -140,10 +131,7 @@ fn test_drift_detection_schema_version_field() -> Result<()> {
     let spec_id = "test-drift-schema";
 
     // Create lockfile with schema version 1
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     // Load and check drift with different schema version
@@ -184,10 +172,7 @@ fn test_no_drift_when_values_match() -> Result<()> {
     let spec_id = "test-no-drift";
 
     // Create lockfile
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     // Load and check drift with same values
@@ -216,10 +201,7 @@ fn test_drift_detection_multiple_fields() -> Result<()> {
     let spec_id = "test-drift-multiple";
 
     // Create lockfile
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     // Load and check drift with all fields different
@@ -266,10 +248,7 @@ fn test_lockfile_loading_and_validation() -> Result<()> {
     );
 
     // Test 2: Create and load valid lockfile
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     let loaded = XCheckerLock::load(spec_id)?;
@@ -371,17 +350,11 @@ fn test_lockfile_overwrite() -> Result<()> {
     let spec_id = "test-lockfile-overwrite";
 
     // Create first lockfile
-    let lock1 = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock1 = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock1.save(spec_id)?;
 
     // Create second lockfile with different values
-    let lock2 = XCheckerLock::new(
-        "sonnet-20250101".to_string(),
-        "0.9.0".to_string(),
-    );
+    let lock2 = XCheckerLock::new("sonnet-20250101".to_string(), "0.9.0".to_string());
     lock2.save(spec_id)?;
 
     // Load and verify it has the second lockfile's values
@@ -406,10 +379,7 @@ fn test_lockfile_directory_creation() -> Result<()> {
     assert!(!lock_path.exists(), "Lock path should not exist initially");
 
     // Create lockfile (should create directory)
-    let lock = XCheckerLock::new(
-        "haiku".to_string(),
-        "0.8.1".to_string(),
-    );
+    let lock = XCheckerLock::new("haiku".to_string(), "0.8.1".to_string());
     lock.save(spec_id)?;
 
     // Verify directory and file were created

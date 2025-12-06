@@ -58,6 +58,10 @@
         "spec_path": {
           "type": "string",
           "description": "Path to the spec directory"
+        },
+        "strict_validation": {
+          "type": "boolean",
+          "description": "Whether strict validation mode is enabled for this spec"
         }
       },
       "additionalProperties": false

@@ -337,7 +337,7 @@ impl HookExecutor {
             let json_payload = context.to_json().map_err(|e| HookError::IoError {
                 reason: format!("Failed to serialize hook context: {e}"),
             })?;
-            
+
             // Write asynchronously but don't fail if stdin write fails
             // (some commands may not read stdin)
             let _ = stdin.write_all(json_payload.as_bytes()).await;
@@ -345,9 +345,7 @@ impl HookExecutor {
         }
 
         // Wait for completion with timeout
-        let result = tokio::time::timeout(timeout, async {
-            child.wait_with_output().await
-        }).await;
+        let result = tokio::time::timeout(timeout, async { child.wait_with_output().await }).await;
 
         let duration_ms = start.elapsed().as_millis() as u64;
 
@@ -369,7 +367,11 @@ impl HookExecutor {
             Err(_) => {
                 // Timeout occurred - process was consumed by wait_with_output
                 // The process will be cleaned up when the future is dropped
-                Ok(HookResult::timeout(String::new(), String::new(), duration_ms))
+                Ok(HookResult::timeout(
+                    String::new(),
+                    String::new(),
+                    duration_ms,
+                ))
             }
         }
     }
@@ -377,11 +379,7 @@ impl HookExecutor {
     /// Build the command with environment variables
     /// Reserved for hooks integration; not wired in v1.0
     #[allow(dead_code)] // Reserved for hooks integration; not wired in v1.0
-    fn build_command(
-        &self,
-        command: &str,
-        context: &HookContext,
-    ) -> Result<Command, HookError> {
+    fn build_command(&self, command: &str, context: &HookContext) -> Result<Command, HookError> {
         // Determine shell based on platform
         #[cfg(windows)]
         let (shell, shell_arg) = ("cmd", "/C");
@@ -682,15 +680,18 @@ mod tests {
     fn test_hook_context_with_metadata() {
         let context = HookContext::new("test-spec", PhaseId::Design, HookType::PostPhase)
             .with_metadata("custom_key", "custom_value");
-        
-        assert_eq!(context.metadata.get("custom_key"), Some(&"custom_value".to_string()));
+
+        assert_eq!(
+            context.metadata.get("custom_key"),
+            Some(&"custom_value".to_string())
+        );
     }
 
     #[test]
     fn test_hook_context_to_json() {
         let context = HookContext::new("test-spec", PhaseId::Tasks, HookType::PrePhase);
         let json = context.to_json().unwrap();
-        
+
         assert!(json.contains("\"spec_id\":\"test-spec\""));
         assert!(json.contains("\"phase\":\"tasks\""));
         assert!(json.contains("\"hook_type\":\"pre_phase\""));
@@ -734,13 +735,9 @@ mod tests {
     #[test]
     fn test_hook_warning_to_string() {
         let result = HookResult::failure(1, String::new(), "error".to_string(), 100);
-        let warning = HookWarning::from_result(
-            HookType::PrePhase,
-            PhaseId::Design,
-            "./test.sh",
-            &result,
-        );
-        
+        let warning =
+            HookWarning::from_result(HookType::PrePhase, PhaseId::Design, "./test.sh", &result);
+
         let warning_str = warning.to_warning_string();
         assert!(warning_str.contains("hook_failed"));
         assert!(warning_str.contains("pre_phase"));
@@ -751,13 +748,9 @@ mod tests {
     #[test]
     fn test_hook_warning_timeout() {
         let result = HookResult::timeout(String::new(), String::new(), 60000);
-        let warning = HookWarning::from_result(
-            HookType::PostPhase,
-            PhaseId::Tasks,
-            "./slow.sh",
-            &result,
-        );
-        
+        let warning =
+            HookWarning::from_result(HookType::PostPhase, PhaseId::Tasks, "./slow.sh", &result);
+
         let warning_str = warning.to_warning_string();
         assert!(warning_str.contains("hook_timeout"));
     }
@@ -812,7 +805,7 @@ mod tests {
             on_fail = "fail"
             timeout = 30
         "#;
-        
+
         let config: HookConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.command, "./test.sh");
         assert_eq!(config.on_fail, OnFail::Fail);
@@ -824,7 +817,7 @@ mod tests {
         let toml_str = r#"
             command = "./test.sh"
         "#;
-        
+
         let config: HookConfig = toml::from_str(toml_str).unwrap();
         assert_eq!(config.command, "./test.sh");
         assert_eq!(config.on_fail, OnFail::Warn); // default
@@ -848,7 +841,7 @@ mod tests {
         };
 
         let outcome = process_hook_result(result, &config, HookType::PrePhase, PhaseId::Design);
-        
+
         assert!(outcome.should_continue());
         assert!(matches!(outcome, HookOutcome::Success(_)));
         assert!(outcome.warning().is_none());
@@ -866,18 +859,18 @@ mod tests {
         };
 
         let outcome = process_hook_result(result, &config, HookType::PrePhase, PhaseId::Design);
-        
+
         // Should continue with warning
         assert!(outcome.should_continue());
         assert!(matches!(outcome, HookOutcome::Warning { .. }));
-        
+
         // Should have a warning
         let warning = outcome.warning().expect("Should have warning");
         assert_eq!(warning.hook_type, "pre_phase");
         assert_eq!(warning.phase, "design");
         assert_eq!(warning.exit_code, 1);
         assert!(!warning.timed_out);
-        
+
         // Should not have an error
         assert!(outcome.error().is_none());
     }
@@ -893,15 +886,15 @@ mod tests {
         };
 
         let outcome = process_hook_result(result, &config, HookType::PostPhase, PhaseId::Tasks);
-        
+
         // Should NOT continue
         assert!(!outcome.should_continue());
         assert!(matches!(outcome, HookOutcome::Failure { .. }));
-        
+
         // Should have an error
         let error = outcome.error().expect("Should have error");
         assert!(matches!(error, HookError::ExecutionFailed { .. }));
-        
+
         // Should not have a warning (it's a failure, not a warning)
         assert!(outcome.warning().is_none());
     }
@@ -916,12 +909,13 @@ mod tests {
             timeout: 60,
         };
 
-        let outcome = process_hook_result(result, &config, HookType::PrePhase, PhaseId::Requirements);
-        
+        let outcome =
+            process_hook_result(result, &config, HookType::PrePhase, PhaseId::Requirements);
+
         // Should continue with warning
         assert!(outcome.should_continue());
         assert!(matches!(outcome, HookOutcome::Warning { .. }));
-        
+
         // Warning should indicate timeout
         let warning = outcome.warning().expect("Should have warning");
         assert!(warning.timed_out);
@@ -939,11 +933,11 @@ mod tests {
         };
 
         let outcome = process_hook_result(result, &config, HookType::PostPhase, PhaseId::Design);
-        
+
         // Should NOT continue
         assert!(!outcome.should_continue());
         assert!(matches!(outcome, HookOutcome::Failure { .. }));
-        
+
         // Error should be a timeout error
         let error = outcome.error().expect("Should have error");
         assert!(matches!(error, HookError::Timeout { .. }));
@@ -965,17 +959,32 @@ mod tests {
         };
 
         // Success outcome
-        let outcome = process_hook_result(success_result.clone(), &config_warn, HookType::PrePhase, PhaseId::Design);
+        let outcome = process_hook_result(
+            success_result.clone(),
+            &config_warn,
+            HookType::PrePhase,
+            PhaseId::Design,
+        );
         assert!(outcome.result().success);
 
         // Warning outcome
         let failure_result = HookResult::failure(1, String::new(), "error".to_string(), 100);
-        let outcome = process_hook_result(failure_result.clone(), &config_warn, HookType::PrePhase, PhaseId::Design);
+        let outcome = process_hook_result(
+            failure_result.clone(),
+            &config_warn,
+            HookType::PrePhase,
+            PhaseId::Design,
+        );
         assert!(!outcome.result().success);
         assert_eq!(outcome.result().exit_code, 1);
 
         // Failure outcome
-        let outcome = process_hook_result(failure_result, &config_fail, HookType::PrePhase, PhaseId::Design);
+        let outcome = process_hook_result(
+            failure_result,
+            &config_fail,
+            HookType::PrePhase,
+            PhaseId::Design,
+        );
         assert!(!outcome.result().success);
         assert_eq!(outcome.result().exit_code, 1);
     }

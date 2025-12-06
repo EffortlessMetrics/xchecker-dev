@@ -118,7 +118,7 @@ impl DoctorCommand {
 
         // 1. PATH & version checks - check based on configured provider
         let provider = self.config.llm.provider.as_deref().unwrap_or("claude-cli");
-        
+
         match provider {
             "claude-cli" => {
                 checks.push(self.check_claude_path());
@@ -264,13 +264,11 @@ impl DoctorCommand {
     /// Never sends a real completion request
     fn check_gemini_help(&self) -> DoctorCheck {
         match Command::new("gemini").arg("-h").output() {
-            Ok(output) if output.status.success() => {
-                DoctorCheck {
-                    name: "gemini_help".to_string(),
-                    status: CheckStatus::Pass,
-                    details: "Gemini CLI responds to -h flag".to_string(),
-                }
-            }
+            Ok(output) if output.status.success() => DoctorCheck {
+                name: "gemini_help".to_string(),
+                status: CheckStatus::Pass,
+                details: "Gemini CLI responds to -h flag".to_string(),
+            },
             Ok(output) => DoctorCheck {
                 name: "gemini_help".to_string(),
                 status: CheckStatus::Fail,
@@ -723,13 +721,14 @@ impl DoctorCommand {
                 _ => {
                     // Claude not found in Windows PATH - check WSL
                     if matches!(wsl::is_wsl_available(), Ok(true))
-                        && matches!(wsl::validate_claude_in_wsl(None), Ok(true)) {
-                            return DoctorCheck {
+                        && matches!(wsl::validate_claude_in_wsl(None), Ok(true))
+                    {
+                        return DoctorCheck {
                                 name: "llm_provider".to_string(),
                                 status: CheckStatus::Warn,
                                 details: "Provider: claude-cli (not in native PATH, but available in WSL. Consider using --runner-mode wsl)".to_string(),
                             };
-                        }
+                    }
 
                     DoctorCheck {
                         name: "llm_provider".to_string(),
@@ -764,7 +763,7 @@ impl DoctorCommand {
     }
 
     /// Check HTTP provider configuration (requirement 3.5.3)
-    /// 
+    ///
     /// For HTTP providers:
     /// - Check configured env vars are present
     /// - Never make HTTP calls by default

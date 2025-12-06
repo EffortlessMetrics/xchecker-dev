@@ -281,7 +281,7 @@ async fn test_failed_phases_block_progression() -> Result<()> {
         xchecker::receipt::ReceiptManager::new(orchestrator.artifact_manager().base_path());
 
     let failed_receipt = receipt_manager.create_receipt(
-        &"test-integration-failed-block".to_string(),
+        "test-integration-failed-block",
         PhaseId::Requirements,
         1, // Failed
         vec![],

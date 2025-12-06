@@ -98,6 +98,9 @@ runner_mode = "auto"  # auto, native, wsl
 runner_distro = "Ubuntu-22.04"  # WSL distro (optional)
 claude_path = "/usr/local/bin/claude"  # Custom Claude path (optional)
 
+# Validation (when true, validation failures fail phases)
+strict_validation = false
+
 [llm]
 # LLM provider configuration (V11-V14: only claude-cli supported)
 provider = "claude-cli"
@@ -154,6 +157,37 @@ Controls default behavior for all operations.
 | `lock_ttl_seconds` | Integer | `900` | Lock TTL in seconds (default 15 minutes) |
 | `stdout_cap_bytes` | Integer | `2097152` | Stdout ring buffer cap in bytes (2 MiB) |
 | `stderr_cap_bytes` | Integer | `262144` | Stderr ring buffer cap in bytes (256 KiB) |
+| `strict_validation` | Boolean | `false` | Fail phases on validation errors (see below) |
+
+#### Strict Validation Mode
+
+When `strict_validation = true`, phase outputs are validated and must pass quality checks:
+
+1. **No meta-summaries** - Output must not start with phrases like "Here is...", "I'll create...", "This document..."
+2. **Minimum length** - Each phase has minimum line requirements (Requirements: 30, Design: 50, Tasks: 40, etc.)
+3. **Required sections** - Phase-specific headers must be present (e.g., `## Functional Requirements` for Requirements phase)
+
+**Behavior by mode:**
+- `strict_validation = false` (default): Validation issues are logged as warnings, but the phase continues
+- `strict_validation = true`: Validation issues cause the phase to fail with exit code 1
+
+**Example configuration:**
+
+```toml
+[defaults]
+strict_validation = true  # Enforce quality requirements on LLM output
+```
+
+**CLI override:**
+```bash
+# Enable strict validation for a single run
+xchecker spec my-feature --strict-validation
+
+# Disable strict validation for a single run
+xchecker spec my-feature --no-strict-validation
+```
+
+**Applicable phases:** Requirements, Design, Tasks (generative phases only)
 
 ### [selectors]
 

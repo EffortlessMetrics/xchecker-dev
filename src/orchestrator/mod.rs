@@ -24,6 +24,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::artifact::ArtifactManager;
+use crate::config::Selectors;
 use crate::error::{PhaseError, XCheckerError};
 use crate::receipt::ReceiptManager;
 use crate::types::PhaseId;
@@ -85,6 +86,17 @@ pub struct OrchestratorConfig {
     pub dry_run: bool,
     /// Additional configuration parameters
     pub config: HashMap<String, String>,
+    /// Content selectors for packet building
+    ///
+    /// If `Some`, phases use these selectors when building packets.
+    /// If `None`, phases fall back to built-in selector defaults.
+    pub selectors: Option<Selectors>,
+    /// Enable strict validation for phase outputs.
+    ///
+    /// When `true`, validation failures (meta-summaries, too-short output,
+    /// missing required sections) become hard errors that fail the phase.
+    /// When `false`, validation issues are logged as warnings only.
+    pub strict_validation: bool,
 }
 
 /// Phase timeout configuration with sensible defaults.
@@ -540,6 +552,8 @@ mod tests {
         let config = OrchestratorConfig {
             dry_run: true,
             config: HashMap::new(),
+            selectors: None,
+            strict_validation: false,
         };
 
         let result = orchestrator.execute_requirements_phase(&config).await;
@@ -567,6 +581,8 @@ mod tests {
             spec_dir: PathBuf::from("/tmp/test"),
             config: HashMap::new(),
             artifacts: vec!["test-artifact.md".to_string()],
+            selectors: None,
+            strict_validation: false,
         };
 
         assert_eq!(context.spec_id, "test-spec");
@@ -819,6 +835,8 @@ This is a generated requirements document for spec {}. The system will provide c
         let config = OrchestratorConfig {
             dry_run: true,
             config: HashMap::new(),
+            selectors: None,
+            strict_validation: false,
         };
 
         // Execute the phase

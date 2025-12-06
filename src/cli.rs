@@ -152,6 +152,16 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub allow_links: bool,
 
+    /// Enable strict validation (validation failures fail phases)
+    /// Use --no-strict-validation to disable strict mode
+    #[arg(long, global = true, overrides_with = "no_strict_validation")]
+    pub strict_validation: bool,
+
+    /// Disable strict validation (validation failures log warnings only)
+    /// Use --strict-validation to enable strict mode
+    #[arg(long, global = true, overrides_with = "strict_validation")]
+    pub no_strict_validation: bool,
+
     /// LLM provider to use (claude-cli)
     #[arg(long, global = true)]
     pub llm_provider: Option<String>,
@@ -638,6 +648,13 @@ pub fn run() -> Result<(), XCheckerError> {
         lock_ttl_seconds: cli.lock_ttl_seconds,
         debug_packet: cli.debug_packet,
         allow_links: cli.allow_links,
+        strict_validation: if cli.strict_validation {
+            Some(true)
+        } else if cli.no_strict_validation {
+            Some(false)
+        } else {
+            None
+        },
         llm_provider: cli.llm_provider.clone(),
         llm_claude_binary: cli.llm_claude_binary.clone(),
         llm_gemini_binary: None, // TODO: Add CLI flag for Gemini binary in future
@@ -689,12 +706,12 @@ pub fn run() -> Result<(), XCheckerError> {
                         value: format!("{e}"),
                     })
                 })?;
-                
+
                 // If --json flag is set, output spec info as JSON and return
                 if json {
                     return execute_spec_json_command(&sanitized_id, &config);
                 }
-                
+
                 execute_spec_command(
                     &sanitized_id,
                     &source,
@@ -736,12 +753,12 @@ pub fn run() -> Result<(), XCheckerError> {
                         value: format!("{e}"),
                     })
                 })?;
-                
+
                 // If --json flag is set, output resume info as JSON and return
                 if json {
                     return execute_resume_json_command(&sanitized_id, &phase, &config);
                 }
-                
+
                 execute_resume_command(
                     &sanitized_id,
                     &phase,
@@ -801,9 +818,7 @@ pub fn run() -> Result<(), XCheckerError> {
                 })?;
                 execute_init_command(&sanitized_id, create_lock, &config)
             }
-            Commands::Project(project_cmd) => {
-                execute_project_command(project_cmd)
-            }
+            Commands::Project(project_cmd) => execute_project_command(project_cmd),
             Commands::Gate {
                 id,
                 min_phase,
@@ -826,9 +841,7 @@ pub fn run() -> Result<(), XCheckerError> {
                     json,
                 )
             }
-            Commands::Template(template_cmd) => {
-                execute_template_command(template_cmd)
-            }
+            Commands::Template(template_cmd) => execute_template_command(template_cmd),
         }
     });
 
@@ -996,11 +1009,7 @@ async fn execute_spec_command(
     logger.verbose(&format!("Source resolved successfully from: {source_type}"));
 
     // Check for lockfile drift (R10.2, R10.4)
-    let model_full_name = config
-        .defaults
-        .model
-        .as_deref()
-        .unwrap_or("haiku");
+    let model_full_name = config.defaults.model.as_deref().unwrap_or("haiku");
     let claude_cli_version = detect_claude_cli_version().unwrap_or_else(|_| "unknown".to_string());
     let _lock_drift =
         check_lockfile_drift(spec_id, strict_lock, model_full_name, &claude_cli_version)?;
@@ -1151,16 +1160,13 @@ fn execute_spec_json_command(spec_id: &str, config: &Config) -> Result<()> {
 
     // Get receipts to determine phase status and last run times
     // Handle case where receipts directory doesn't exist yet
-    let receipts = handle
-        .receipt_manager()
-        .list_receipts()
-        .unwrap_or_default();
+    let receipts = handle.receipt_manager().list_receipts().unwrap_or_default();
 
     // Build phase info list
     let mut phases = Vec::new();
     for phase_id in &all_phases {
         let phase_completed = handle.artifact_manager().phase_completed(*phase_id);
-        
+
         // Find the latest receipt for this phase
         let latest_receipt = receipts
             .iter()
@@ -1349,11 +1355,13 @@ fn generate_next_steps_hint(
 
     match phase_id {
         PhaseId::Requirements => {
-            "Run requirements phase to generate initial requirements from the problem statement.".to_string()
+            "Run requirements phase to generate initial requirements from the problem statement."
+                .to_string()
         }
         PhaseId::Design => {
             if has_requirements {
-                "Run design phase to generate architecture and design from requirements.".to_string()
+                "Run design phase to generate architecture and design from requirements."
+                    .to_string()
             } else {
                 format!(
                     "Requirements phase not completed. Run 'xchecker resume {} --phase requirements' first.",
@@ -1391,9 +1399,7 @@ fn generate_next_steps_hint(
                 )
             }
         }
-        PhaseId::Final => {
-            "Run final phase to complete the spec generation workflow.".to_string()
-        }
+        PhaseId::Final => "Run final phase to complete the spec generation workflow.".to_string(),
     }
 }
 
@@ -1472,7 +1478,9 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
     // Includes artifacts with blake3_first8, effective_config, and lock_drift
     if json {
         use crate::lock::{RunContext, XCheckerLock};
-        use crate::types::{ArtifactInfo, ConfigSource, ConfigValue, PhaseStatusInfo, StatusJsonOutput};
+        use crate::types::{
+            ArtifactInfo, ConfigSource, ConfigValue, PhaseStatusInfo, StatusJsonOutput,
+        };
         use std::collections::BTreeMap;
 
         // Get all phases
@@ -1486,10 +1494,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
         ];
 
         // Get receipts to determine phase status and receipt IDs
-        let receipts = handle
-            .receipt_manager()
-            .list_receipts()
-            .unwrap_or_default();
+        let receipts = handle.receipt_manager().list_receipts().unwrap_or_default();
 
         // Build phase status list
         let mut phase_statuses = Vec::new();
@@ -1505,18 +1510,24 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let (status, receipt_id) = if let Some(receipt) = latest_receipt {
                 // Check if the phase succeeded or failed
                 if receipt.exit_code == 0 {
-                    ("success".to_string(), Some(format!(
-                        "{}-{}",
-                        receipt.phase,
-                        receipt.emitted_at.format("%Y%m%d_%H%M%S")
-                    )))
+                    (
+                        "success".to_string(),
+                        Some(format!(
+                            "{}-{}",
+                            receipt.phase,
+                            receipt.emitted_at.format("%Y%m%d_%H%M%S")
+                        )),
+                    )
                 } else {
                     has_errors = true;
-                    ("failed".to_string(), Some(format!(
-                        "{}-{}",
-                        receipt.phase,
-                        receipt.emitted_at.format("%Y%m%d_%H%M%S")
-                    )))
+                    (
+                        "failed".to_string(),
+                        Some(format!(
+                            "{}-{}",
+                            receipt.phase,
+                            receipt.emitted_at.format("%Y%m%d_%H%M%S")
+                        )),
+                    )
                 }
             } else {
                 ("not_started".to_string(), None)
@@ -1571,7 +1582,9 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
         // Add key configuration values with their sources
         // Provider
         if let Some(ref provider) = config.llm.provider {
-            let source = config.source_attribution.get("provider")
+            let source = config
+                .source_attribution
+                .get("provider")
                 .map(|s| s.clone().into())
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
@@ -1585,7 +1598,9 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
 
         // Model
         if let Some(ref model) = config.defaults.model {
-            let source = config.source_attribution.get("model")
+            let source = config
+                .source_attribution
+                .get("model")
                 .map(|s| s.clone().into())
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
@@ -1599,7 +1614,9 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
 
         // Max turns
         if let Some(max_turns) = config.defaults.max_turns {
-            let source = config.source_attribution.get("max_turns")
+            let source = config
+                .source_attribution
+                .get("max_turns")
                 .map(|s| s.clone().into())
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
@@ -1613,7 +1630,9 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
 
         // Phase timeout
         if let Some(timeout) = config.defaults.phase_timeout {
-            let source = config.source_attribution.get("phase_timeout")
+            let source = config
+                .source_attribution
+                .get("phase_timeout")
                 .map(|s| s.clone().into())
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
@@ -1627,7 +1646,9 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
 
         // Execution strategy
         if let Some(ref strategy) = config.llm.execution_strategy {
-            let source = config.source_attribution.get("execution_strategy")
+            let source = config
+                .source_attribution
+                .get("execution_strategy")
                 .map(|s| s.clone().into())
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
@@ -1669,14 +1690,15 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             phase_statuses,
             pending_fixups,
             has_errors,
+            strict_validation: config.strict_validation(),
             artifacts,
             effective_config,
             lock_drift,
         };
 
         // Emit as canonical JSON using JCS (RFC 8785)
-        let json_output = emit_status_json(&output)
-            .with_context(|| "Failed to emit status JSON")?;
+        let json_output =
+            emit_status_json(&output).with_context(|| "Failed to emit status JSON")?;
 
         println!("{json_output}");
         return Ok(());
@@ -2005,11 +2027,7 @@ async fn execute_resume_command(
     }
 
     // Check for lockfile drift (R10.2, R10.4)
-    let model_full_name = config
-        .defaults
-        .model
-        .as_deref()
-        .unwrap_or("haiku");
+    let model_full_name = config.defaults.model.as_deref().unwrap_or("haiku");
     let claude_cli_version = detect_claude_cli_version().unwrap_or_else(|_| "unknown".to_string());
     let _lock_drift =
         check_lockfile_drift(spec_id, strict_lock, model_full_name, &claude_cli_version)?;
@@ -2387,6 +2405,8 @@ fn build_orchestrator_config(
     OrchestratorConfig {
         dry_run,
         config: config_map,
+        selectors: Some(config.selectors.clone()),
+        strict_validation: config.strict_validation(),
     }
 }
 
@@ -2616,7 +2636,7 @@ fn execute_gate_command(
     max_phase_age: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    use crate::gate::{emit_gate_json, parse_duration, parse_phase, GateCommand, GatePolicy};
+    use crate::gate::{GateCommand, GatePolicy, emit_gate_json, parse_duration, parse_phase};
 
     // Parse min_phase
     let min_phase_id = parse_phase(min_phase).map_err(|e| {
@@ -2647,12 +2667,13 @@ fn execute_gate_command(
 
     // Execute gate evaluation
     let gate = GateCommand::new(spec_id.to_string(), policy);
-    let result = gate.execute().with_context(|| format!("Failed to evaluate gate for spec: {spec_id}"))?;
+    let result = gate
+        .execute()
+        .with_context(|| format!("Failed to evaluate gate for spec: {spec_id}"))?;
 
     // Output results
     if json {
-        let json_output = emit_gate_json(&result)
-            .with_context(|| "Failed to emit gate JSON")?;
+        let json_output = emit_gate_json(&result).with_context(|| "Failed to emit gate JSON")?;
         println!("{json_output}");
     } else {
         // Human-friendly output
@@ -2750,11 +2771,7 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
     // Create lockfile if requested
     if create_lock {
         // Get model from config or use default
-        let model = config
-            .defaults
-            .model
-            .as_deref()
-            .unwrap_or("haiku");
+        let model = config.defaults.model.as_deref().unwrap_or("haiku");
 
         // Get Claude CLI version (we'll need to detect this - for now use a placeholder)
         // In a real implementation, this would call `claude --version` and parse the output
@@ -2879,6 +2896,8 @@ fn check_lockfile_drift(
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)] // Test helper functions defined after tests is intentional
+#[allow(clippy::await_holding_lock)] // Test synchronization using mutex guards across awaits is intentional
 mod tests {
     use super::*;
     use std::env;
@@ -3089,13 +3108,11 @@ packet_max_lines = 5000
         let output = SpecOutput {
             schema_version: "spec-json.v1".to_string(),
             spec_id: "test-spec".to_string(),
-            phases: vec![
-                PhaseInfo {
-                    phase_id: "requirements".to_string(),
-                    status: "completed".to_string(),
-                    last_run: Some(chrono::Utc::now()),
-                },
-            ],
+            phases: vec![PhaseInfo {
+                phase_id: "requirements".to_string(),
+                status: "completed".to_string(),
+                last_run: Some(chrono::Utc::now()),
+            }],
             config_summary: SpecConfigSummary {
                 execution_strategy: "controlled".to_string(),
                 provider: Some("claude-cli".to_string()),
@@ -3150,10 +3167,19 @@ packet_max_lines = 5000
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
         // Verify no packet contents are present
-        assert!(parsed.get("packet").is_none(), "JSON should not contain packet field");
-        assert!(parsed.get("artifacts").is_none(), "JSON should not contain artifacts field");
-        assert!(parsed.get("raw_response").is_none(), "JSON should not contain raw_response field");
-        
+        assert!(
+            parsed.get("packet").is_none(),
+            "JSON should not contain packet field"
+        );
+        assert!(
+            parsed.get("artifacts").is_none(),
+            "JSON should not contain artifacts field"
+        );
+        assert!(
+            parsed.get("raw_response").is_none(),
+            "JSON should not contain raw_response field"
+        );
+
         // Verify only expected fields are present
         assert!(parsed.get("schema_version").is_some());
         assert!(parsed.get("spec_id").is_some());
@@ -3181,13 +3207,11 @@ packet_max_lines = 5000
         let output = SpecOutput {
             schema_version: "spec-json.v1".to_string(),
             spec_id: "test-spec".to_string(),
-            phases: vec![
-                PhaseInfo {
-                    phase_id: "requirements".to_string(),
-                    status: "completed".to_string(),
-                    last_run: None,
-                },
-            ],
+            phases: vec![PhaseInfo {
+                phase_id: "requirements".to_string(),
+                status: "completed".to_string(),
+                last_run: None,
+            }],
             config_summary: SpecConfigSummary {
                 execution_strategy: "controlled".to_string(),
                 provider: None,
@@ -3201,8 +3225,14 @@ packet_max_lines = 5000
         let json_str = json_result.unwrap();
 
         // Verify canonical JSON properties (no extra whitespace, no newlines)
-        assert!(!json_str.contains("  "), "Canonical JSON should not have indentation");
-        assert!(!json_str.contains('\n'), "Canonical JSON should not have newlines");
+        assert!(
+            !json_str.contains("  "),
+            "Canonical JSON should not have indentation"
+        );
+        assert!(
+            !json_str.contains('\n'),
+            "Canonical JSON should not have newlines"
+        );
     }
 
     #[test]
@@ -3468,15 +3498,14 @@ packet_max_lines = 5000
         let output = StatusJsonOutput {
             schema_version: "status-json.v2".to_string(),
             spec_id: "test-spec".to_string(),
-            phase_statuses: vec![
-                PhaseStatusInfo {
-                    phase_id: "requirements".to_string(),
-                    status: "success".to_string(),
-                    receipt_id: Some("requirements-20241201_100000".to_string()),
-                },
-            ],
+            phase_statuses: vec![PhaseStatusInfo {
+                phase_id: "requirements".to_string(),
+                status: "success".to_string(),
+                receipt_id: Some("requirements-20241201_100000".to_string()),
+            }],
             pending_fixups: 0,
             has_errors: false,
+            strict_validation: false,
             artifacts: Vec::new(),
             effective_config: std::collections::BTreeMap::new(),
             lock_drift: None,
@@ -3521,6 +3550,7 @@ packet_max_lines = 5000
             ],
             pending_fixups: 3,
             has_errors: true,
+            strict_validation: false,
             artifacts: Vec::new(),
             effective_config: std::collections::BTreeMap::new(),
             lock_drift: None,
@@ -3538,10 +3568,15 @@ packet_max_lines = 5000
         assert!(parsed.get("phase_statuses").is_some());
         assert!(parsed.get("pending_fixups").is_some());
         assert!(parsed.get("has_errors").is_some());
+        assert!(
+            parsed.get("strict_validation").is_some(),
+            "strict_validation field should be present"
+        );
 
         // Verify values
         assert_eq!(parsed["pending_fixups"], 3);
         assert_eq!(parsed["has_errors"], true);
+        assert_eq!(parsed["strict_validation"], false);
     }
 
     #[test]
@@ -3552,15 +3587,14 @@ packet_max_lines = 5000
         let output = StatusJsonOutput {
             schema_version: "status-json.v2".to_string(),
             spec_id: "test-spec".to_string(),
-            phase_statuses: vec![
-                PhaseStatusInfo {
-                    phase_id: "requirements".to_string(),
-                    status: "success".to_string(),
-                    receipt_id: None,
-                },
-            ],
+            phase_statuses: vec![PhaseStatusInfo {
+                phase_id: "requirements".to_string(),
+                status: "success".to_string(),
+                receipt_id: None,
+            }],
             pending_fixups: 0,
             has_errors: false,
+            strict_validation: false,
             artifacts: Vec::new(),
             effective_config: std::collections::BTreeMap::new(),
             lock_drift: None,
@@ -3572,15 +3606,23 @@ packet_max_lines = 5000
         let json_str = json_result.unwrap();
 
         // Verify canonical JSON properties (no extra whitespace, no newlines)
-        assert!(!json_str.contains("  "), "Canonical JSON should not have indentation");
-        assert!(!json_str.contains('\n'), "Canonical JSON should not have newlines");
+        assert!(
+            !json_str.contains("  "),
+            "Canonical JSON should not have indentation"
+        );
+        assert!(
+            !json_str.contains('\n'),
+            "Canonical JSON should not have newlines"
+        );
     }
 
     #[test]
     fn test_status_json_excludes_raw_packet_contents() {
         // Test that status JSON output excludes raw packet contents (like raw_response)
         // but does include summarized artifacts and effective_config per v2 schema
-        use crate::types::{ArtifactInfo, ConfigSource, ConfigValue, PhaseStatusInfo, StatusJsonOutput};
+        use crate::types::{
+            ArtifactInfo, ConfigSource, ConfigValue, PhaseStatusInfo, StatusJsonOutput,
+        };
 
         let mut effective_config = std::collections::BTreeMap::new();
         effective_config.insert(
@@ -3594,21 +3636,18 @@ packet_max_lines = 5000
         let output = StatusJsonOutput {
             schema_version: "status-json.v2".to_string(),
             spec_id: "test-spec".to_string(),
-            phase_statuses: vec![
-                PhaseStatusInfo {
-                    phase_id: "requirements".to_string(),
-                    status: "success".to_string(),
-                    receipt_id: Some("requirements-20241201_100000".to_string()),
-                },
-            ],
+            phase_statuses: vec![PhaseStatusInfo {
+                phase_id: "requirements".to_string(),
+                status: "success".to_string(),
+                receipt_id: Some("requirements-20241201_100000".to_string()),
+            }],
             pending_fixups: 0,
             has_errors: false,
-            artifacts: vec![
-                ArtifactInfo {
-                    path: "artifacts/requirements.yaml".to_string(),
-                    blake3_first8: "abc12345".to_string(),
-                },
-            ],
+            strict_validation: false,
+            artifacts: vec![ArtifactInfo {
+                path: "artifacts/requirements.yaml".to_string(),
+                blake3_first8: "abc12345".to_string(),
+            }],
             effective_config,
             lock_drift: None,
         };
@@ -3620,18 +3659,33 @@ packet_max_lines = 5000
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
         // Verify no raw packet/response contents are present
-        assert!(parsed.get("packet").is_none(), "JSON should not contain packet field");
-        assert!(parsed.get("raw_response").is_none(), "JSON should not contain raw_response field");
+        assert!(
+            parsed.get("packet").is_none(),
+            "JSON should not contain packet field"
+        );
+        assert!(
+            parsed.get("raw_response").is_none(),
+            "JSON should not contain raw_response field"
+        );
 
         // Verify artifacts and effective_config ARE present in v2
-        assert!(parsed.get("artifacts").is_some(), "JSON should contain artifacts field in v2");
-        assert!(parsed.get("effective_config").is_some(), "JSON should contain effective_config field in v2");
+        assert!(
+            parsed.get("artifacts").is_some(),
+            "JSON should contain artifacts field in v2"
+        );
+        assert!(
+            parsed.get("effective_config").is_some(),
+            "JSON should contain effective_config field in v2"
+        );
 
         // Verify artifacts have only summary data (blake3_first8), not full content
         let artifacts = parsed["artifacts"].as_array().unwrap();
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts[0]["blake3_first8"], "abc12345");
-        assert!(artifacts[0].get("content").is_none(), "Artifacts should not include full content");
+        assert!(
+            artifacts[0].get("content").is_none(),
+            "Artifacts should not include full content"
+        );
     }
 
     #[test]
@@ -3690,6 +3744,7 @@ packet_max_lines = 5000
             phase_statuses,
             pending_fixups: 0,
             has_errors: true, // tasks failed
+            strict_validation: false,
             artifacts: Vec::new(),
             effective_config: std::collections::BTreeMap::new(),
             lock_drift: None,
@@ -3736,7 +3791,8 @@ packet_max_lines = 5000
                 spec_exists: true,
                 latest_completed_phase: Some("requirements".to_string()),
             },
-            next_steps: "Run design phase to generate architecture and design from requirements.".to_string(),
+            next_steps: "Run design phase to generate architecture and design from requirements."
+                .to_string(),
         };
 
         // Emit as JSON
@@ -3815,8 +3871,14 @@ packet_max_lines = 5000
         let json_str = json_result.unwrap();
 
         // Verify canonical JSON properties (no extra whitespace, no newlines)
-        assert!(!json_str.contains("  "), "Canonical JSON should not have indentation");
-        assert!(!json_str.contains('\n'), "Canonical JSON should not have newlines");
+        assert!(
+            !json_str.contains("  "),
+            "Canonical JSON should not have indentation"
+        );
+        assert!(
+            !json_str.contains('\n'),
+            "Canonical JSON should not have newlines"
+        );
     }
 
     #[test]
@@ -3844,16 +3906,33 @@ packet_max_lines = 5000
         let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
 
         // Verify no packet contents or raw artifacts are present
-        assert!(parsed.get("packet").is_none(), "JSON should not contain packet field");
-        assert!(parsed.get("artifacts").is_none(), "JSON should not contain artifacts field");
-        assert!(parsed.get("raw_response").is_none(), "JSON should not contain raw_response field");
-        assert!(parsed.get("artifact_contents").is_none(), "JSON should not contain artifact_contents field");
-        
+        assert!(
+            parsed.get("packet").is_none(),
+            "JSON should not contain packet field"
+        );
+        assert!(
+            parsed.get("artifacts").is_none(),
+            "JSON should not contain artifacts field"
+        );
+        assert!(
+            parsed.get("raw_response").is_none(),
+            "JSON should not contain raw_response field"
+        );
+        assert!(
+            parsed.get("artifact_contents").is_none(),
+            "JSON should not contain artifact_contents field"
+        );
+
         // Verify only artifact names are present, not contents
-        let artifacts = parsed["current_inputs"]["available_artifacts"].as_array().unwrap();
+        let artifacts = parsed["current_inputs"]["available_artifacts"]
+            .as_array()
+            .unwrap();
         for artifact in artifacts {
             // Each artifact should be a simple string (name), not an object with contents
-            assert!(artifact.is_string(), "Artifacts should be names only, not objects with contents");
+            assert!(
+                artifact.is_string(),
+                "Artifacts should be names only, not objects with contents"
+            );
         }
     }
 
@@ -3874,7 +3953,14 @@ packet_max_lines = 5000
         // Test that all valid phases can be used in resume JSON output
         use crate::types::{CurrentInputs, ResumeJsonOutput};
 
-        let phases = ["requirements", "design", "tasks", "review", "fixup", "final"];
+        let phases = [
+            "requirements",
+            "design",
+            "tasks",
+            "review",
+            "fixup",
+            "final",
+        ];
 
         for phase in &phases {
             let output = ResumeJsonOutput {
@@ -3890,7 +3976,11 @@ packet_max_lines = 5000
             };
 
             let json_result = emit_resume_json(&output);
-            assert!(json_result.is_ok(), "Failed to emit resume JSON for phase: {}", phase);
+            assert!(
+                json_result.is_ok(),
+                "Failed to emit resume JSON for phase: {}",
+                phase
+            );
 
             let json_str = json_result.unwrap();
             let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
@@ -3955,7 +4045,7 @@ packet_max_lines = 5000
     fn test_derive_spec_status_with_receipt() {
         // Use isolated home to avoid conflicts with other tests
         let _temp_dir = crate::paths::with_isolated_home();
-        
+
         use crate::receipt::ReceiptManager;
         use crate::types::{PacketEvidence, PhaseId};
         use std::collections::HashMap;
@@ -3964,9 +4054,9 @@ packet_max_lines = 5000
         let spec_id = "test-spec-with-receipt";
         let base_path = crate::paths::spec_root(spec_id);
         crate::paths::ensure_dir_all(&base_path).unwrap();
-        
+
         let receipt_manager = ReceiptManager::new(&base_path);
-        
+
         let packet = PacketEvidence {
             files: vec![],
             max_bytes: 65536,
@@ -4001,15 +4091,23 @@ packet_max_lines = 5000
 
         // Test status derivation
         let status = derive_spec_status(spec_id);
-        assert!(status.contains("success"), "Expected 'success' in status, got: {}", status);
-        assert!(status.contains("requirements"), "Expected 'requirements' in status, got: {}", status);
+        assert!(
+            status.contains("success"),
+            "Expected 'success' in status, got: {}",
+            status
+        );
+        assert!(
+            status.contains("requirements"),
+            "Expected 'requirements' in status, got: {}",
+            status
+        );
     }
 
     #[test]
     fn test_derive_spec_status_with_failed_receipt() {
         // Use isolated home to avoid conflicts with other tests
         let _temp_dir = crate::paths::with_isolated_home();
-        
+
         use crate::receipt::ReceiptManager;
         use crate::types::{PacketEvidence, PhaseId};
         use std::collections::HashMap;
@@ -4018,9 +4116,9 @@ packet_max_lines = 5000
         let spec_id = "test-spec-with-failed-receipt";
         let base_path = crate::paths::spec_root(spec_id);
         crate::paths::ensure_dir_all(&base_path).unwrap();
-        
+
         let receipt_manager = ReceiptManager::new(&base_path);
-        
+
         let packet = PacketEvidence {
             files: vec![],
             max_bytes: 65536,
@@ -4055,15 +4153,23 @@ packet_max_lines = 5000
 
         // Test status derivation
         let status = derive_spec_status(spec_id);
-        assert!(status.contains("failed"), "Expected 'failed' in status, got: {}", status);
-        assert!(status.contains("design"), "Expected 'design' in status, got: {}", status);
+        assert!(
+            status.contains("failed"),
+            "Expected 'failed' in status, got: {}",
+            status
+        );
+        assert!(
+            status.contains("design"),
+            "Expected 'design' in status, got: {}",
+            status
+        );
     }
 
     #[test]
     fn test_derive_spec_status_uses_latest_receipt() {
         // Use isolated home to avoid conflicts with other tests
         let _temp_dir = crate::paths::with_isolated_home();
-        
+
         use crate::receipt::ReceiptManager;
         use crate::types::{PacketEvidence, PhaseId};
         use std::collections::HashMap;
@@ -4072,9 +4178,9 @@ packet_max_lines = 5000
         let spec_id = "test-spec-multiple-receipts";
         let base_path = crate::paths::spec_root(spec_id);
         crate::paths::ensure_dir_all(&base_path).unwrap();
-        
+
         let receipt_manager = ReceiptManager::new(&base_path);
-        
+
         let packet = PacketEvidence {
             files: vec![],
             max_bytes: 65536,
@@ -4136,8 +4242,16 @@ packet_max_lines = 5000
 
         // Test status derivation - should show design (latest)
         let status = derive_spec_status(spec_id);
-        assert!(status.contains("design"), "Expected 'design' (latest) in status, got: {}", status);
-        assert!(status.contains("success"), "Expected 'success' in status, got: {}", status);
+        assert!(
+            status.contains("design"),
+            "Expected 'design' (latest) in status, got: {}",
+            status
+        );
+        assert!(
+            status.contains("success"),
+            "Expected 'success' in status, got: {}",
+            status
+        );
     }
 
     // ===== Workspace Status JSON Output Tests (Task 29) =====
@@ -4147,23 +4261,23 @@ packet_max_lines = 5000
     #[test]
     fn test_workspace_status_json_output_schema_version() {
         // Test that workspace status JSON output includes schema_version field
-        use crate::types::{WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary};
+        use crate::types::{
+            WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary,
+        };
 
         let output = WorkspaceStatusJsonOutput {
             schema_version: "workspace-status-json.v1".to_string(),
             workspace_name: "test-workspace".to_string(),
             workspace_path: "/path/to/workspace.yaml".to_string(),
-            specs: vec![
-                WorkspaceSpecStatus {
-                    spec_id: "spec-1".to_string(),
-                    tags: vec!["backend".to_string()],
-                    status: "success".to_string(),
-                    latest_phase: Some("tasks".to_string()),
-                    last_activity: Some(chrono::Utc::now()),
-                    pending_fixups: 0,
-                    has_errors: false,
-                },
-            ],
+            specs: vec![WorkspaceSpecStatus {
+                spec_id: "spec-1".to_string(),
+                tags: vec!["backend".to_string()],
+                status: "success".to_string(),
+                latest_phase: Some("tasks".to_string()),
+                last_activity: Some(chrono::Utc::now()),
+                pending_fixups: 0,
+                has_errors: false,
+            }],
             summary: WorkspaceStatusSummary {
                 total_specs: 1,
                 successful_specs: 1,
@@ -4189,7 +4303,9 @@ packet_max_lines = 5000
     #[test]
     fn test_workspace_status_json_output_has_required_fields() {
         // Test that workspace status JSON output has all required fields per Requirements 4.3.4
-        use crate::types::{WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary};
+        use crate::types::{
+            WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary,
+        };
 
         let output = WorkspaceStatusJsonOutput {
             schema_version: "workspace-status-json.v1".to_string(),
@@ -4278,14 +4394,22 @@ packet_max_lines = 5000
         let json_str = json_result.unwrap();
 
         // Verify canonical JSON properties (no extra whitespace, no newlines)
-        assert!(!json_str.contains("  "), "Canonical JSON should not have indentation");
-        assert!(!json_str.contains('\n'), "Canonical JSON should not have newlines");
+        assert!(
+            !json_str.contains("  "),
+            "Canonical JSON should not have indentation"
+        );
+        assert!(
+            !json_str.contains('\n'),
+            "Canonical JSON should not have newlines"
+        );
     }
 
     #[test]
     fn test_workspace_status_json_spec_statuses() {
         // Test that spec statuses are correctly represented
-        use crate::types::{WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary};
+        use crate::types::{
+            WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary,
+        };
 
         let output = WorkspaceStatusJsonOutput {
             schema_version: "workspace-status-json.v1".to_string(),
@@ -4395,7 +4519,13 @@ packet_max_lines = 5000
         }
 
         // Test project status with --workspace flag
-        let args_workspace = vec!["xchecker", "project", "status", "--workspace", "/path/to/workspace.yaml"];
+        let args_workspace = vec![
+            "xchecker",
+            "project",
+            "status",
+            "--workspace",
+            "/path/to/workspace.yaml",
+        ];
         let cli_workspace = Cli::try_parse_from(args_workspace);
         assert!(cli_workspace.is_ok());
 
@@ -4403,7 +4533,10 @@ packet_max_lines = 5000
             match cli.command {
                 Commands::Project(ProjectCommands::Status { workspace, json }) => {
                     assert!(workspace.is_some());
-                    assert_eq!(workspace.unwrap().to_str().unwrap(), "/path/to/workspace.yaml");
+                    assert_eq!(
+                        workspace.unwrap().to_str().unwrap(),
+                        "/path/to/workspace.yaml"
+                    );
                     assert!(!json);
                 }
                 _ => panic!("Expected Project Status command"),
@@ -4458,19 +4591,17 @@ packet_max_lines = 5000
         let output = WorkspaceHistoryJsonOutput {
             schema_version: "workspace-history-json.v1".to_string(),
             spec_id: "test-spec".to_string(),
-            timeline: vec![
-                HistoryEntry {
-                    phase: "requirements".to_string(),
-                    timestamp: chrono::Utc::now(),
-                    exit_code: 0,
-                    success: true,
-                    tokens_input: Some(1000),
-                    tokens_output: Some(500),
-                    fixup_count: None,
-                    model: Some("haiku".to_string()),
-                    provider: Some("claude-cli".to_string()),
-                },
-            ],
+            timeline: vec![HistoryEntry {
+                phase: "requirements".to_string(),
+                timestamp: chrono::Utc::now(),
+                exit_code: 0,
+                success: true,
+                tokens_input: Some(1000),
+                tokens_output: Some(500),
+                fixup_count: None,
+                model: Some("haiku".to_string()),
+                provider: Some("claude-cli".to_string()),
+            }],
             metrics: HistoryMetrics {
                 total_executions: 1,
                 successful_executions: 1,
@@ -4595,8 +4726,14 @@ packet_max_lines = 5000
         let json_str = json_result.unwrap();
 
         // Verify canonical JSON properties (no extra whitespace, no newlines)
-        assert!(!json_str.contains("  "), "Canonical JSON should not have indentation");
-        assert!(!json_str.contains('\n'), "Canonical JSON should not have newlines");
+        assert!(
+            !json_str.contains("  "),
+            "Canonical JSON should not have indentation"
+        );
+        assert!(
+            !json_str.contains('\n'),
+            "Canonical JSON should not have newlines"
+        );
     }
 
     #[test]
@@ -4636,7 +4773,7 @@ packet_max_lines = 5000
 
         // Serialize and verify
         let json_value = serde_json::to_value(&entry).unwrap();
-        
+
         assert_eq!(json_value["phase"], "requirements");
         assert_eq!(json_value["exit_code"], 0);
         assert_eq!(json_value["success"], true);
@@ -4665,7 +4802,7 @@ packet_max_lines = 5000
 
         // Serialize and verify
         let json_value = serde_json::to_value(&metrics).unwrap();
-        
+
         assert_eq!(json_value["total_executions"], 5);
         assert_eq!(json_value["successful_executions"], 3);
         assert_eq!(json_value["failed_executions"], 2);
@@ -4675,9 +4812,8 @@ packet_max_lines = 5000
     }
 }
 
-
 /// Derive spec status from the latest receipt
-/// 
+///
 /// Returns a human-readable status string based on the latest receipt:
 /// - "success" if the latest receipt has exit_code 0
 /// - "failed" if the latest receipt has non-zero exit_code
@@ -4685,10 +4821,10 @@ packet_max_lines = 5000
 /// - "unknown" if receipts cannot be read
 fn derive_spec_status(spec_id: &str) -> String {
     use crate::receipt::ReceiptManager;
-    
+
     let base_path = crate::paths::spec_root(spec_id);
     let receipt_manager = ReceiptManager::new(&base_path);
-    
+
     // Try to list all receipts for this spec
     match receipt_manager.list_receipts() {
         Ok(receipts) => {
@@ -4722,20 +4858,23 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
 
     match cmd {
         ProjectCommands::Init { name } => {
-            let cwd = std::env::current_dir()
-                .context("Failed to get current directory")?;
-            
+            let cwd = std::env::current_dir().context("Failed to get current directory")?;
+
             let workspace_path = workspace::init_workspace(&cwd, &name)?;
-            
+
             println!("✓ Initialized workspace: {}", name);
             println!("  Created: {}", workspace_path.display());
             println!("\nNext steps:");
             println!("  - Add specs with: xchecker project add-spec <spec-id>");
             println!("  - List specs with: xchecker project list");
-            
+
             Ok(())
         }
-        ProjectCommands::AddSpec { spec_id, tag, force } => {
+        ProjectCommands::AddSpec {
+            spec_id,
+            tag,
+            force,
+        } => {
             // Sanitize spec ID
             let sanitized_id = sanitize_spec_id(&spec_id).map_err(|e| {
                 XCheckerError::Config(ConfigError::InvalidValue {
@@ -4745,10 +4884,9 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
             })?;
 
             // Discover workspace
-            let workspace_path = workspace::discover_workspace_from_cwd()?
-                .ok_or_else(|| anyhow::anyhow!(
-                    "No workspace found. Run 'xchecker project init <name>' first."
-                ))?;
+            let workspace_path = workspace::discover_workspace_from_cwd()?.ok_or_else(|| {
+                anyhow::anyhow!("No workspace found. Run 'xchecker project init <name>' first.")
+            })?;
 
             // Load workspace
             let mut ws = Workspace::load(&workspace_path)?;
@@ -4763,15 +4901,15 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
             if !tag.is_empty() {
                 println!("  Tags: {}", tag.join(", "));
             }
-            
+
             Ok(())
         }
         ProjectCommands::List { workspace } => {
             // Resolve workspace path
-            let workspace_path = workspace::resolve_workspace(workspace.as_deref())?
-                .ok_or_else(|| anyhow::anyhow!(
-                    "No workspace found. Run 'xchecker project init <name>' first."
-                ))?;
+            let workspace_path =
+                workspace::resolve_workspace(workspace.as_deref())?.ok_or_else(|| {
+                    anyhow::anyhow!("No workspace found. Run 'xchecker project init <name>' first.")
+                })?;
 
             // Load workspace
             let ws = Workspace::load(&workspace_path)?;
@@ -4788,18 +4926,18 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
                 for spec in ws.list_specs() {
                     // Derive status from latest receipt
                     let status = derive_spec_status(&spec.id);
-                    
+
                     let tags_str = if spec.tags.is_empty() {
                         String::new()
                     } else {
                         format!(" [{}]", spec.tags.join(", "))
                     };
-                    
+
                     // Format: spec-id (status) [tags]
                     println!("  - {} ({}){}", spec.id, status, tags_str);
                 }
             }
-            
+
             Ok(())
         }
         ProjectCommands::Status { workspace, json } => {
@@ -4815,24 +4953,24 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
             })?;
             execute_project_history_command(&sanitized_id, json)
         }
-        ProjectCommands::Tui { workspace } => {
-            execute_project_tui_command(workspace.as_deref())
-        }
+        ProjectCommands::Tui { workspace } => execute_project_tui_command(workspace.as_deref()),
     }
 }
 
 /// Execute the project status command
 /// Per FR-WORKSPACE (Requirements 4.3.4): Emits aggregated status for all specs
-fn execute_project_status_command(workspace_override: Option<&std::path::Path>, json: bool) -> Result<()> {
+fn execute_project_status_command(
+    workspace_override: Option<&std::path::Path>,
+    json: bool,
+) -> Result<()> {
     use crate::receipt::ReceiptManager;
     use crate::types::{WorkspaceSpecStatus, WorkspaceStatusJsonOutput, WorkspaceStatusSummary};
     use crate::workspace::{self, Workspace};
 
     // Resolve workspace path
-    let workspace_path = workspace::resolve_workspace(workspace_override)?
-        .ok_or_else(|| anyhow::anyhow!(
-            "No workspace found. Run 'xchecker project init <name>' first."
-        ))?;
+    let workspace_path = workspace::resolve_workspace(workspace_override)?.ok_or_else(|| {
+        anyhow::anyhow!("No workspace found. Run 'xchecker project init <name>' first.")
+    })?;
 
     // Load workspace
     let ws = Workspace::load(&workspace_path)?;
@@ -4874,7 +5012,9 @@ fn execute_project_status_command(workspace_override: Option<&std::path::Path>, 
 
             if latest.exit_code == 0 {
                 // Check if all phases are complete
-                let all_phases_complete = receipts.iter().any(|r| r.phase == "final" && r.exit_code == 0);
+                let all_phases_complete = receipts
+                    .iter()
+                    .any(|r| r.phase == "final" && r.exit_code == 0);
                 if all_phases_complete {
                     summary.successful_specs += 1;
                     (
@@ -4968,12 +5108,8 @@ fn execute_project_status_command(workspace_override: Option<&std::path::Path>, 
 
                 // Format: spec-id (status, phase) [tags] (fixups)
                 println!(
-                    "  - {} ({}, {}){}{}", 
-                    spec.spec_id, 
-                    spec.status, 
-                    phase_str,
-                    tags_str,
-                    fixups_str
+                    "  - {} ({}, {}){}{}",
+                    spec.spec_id, spec.status, phase_str, tags_str, fixups_str
                 );
             }
         }
@@ -5034,7 +5170,7 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
 
     // Get spec base path
     let base_path = crate::paths::spec_root(spec_id);
-    
+
     // Check if spec exists
     if !base_path.exists() {
         if json {
@@ -5083,10 +5219,15 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
 
     for receipt in &receipts {
         let success = receipt.exit_code == 0;
-        
+
         // Extract LLM metadata if available
         let (tokens_input, tokens_output, provider, model) = if let Some(ref llm) = receipt.llm {
-            (llm.tokens_input, llm.tokens_output, llm.provider.clone(), llm.model_used.clone())
+            (
+                llm.tokens_input,
+                llm.tokens_output,
+                llm.provider.clone(),
+                llm.model_used.clone(),
+            )
         } else {
             (None, None, None, Some(receipt.model_full_name.clone()))
         };
@@ -5128,10 +5269,13 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
         }
 
         // Track first and last execution
-        if metrics.first_execution.is_none() || receipt.emitted_at < metrics.first_execution.unwrap() {
+        if metrics.first_execution.is_none()
+            || receipt.emitted_at < metrics.first_execution.unwrap()
+        {
             metrics.first_execution = Some(receipt.emitted_at);
         }
-        if metrics.last_execution.is_none() || receipt.emitted_at > metrics.last_execution.unwrap() {
+        if metrics.last_execution.is_none() || receipt.emitted_at > metrics.last_execution.unwrap()
+        {
             metrics.last_execution = Some(receipt.emitted_at);
         }
 
@@ -5162,14 +5306,19 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
         println!("  Successful: {}", metrics.successful_executions);
         println!("  Failed: {}", metrics.failed_executions);
         if metrics.total_tokens_input > 0 || metrics.total_tokens_output > 0 {
-            println!("  Total tokens: {} input, {} output", 
-                metrics.total_tokens_input, metrics.total_tokens_output);
+            println!(
+                "  Total tokens: {} input, {} output",
+                metrics.total_tokens_input, metrics.total_tokens_output
+            );
         }
         if metrics.total_fixups > 0 {
             println!("  Total fixups applied: {}", metrics.total_fixups);
         }
         if let Some(first) = metrics.first_execution {
-            println!("  First execution: {}", first.format("%Y-%m-%d %H:%M:%S UTC"));
+            println!(
+                "  First execution: {}",
+                first.format("%Y-%m-%d %H:%M:%S UTC")
+            );
         }
         if let Some(last) = metrics.last_execution {
             println!("  Last execution: {}", last.format("%Y-%m-%d %H:%M:%S UTC"));
@@ -5188,12 +5337,13 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
                     (None, Some(to)) => format!(" [{} out]", to),
                     (None, None) => String::new(),
                 };
-                let fixup_str = entry.fixup_count
+                let fixup_str = entry
+                    .fixup_count
                     .map(|c| format!(" ({} fixups)", c))
                     .unwrap_or_default();
-                
+
                 println!(
-                    "  {} {} {} (exit {}){}{}", 
+                    "  {} {} {} (exit {}){}{}",
                     entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
                     status_icon,
                     entry.phase,
@@ -5209,7 +5359,9 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
 }
 
 /// Emit workspace history output as canonical JSON using JCS (RFC 8785)
-fn emit_workspace_history_json(output: &crate::types::WorkspaceHistoryJsonOutput) -> Result<String> {
+fn emit_workspace_history_json(
+    output: &crate::types::WorkspaceHistoryJsonOutput,
+) -> Result<String> {
     // Serialize to JSON value
     let json_value = serde_json::to_value(output)
         .context("Failed to serialize workspace history output to JSON value")?;
@@ -5230,10 +5382,9 @@ fn execute_project_tui_command(workspace_override: Option<&std::path::Path>) -> 
     use crate::workspace;
 
     // Resolve workspace path
-    let workspace_path = workspace::resolve_workspace(workspace_override)?
-        .ok_or_else(|| anyhow::anyhow!(
-            "No workspace found. Run 'xchecker project init <name>' first."
-        ))?;
+    let workspace_path = workspace::resolve_workspace(workspace_override)?.ok_or_else(|| {
+        anyhow::anyhow!("No workspace found. Run 'xchecker project init <name>' first.")
+    })?;
 
     // Run the TUI
     crate::tui::run_tui(&workspace_path)
@@ -5247,7 +5398,7 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
     match cmd {
         TemplateCommands::List => {
             println!("Available templates:\n");
-            
+
             for t in template::list_templates() {
                 println!("  {}", t.id);
                 println!("    Name: {}", t.name);
@@ -5258,10 +5409,10 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
                 }
                 println!();
             }
-            
+
             println!("To initialize a spec from a template:");
             println!("  xchecker template init <template> <spec-id>");
-            
+
             Ok(())
         }
         TemplateCommands::Init { template, spec_id } => {
@@ -5282,7 +5433,8 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
                         "Unknown template '{}'. Valid templates: {}",
                         template, valid_templates
                     ),
-                }).into());
+                })
+                .into());
             }
 
             // Initialize from template
@@ -5291,18 +5443,27 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             // Get template info for display
             let template_info = template::get_template(&template).unwrap();
 
-            println!("✓ Initialized spec '{}' from template '{}'", sanitized_id, template);
+            println!(
+                "✓ Initialized spec '{}' from template '{}'",
+                sanitized_id, template
+            );
             println!();
             println!("Template: {}", template_info.name);
             println!("Description: {}", template_info.description);
             println!();
             println!("Created files:");
-            println!("  - .xchecker/specs/{}/context/problem-statement.md", sanitized_id);
+            println!(
+                "  - .xchecker/specs/{}/context/problem-statement.md",
+                sanitized_id
+            );
             println!("  - .xchecker/specs/{}/README.md", sanitized_id);
             println!();
             println!("Next steps:");
             println!("  1. Review the problem statement:");
-            println!("     cat .xchecker/specs/{}/context/problem-statement.md", sanitized_id);
+            println!(
+                "     cat .xchecker/specs/{}/context/problem-statement.md",
+                sanitized_id
+            );
             println!("  2. Customize the problem statement for your needs");
             println!("  3. Run the requirements phase:");
             println!("     xchecker resume {} --phase requirements", sanitized_id);

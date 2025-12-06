@@ -48,6 +48,10 @@
     "has_errors": {
       "type": "boolean",
       "description": "Whether any phase has failed (exit code != 0)"
+    },
+    "strict_validation": {
+      "type": "boolean",
+      "description": "Whether strict validation mode is enabled. When true, low-quality LLM output causes hard failures."
     }
   },
   "additionalProperties": false

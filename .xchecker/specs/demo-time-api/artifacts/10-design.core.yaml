@@ -1,0 +1,36 @@
+# Core design data for spec demo-time-api
+# This file contains structured data extracted from the design document
+
+spec_id: "demo-time-api"
+phase: "design"
+version: "1.0"
+
+# Metadata about the design
+metadata:
+  has_architecture_section: false  # Would be parsed from markdown
+  has_components_section: false    # Would be parsed from markdown
+  has_data_models_section: false   # Would be parsed from markdown
+  has_error_handling_section: false # Would be parsed from markdown
+  has_testing_strategy_section: false # Would be parsed from markdown
+  has_mermaid_diagrams: false      # Would be detected from markdown
+
+# Structured design data (would be extracted from markdown)
+architecture:
+  components: []
+  interfaces: []
+  data_flow: []
+
+# Data models (would be extracted from markdown)
+data_models: []
+
+# Error handling strategies (would be extracted from markdown)
+error_handling: []
+
+# Testing strategies (would be extracted from markdown)
+testing_strategy: []
+
+# Dependencies on requirements
+requirements_dependencies: []
+
+# Generated timestamp
+generated_at: "2025-12-05T23:31:14.183523400+00:00"

@@ -6,8 +6,8 @@
 
 use crate::llm::types::{LlmBackend, LlmError, LlmInvocation, LlmResult};
 use async_trait::async_trait;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use tracing::{debug, warn};
 
 /// Default budget limit for OpenRouter calls per process
@@ -128,10 +128,7 @@ impl BudgetedBackend {
                 "Using budget limit from config file"
             );
         } else {
-            debug!(
-                limit = DEFAULT_BUDGET_LIMIT,
-                "Using default budget limit"
-            );
+            debug!(limit = DEFAULT_BUDGET_LIMIT, "Using default budget limit");
         }
 
         Self::new(inner, limit)
@@ -345,11 +342,11 @@ mod tests {
     async fn test_budget_limit_one() {
         // Test with limit of 1
         let backend = BudgetedBackend::new(Box::new(MockSuccessBackend), 1);
-        
+
         // First call should succeed
         let result = backend.invoke(create_test_invocation()).await;
         assert!(result.is_ok());
-        
+
         // Second call should fail
         let result = backend.invoke(create_test_invocation()).await;
         match result {
@@ -371,20 +368,18 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // Set environment variable
         unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "15");
         }
-        
+
         // Config budget is 30, but env should win
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            Some(30)
-        );
-        
+        let backend =
+            BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(30));
+
         assert_eq!(backend.limit(), 15);
-        
+
         // Clean up
         // SAFETY: Cleaning up the environment variable we set above
         unsafe {
@@ -401,15 +396,13 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // Config budget should be used
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            Some(25)
-        );
-        
+        let backend =
+            BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(25));
+
         assert_eq!(backend.limit(), 25);
-        
+
         // Clean up at end as well
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
@@ -425,15 +418,12 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // No config budget, should use default
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            None
-        );
-        
+        let backend = BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), None);
+
         assert_eq!(backend.limit(), DEFAULT_BUDGET_LIMIT);
-        
+
         // Clean up at end as well
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
@@ -450,20 +440,18 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // Set invalid environment variable
         unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "not-a-number");
         }
-        
+
         // Config budget should be used when env is invalid
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            Some(35)
-        );
-        
+        let backend =
+            BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(35));
+
         assert_eq!(backend.limit(), 35);
-        
+
         // Clean up
         // SAFETY: Cleaning up the environment variable we set above
         unsafe {
@@ -481,20 +469,18 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // Set empty environment variable
         unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "");
         }
-        
+
         // Config budget should be used when env is empty
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            Some(40)
-        );
-        
+        let backend =
+            BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(40));
+
         assert_eq!(backend.limit(), 40);
-        
+
         // Clean up
         // SAFETY: Cleaning up the environment variable we set above
         unsafe {
@@ -511,15 +497,13 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // Config budget of 0 should be respected
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            Some(0)
-        );
-        
+        let backend =
+            BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(0));
+
         assert_eq!(backend.limit(), 0);
-        
+
         // Clean up at end as well
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
@@ -536,20 +520,18 @@ mod tests {
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
-        
+
         // Set environment variable to 0
         unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "0");
         }
-        
+
         // Env budget of 0 should be respected
-        let backend = BudgetedBackend::with_limit_from_config(
-            Box::new(MockSuccessBackend),
-            Some(50)
-        );
-        
+        let backend =
+            BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(50));
+
         assert_eq!(backend.limit(), 0);
-        
+
         // Clean up
         // SAFETY: Cleaning up the environment variable we set above
         unsafe {

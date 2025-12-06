@@ -295,14 +295,15 @@ impl PhaseOrchestrator {
                 if let Some(xchecker_err) = e.downcast_ref::<XCheckerError>()
                     && let XCheckerError::Phase(PhaseError::ExecutionFailed { phase: _, code }) =
                         xchecker_err
-                        && *code == crate::exit_codes::codes::SECRET_DETECTED {
-                            return Ok(PhaseExecutionResult {
-                                success: false,
-                                rewind_triggered: false,
-                                rewind_target: None,
-                                error: Some("Secret detected in packet".to_string()),
-                            });
-                        }
+                    && *code == crate::exit_codes::codes::SECRET_DETECTED
+                {
+                    return Ok(PhaseExecutionResult {
+                        success: false,
+                        rewind_triggered: false,
+                        rewind_target: None,
+                        error: Some("Secret detected in packet".to_string()),
+                    });
+                }
                 // Propagate other errors
                 return Err(e);
             }

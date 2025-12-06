@@ -459,6 +459,34 @@ As a developer, I want JSON schema compliance with drift detection.
 
 ---
 
+### FR-VLD (Requirement 20): Output Validation
+
+**User Story:**
+As a developer, I want phase outputs to be validated for quality, so I can catch meta-summaries, too-short outputs, and missing sections before they pollute downstream phases.
+
+**Acceptance Criteria**
+
+1. Phase outputs MAY be validated for:
+   - Meta-summaries (e.g., "Here is...", "I'll create...", "This document...")
+   - Minimum length per phase (Requirements: 30 lines, Design: 50, Tasks: 40, Review: 15, Fixup: 10, Final: 5)
+   - Required section headers per phase
+2. Validation is performed in `postprocess()` for Requirements, Design, and Tasks phases.
+3. When `strict_validation = false` (default):
+   - Validation issues are logged as warnings via `eprintln!`.
+   - Phase execution continues.
+4. When `strict_validation = true`:
+   - Validation issues cause phase failure with `XCheckerError::ValidationFailed`.
+   - Exit code is 1 (general error).
+5. `ValidationFailed` error includes:
+   - Phase name
+   - List of validation issues
+   - Issue count
+6. `ValidationFailed` user-friendly error includes:
+   - Actionable suggestions (disable strict mode, tune prompts, check output quality)
+   - Context explaining strict mode behavior
+
+---
+
 ## 4. Non-Functional Requirements (Runtime)
 
 NFRs apply to the **runtime** (V1–V10). LLM-specific NFRs (NFR8–9) are defined in the LLM spec.

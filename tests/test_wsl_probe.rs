@@ -34,12 +34,12 @@ fn test_wsl_probe() {
                 // Try to list distributions
                 let list_result = Command::new("wsl").args(["-l", "-v"]).output();
 
-                if let Ok(list_output) = list_result {
-                    if list_output.status.success() {
-                        let distros = String::from_utf8_lossy(&list_output.stdout);
-                        println!("\nInstalled WSL distributions:");
-                        println!("{}", distros);
-                    }
+                if let Ok(list_output) = list_result
+                    && list_output.status.success()
+                {
+                    let distros = String::from_utf8_lossy(&list_output.stdout);
+                    println!("\nInstalled WSL distributions:");
+                    println!("{}", distros);
                 }
 
                 // Try to run a simple command in WSL
@@ -94,6 +94,6 @@ mod runner_wsl_tests {
     fn test_wsl_probe_infrastructure() {
         // This test verifies that the WSL probe test exists and can be compiled
         // The actual WSL probe test is marked as ignored and runs separately
-        assert!(true, "WSL probe test infrastructure is set up correctly");
+        // WSL probe test infrastructure is set up correctly
     }
 }

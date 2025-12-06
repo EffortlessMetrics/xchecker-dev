@@ -280,6 +280,7 @@ fn test_cli_flags_override_config() -> Result<()> {
         lock_ttl_seconds: Some(1800),
         debug_packet: false,
         allow_links: false,
+        strict_validation: None,
         llm_provider: None,
         llm_claude_binary: None,
         llm_gemini_binary: None,
@@ -290,10 +291,7 @@ fn test_cli_flags_override_config() -> Result<()> {
     let config = Config::discover(&cli_args)?;
 
     // Verify CLI values took precedence
-    assert_eq!(
-        config.defaults.model,
-        Some("opus".to_string())
-    );
+    assert_eq!(config.defaults.model, Some("opus".to_string()));
     assert_eq!(config.defaults.max_turns, Some(10));
     assert_eq!(config.defaults.packet_max_bytes, Some(100000));
     assert_eq!(config.defaults.packet_max_lines, Some(2000));
@@ -426,6 +424,7 @@ fn test_new_flags_in_config_system() -> Result<()> {
         lock_ttl_seconds: Some(1800),
         debug_packet: true,
         allow_links: true,
+        strict_validation: Some(true),
         llm_provider: None,
         llm_claude_binary: None,
         llm_gemini_binary: None,

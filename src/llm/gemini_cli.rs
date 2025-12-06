@@ -62,8 +62,8 @@ impl GeminiCliBackend {
         // Create runner with appropriate buffer config
         // Gemini stderr should be captured and redacted to ≤ 2 KiB
         let buffer_config = BufferConfig {
-            stdout_cap_bytes: 2 * 1024 * 1024, // 2 MiB for stdout
-            stderr_cap_bytes: 2 * 1024,        // 2 KiB for stderr (requirement 3.4.3)
+            stdout_cap_bytes: 2 * 1024 * 1024,  // 2 MiB for stdout
+            stderr_cap_bytes: 2 * 1024,         // 2 KiB for stderr (requirement 3.4.3)
             stderr_receipt_cap_bytes: 2 * 1024, // 2 KiB for receipt (same as stderr cap)
         };
         let runner = Runner::with_buffer_config(runner_mode, wsl_options, buffer_config);
@@ -115,23 +115,30 @@ impl GeminiCliBackend {
         // 5. Load profiles from config
         let mut profiles = HashMap::new();
         if let Some(gemini_config) = &cfg.llm.gemini
-            && let Some(config_profiles) = &gemini_config.profiles {
-                for (name, profile_config) in config_profiles {
-                    profiles.insert(
-                        name.clone(),
-                        GeminiProfile {
-                            model: profile_config
-                                .model
-                                .clone()
-                                .unwrap_or_else(|| default_model.clone()),
-                            max_tokens: profile_config.max_tokens,
-                        },
-                    );
-                }
+            && let Some(config_profiles) = &gemini_config.profiles
+        {
+            for (name, profile_config) in config_profiles {
+                profiles.insert(
+                    name.clone(),
+                    GeminiProfile {
+                        model: profile_config
+                            .model
+                            .clone()
+                            .unwrap_or_else(|| default_model.clone()),
+                        max_tokens: profile_config.max_tokens,
+                    },
+                );
             }
+        }
 
         // 6. Construct the backend
-        Self::new(binary_path, runner_mode, wsl_options, default_model, profiles)
+        Self::new(
+            binary_path,
+            runner_mode,
+            wsl_options,
+            default_model,
+            profiles,
+        )
     }
 
     /// Discover Gemini CLI binary in PATH
@@ -183,9 +190,10 @@ impl GeminiCliBackend {
         // 2. Check if profile is specified in metadata
         if let Some(profile_name) = inv.metadata.get("profile")
             && let Some(profile_name_str) = profile_name.as_str()
-                && let Some(profile) = self.profiles.get(profile_name_str) {
-                    return profile.model.clone();
-                }
+            && let Some(profile) = self.profiles.get(profile_name_str)
+        {
+            return profile.model.clone();
+        }
 
         // 3. Fall back to default model
         self.default_model.clone()
@@ -195,17 +203,19 @@ impl GeminiCliBackend {
     fn resolve_max_tokens(&self, inv: &LlmInvocation) -> Option<u32> {
         // 1. Check if max_tokens is specified in invocation metadata
         if let Some(max_tokens_value) = inv.metadata.get("max_tokens")
-            && let Some(max_tokens) = max_tokens_value.as_u64() {
-                return Some(max_tokens as u32);
-            }
+            && let Some(max_tokens) = max_tokens_value.as_u64()
+        {
+            return Some(max_tokens as u32);
+        }
 
         // 2. Check if profile is specified and has max_tokens
         if let Some(profile_name) = inv.metadata.get("profile")
             && let Some(profile_name_str) = profile_name.as_str()
-                && let Some(profile) = self.profiles.get(profile_name_str)
-                    && let Some(max_tokens) = profile.max_tokens {
-                        return Some(max_tokens);
-                    }
+            && let Some(profile) = self.profiles.get(profile_name_str)
+            && let Some(max_tokens) = profile.max_tokens
+        {
+            return Some(max_tokens);
+        }
 
         // 3. No max_tokens specified
         None
@@ -226,10 +236,7 @@ impl LlmBackend for GeminiCliBackend {
         // Format: gemini -p "<prompt>" --model <model>
         // Note: Gemini takes prompt as command-line argument, not stdin
         let mut cmd = TokioCommand::new(&self.binary_path);
-        cmd.arg("-p")
-            .arg(&prompt)
-            .arg("--model")
-            .arg(&model);
+        cmd.arg("-p").arg(&prompt).arg("--model").arg(&model);
 
         // Add max_tokens if specified
         if let Some(tokens) = max_tokens {
@@ -255,9 +262,9 @@ impl LlmBackend for GeminiCliBackend {
         }
 
         // Execute with timeout
-        let child = cmd.spawn().map_err(|e| {
-            LlmError::Transport(format!("Failed to spawn Gemini CLI: {e}"))
-        })?;
+        let child = cmd
+            .spawn()
+            .map_err(|e| LlmError::Transport(format!("Failed to spawn Gemini CLI: {e}")))?;
 
         let output = if let Some(timeout_duration) = Some(inv.timeout) {
             match timeout(timeout_duration, child.wait_with_output()).await {
@@ -274,9 +281,10 @@ impl LlmBackend for GeminiCliBackend {
                 }
             }
         } else {
-            child.wait_with_output().await.map_err(|e| {
-                LlmError::Transport(format!("Failed to wait for Gemini CLI: {e}"))
-            })?
+            child
+                .wait_with_output()
+                .await
+                .map_err(|e| LlmError::Transport(format!("Failed to wait for Gemini CLI: {e}")))?
         };
 
         // Check exit status

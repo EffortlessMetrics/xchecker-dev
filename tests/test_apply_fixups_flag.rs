@@ -19,6 +19,8 @@ fn test_apply_fixups_config_handling() -> Result<()> {
     let orchestrator_config_preview = OrchestratorConfig {
         dry_run: false,
         config: config_preview,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Simulate how orchestrator determines fixup mode
@@ -42,6 +44,8 @@ fn test_apply_fixups_config_handling() -> Result<()> {
     let orchestrator_config_apply = OrchestratorConfig {
         dry_run: false,
         config: config_apply,
+        selectors: None,
+        strict_validation: false,
     };
 
     let apply_fixups_apply = orchestrator_config_apply

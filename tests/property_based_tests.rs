@@ -104,24 +104,22 @@ fn arb_yaml_content() -> impl Strategy<Value = String> {
     prop::collection::btree_map(
         "[a-zA-Z_][a-zA-Z0-9_]*", // Valid YAML keys
         prop_oneof![
-            "[a-zA-Z0-9 ._-]{1,50}".prop_map(serde_yaml_ng::Value::String),
-            any::<i64>().prop_map(|i| serde_yaml_ng::Value::Number(serde_yaml_ng::Number::from(i))),
-            any::<bool>().prop_map(serde_yaml_ng::Value::Bool),
+            "[a-zA-Z0-9 ._-]{1,50}".prop_map(serde_yaml::Value::String),
+            any::<i64>().prop_map(|i| serde_yaml::Value::Number(serde_yaml::Number::from(i))),
+            any::<bool>().prop_map(serde_yaml::Value::Bool),
             prop::collection::vec("[a-zA-Z0-9 ._-]{1,20}", 0..5).prop_map(|v| {
-                serde_yaml_ng::Value::Sequence(
-                    v.into_iter().map(serde_yaml_ng::Value::String).collect(),
-                )
+                serde_yaml::Value::Sequence(v.into_iter().map(serde_yaml::Value::String).collect())
             }),
         ],
         1..10,
     )
     .prop_map(|map| {
-        let yaml_map: serde_yaml_ng::Mapping = map
+        let yaml_map: serde_yaml::Mapping = map
             .into_iter()
-            .map(|(k, v)| (serde_yaml_ng::Value::String(k), v))
+            .map(|(k, v)| (serde_yaml::Value::String(k), v))
             .collect();
-        let value = serde_yaml_ng::Value::Mapping(yaml_map);
-        serde_yaml_ng::to_string(&value).unwrap_or_default()
+        let value = serde_yaml::Value::Mapping(yaml_map);
+        serde_yaml::to_string(&value).unwrap_or_default()
     })
 }
 
@@ -154,41 +152,38 @@ fn arb_markdown_content() -> impl Strategy<Value = String> {
 #[test]
 fn prop_yaml_canonicalization_deterministic() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(yaml_content in arb_yaml_content())| {
         let canonicalizer = Canonicalizer::new();
 
         // Parse the YAML to ensure it's valid
-        if let Ok(mut value) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&yaml_content) {
-            // Create a reordered version by converting to BTreeMap and back
-            if let serde_yaml_ng::Value::Mapping(ref mut mapping) = value {
-                // Convert to BTreeMap to ensure different ordering
-                let btree: BTreeMap<String, serde_yaml_ng::Value> = mapping
-                    .iter()
-                    .filter_map(|(k, v)| {
-                        if let serde_yaml_ng::Value::String(key) = k {
-                            Some((key.clone(), v.clone()))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
+        if let Ok(serde_yaml::Value::Mapping(ref mapping)) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
+            // Convert to BTreeMap to ensure different ordering
+            let btree: BTreeMap<String, serde_yaml::Value> = mapping
+                .iter()
+                .filter_map(|(k, v)| {
+                    if let serde_yaml::Value::String(key) = k {
+                        Some((key.clone(), v.clone()))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
 
-                // Create new mapping with reversed order
-                let mut new_mapping = serde_yaml_ng::Mapping::new();
-                for (k, v) in btree.iter().rev() {
-                    new_mapping.insert(serde_yaml_ng::Value::String(k.clone()), v.clone());
-                }
-
-                let reordered_value = serde_yaml_ng::Value::Mapping(new_mapping);
-                let reordered_yaml = serde_yaml_ng::to_string(&reordered_value).unwrap();
-
-                // Both should produce the same canonicalized hash
-                let hash1 = canonicalizer.hash_canonicalized(&yaml_content, FileType::Yaml).unwrap();
-                let hash2 = canonicalizer.hash_canonicalized(&reordered_yaml, FileType::Yaml).unwrap();
-
-                prop_assert_eq!(hash1, hash2, "Reordered YAML should produce identical hash");
+            // Create new mapping with reversed order
+            let mut new_mapping = serde_yaml::Mapping::new();
+            for (k, v) in btree.iter().rev() {
+                new_mapping.insert(serde_yaml::Value::String(k.clone()), v.clone());
             }
+
+            let reordered_value = serde_yaml::Value::Mapping(new_mapping);
+            let reordered_yaml = serde_yaml::to_string(&reordered_value).unwrap();
+
+            // Both should produce the same canonicalized hash
+            let hash1 = canonicalizer.hash_canonicalized(&yaml_content, FileType::Yaml).unwrap();
+            let hash2 = canonicalizer.hash_canonicalized(&reordered_yaml, FileType::Yaml).unwrap();
+
+            prop_assert_eq!(hash1, hash2, "Reordered YAML should produce identical hash");
         }
     });
 }
@@ -197,7 +192,7 @@ fn prop_yaml_canonicalization_deterministic() {
 #[test]
 fn prop_markdown_canonicalization_whitespace_invariant() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(base_content in arb_markdown_content())| {
         let canonicalizer = Canonicalizer::new();
 
@@ -216,7 +211,7 @@ fn prop_markdown_canonicalization_whitespace_invariant() {
 #[test]
 fn prop_hash_consistency_multiple_runs() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(content in arb_yaml_content())| {
         let canonicalizer = Canonicalizer::new();
 
@@ -280,7 +275,7 @@ fn prop_budget_enforcement_various_inputs() {
 #[test]
 fn prop_secret_redaction_consistency() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(
         base_content in "[a-zA-Z0-9 \n]{50,200}",
         secret_type in 0usize..5
@@ -323,16 +318,16 @@ fn prop_secret_redaction_consistency() {
 #[test]
 fn prop_canonicalization_preserves_structure() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(yaml_content in arb_yaml_content())| {
         let canonicalizer = Canonicalizer::new();
 
         // Parse original YAML
-        if let Ok(original_value) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&yaml_content) {
+        if let Ok(original_value) = serde_yaml::from_str::<serde_yaml::Value>(&yaml_content) {
             // Canonicalize and parse again
             let normalized = canonicalizer.normalize_text(&yaml_content);
 
-            if let Ok(normalized_value) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&normalized) {
+            if let Ok(normalized_value) = serde_yaml::from_str::<serde_yaml::Value>(&normalized) {
                 // Semantic structure should be preserved
                 prop_assert_eq!(original_value, normalized_value,
                                "Canonicalization should preserve semantic structure");
@@ -345,7 +340,7 @@ fn prop_canonicalization_preserves_structure() {
 #[test]
 fn prop_file_type_detection_consistent() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(extension in "[a-z]{1,10}")| {
         let file_type1 = FileType::from_extension(&extension);
         let file_type2 = FileType::from_extension(&extension);
@@ -365,7 +360,7 @@ fn prop_file_type_detection_consistent() {
 #[test]
 fn prop_blake3_hash_properties() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(content in any::<Vec<u8>>())| {
         let hash1 = blake3::hash(&content);
         let hash2 = blake3::hash(&content);
@@ -388,7 +383,7 @@ fn prop_blake3_hash_properties() {
 #[test]
 fn prop_packet_size_calculations() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(contents in prop::collection::vec("[a-zA-Z0-9 \n]{10,100}", 1..20))| {
         let mut total_bytes = 0;
         let mut total_lines = 0;
@@ -418,7 +413,7 @@ fn prop_packet_size_calculations() {
 #[test]
 fn prop_error_handling_consistency() {
     let config = proptest_config(None);
-    
+
     proptest!(config, |(malformed_yaml in "[{}\\[\\]]{5,50}")| {
         let canonicalizer = Canonicalizer::new();
 
@@ -599,17 +594,17 @@ fn prop_doctor_never_triggers_llm_completions_for_cli_providers() {
     )| {
         // Create CLI args with provider and execution strategy
         let mut cli_args = CliArgs::default();
-        
+
         // Set provider if specified
         if let Some(ref prov) = provider {
             cli_args.llm_provider = Some(prov.clone());
         }
-        
+
         // Set execution strategy if specified
         if let Some(ref strat) = execution_strategy {
             cli_args.execution_strategy = Some(strat.clone());
         }
-        
+
         // Set custom binary if provided
         if let Some(ref binary) = custom_binary {
             cli_args.llm_claude_binary = Some(binary.clone());
@@ -617,7 +612,7 @@ fn prop_doctor_never_triggers_llm_completions_for_cli_providers() {
 
         // Discover config (may fail if binary doesn't exist, which is fine)
         let config_result = Config::discover(&cli_args);
-        
+
         // If config discovery fails, that's acceptable - we're testing that doctor
         // doesn't invoke LLM even when config is invalid
         if let Ok(config) = config_result {
@@ -711,11 +706,11 @@ fn prop_doctor_checks_deterministic_for_cli_providers() {
     )| {
         // Create CLI args
         let mut cli_args = CliArgs::default();
-        
+
         if let Some(ref prov) = provider {
             cli_args.llm_provider = Some(prov.clone());
         }
-        
+
         if let Some(ref strat) = execution_strategy {
             cli_args.execution_strategy = Some(strat.clone());
         }
@@ -750,14 +745,14 @@ fn prop_doctor_checks_deterministic_for_cli_providers() {
                 // For each check, status should be consistent (Pass/Warn/Fail)
                 // Note: Some checks like 'atomic_rename' and 'write_permissions' may be
                 // non-deterministic due to external filesystem state, so we exclude them
-                let non_deterministic_checks = vec!["atomic_rename", "write_permissions"];
-                
+                let non_deterministic_checks = ["atomic_rename", "write_permissions"];
+
                 for check1 in &output1.checks {
                     // Skip checks that are known to be non-deterministic
                     if non_deterministic_checks.contains(&check1.name.as_str()) {
                         continue;
                     }
-                    
+
                     if let Some(check2) = output2.checks.iter().find(|c| c.name == check1.name) {
                         prop_assert_eq!(
                             &check1.status,
@@ -771,7 +766,6 @@ fn prop_doctor_checks_deterministic_for_cli_providers() {
         }
     });
 }
-
 
 /// Property test: Gemini stderr is redacted to size limit
 ///
@@ -837,7 +831,6 @@ fn prop_gemini_stderr_redaction() {
     });
 }
 
-
 /// Property test: Doctor never triggers LLM completions for Gemini CLI provider
 ///
 /// **Feature: xchecker-llm-ecosystem, Property 5 (Gemini variant): Doctor never triggers LLM completions for CLI providers**
@@ -868,24 +861,16 @@ fn prop_doctor_never_triggers_llm_completions_for_gemini_cli() {
         ])
     )| {
         // Create CLI args with Gemini provider and execution strategy
-        let mut cli_args = CliArgs::default();
-        
-        // Set Gemini as provider
-        cli_args.llm_provider = Some("gemini-cli".to_string());
-        
-        // Set execution strategy if specified
-        if let Some(ref strat) = execution_strategy {
-            cli_args.execution_strategy = Some(strat.clone());
-        }
-        
-        // Set custom binary if provided
-        if let Some(ref binary) = custom_binary {
-            cli_args.llm_gemini_binary = Some(binary.clone());
-        }
+        let cli_args = CliArgs {
+            llm_provider: Some("gemini-cli".to_string()),
+            execution_strategy: execution_strategy.clone(),
+            llm_gemini_binary: custom_binary.clone(),
+            ..CliArgs::default()
+        };
 
         // Discover config (may fail if binary doesn't exist, which is fine)
         let config_result = Config::discover(&cli_args);
-        
+
         // If config discovery fails, that's acceptable - we're testing that doctor
         // doesn't invoke LLM even when config is invalid
         if let Ok(config) = config_result {
@@ -1054,7 +1039,7 @@ fn prop_http_logging_never_exposes_secrets() {
 
         // Verify that error context is preserved
         prop_assert!(
-            redacted.contains(&error_type),
+            redacted.contains(error_type),
             "Error type should be preserved. Original: '{}', Redacted: '{}'",
             error_message,
             redacted
@@ -1077,15 +1062,15 @@ fn extract_potential_secrets(pattern: &str) -> Vec<String> {
     let mut secrets = Vec::new();
 
     // Extract credentials from URLs (user:pass)
-    if let Some(at_pos) = pattern.find('@') {
-        if let Some(scheme_end) = pattern.find("://") {
-            let creds_start = scheme_end + 3;
-            if creds_start < at_pos {
-                let creds = &pattern[creds_start..at_pos];
-                if let Some(colon_pos) = creds.find(':') {
-                    secrets.push(creds[..colon_pos].to_string());
-                    secrets.push(creds[colon_pos + 1..].to_string());
-                }
+    if let Some(at_pos) = pattern.find('@')
+        && let Some(scheme_end) = pattern.find("://")
+    {
+        let creds_start = scheme_end + 3;
+        if creds_start < at_pos {
+            let creds = &pattern[creds_start..at_pos];
+            if let Some(colon_pos) = creds.find(':') {
+                secrets.push(creds[..colon_pos].to_string());
+                secrets.push(creds[colon_pos + 1..].to_string());
             }
         }
     }
@@ -1093,7 +1078,11 @@ fn extract_potential_secrets(pattern: &str) -> Vec<String> {
     // Extract API keys (long alphanumeric strings)
     let words: Vec<&str> = pattern.split_whitespace().collect();
     for word in words {
-        if word.len() >= 32 && word.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        if word.len() >= 32
+            && word
+                .chars()
+                .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+        {
             secrets.push(word.to_string());
         }
     }
@@ -1112,10 +1101,12 @@ fn extract_potential_secrets(pattern: &str) -> Vec<String> {
 #[cfg(test)]
 mod budget_enforcement_property {
     use super::*;
-    use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
     use std::time::Duration;
-    use xchecker::llm::{LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role, BudgetedBackend};
+    use xchecker::llm::{
+        BudgetedBackend, LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role,
+    };
 
     // Mock backend for testing
     struct MockBackend {
@@ -1140,21 +1131,12 @@ mod budget_enforcement_property {
 
     #[async_trait::async_trait]
     impl LlmBackend for MockBackend {
-        async fn invoke(
-            &self,
-            _inv: LlmInvocation,
-        ) -> Result<LlmResult, LlmError> {
+        async fn invoke(&self, _inv: LlmInvocation) -> Result<LlmResult, LlmError> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             if self.should_fail {
-                Err(LlmError::Transport(
-                    "mock failure".to_string(),
-                ))
+                Err(LlmError::Transport("mock failure".to_string()))
             } else {
-                Ok(LlmResult::new(
-                    "test response",
-                    "mock",
-                    "mock-model",
-                ))
+                Ok(LlmResult::new("test response", "mock", "mock-model"))
             }
         }
     }
@@ -1165,16 +1147,13 @@ mod budget_enforcement_property {
             "test-phase",
             "test-model",
             Duration::from_secs(60),
-            vec![Message::new(
-                Role::User,
-                "test message",
-            )],
+            vec![Message::new(Role::User, "test message")],
         )
     }
 
     proptest! {
         #![proptest_config(proptest_config(None))]
-        
+
         /// Property: For any budget limit and call sequence, the BudgetedBackend
         /// must fail fast with BudgetExceeded when the limit is reached, and
         /// must not invoke the inner backend after the limit is exceeded.
@@ -1188,12 +1167,12 @@ mod budget_enforcement_property {
             runtime.block_on(async {
                 let call_counter = Arc::new(AtomicU32::new(0));
                 let counter_clone = Arc::clone(&call_counter);
-                
+
                 let mock = MockBackend {
                     call_count: counter_clone,
                     should_fail,
                 };
-                
+
                 let backend = BudgetedBackend::new(
                     Box::new(mock),
                     limit
@@ -1231,7 +1210,7 @@ mod budget_enforcement_property {
                         call_count,
                         limit
                     );
-                    
+
                     // The number of BudgetExceeded errors should be call_count - limit
                     prop_assert_eq!(
                         budget_exceeded_count,
@@ -1280,12 +1259,12 @@ mod budget_enforcement_property {
             runtime.block_on(async {
                 let call_counter = Arc::new(AtomicU32::new(0));
                 let counter_clone = Arc::clone(&call_counter);
-                
+
                 let mock = MockBackend {
                     call_count: counter_clone,
                     should_fail,
                 };
-                
+
                 let backend = BudgetedBackend::new(
                     Box::new(mock),
                     limit
@@ -1330,7 +1309,6 @@ mod budget_enforcement_property {
     }
 }
 
-
 /// Property test: JSON output includes schema version
 ///
 /// **Feature: xchecker-llm-ecosystem, Property 11: JSON output includes schema version**
@@ -1341,8 +1319,8 @@ mod budget_enforcement_property {
 #[cfg(test)]
 mod spec_json_property {
     use super::*;
-    use xchecker::types::{PhaseInfo, SpecConfigSummary, SpecOutput};
     use chrono::Utc;
+    use xchecker::types::{PhaseInfo, SpecConfigSummary, SpecOutput};
 
     proptest! {
         #![proptest_config(proptest_config(None))]
@@ -1361,7 +1339,7 @@ mod spec_json_property {
             // Generate phases
             let phase_names = ["requirements", "design", "tasks", "review", "fixup", "final"];
             let statuses = ["completed", "pending", "not_started"];
-            
+
             let phases: Vec<PhaseInfo> = phase_names
                 .iter()
                 .take(num_phases)
@@ -1422,7 +1400,7 @@ mod spec_json_property {
             num_phases in 0usize..7
         ) {
             let phase_names = ["requirements", "design", "tasks", "review", "fixup", "final"];
-            
+
             let phases: Vec<PhaseInfo> = phase_names
                 .iter()
                 .take(num_phases)
@@ -1483,7 +1461,6 @@ mod spec_json_property {
     }
 }
 
-
 /// Property tests for JSON output size limits (Requirements 4.1.4)
 /// **Feature: xchecker-llm-ecosystem, Property 12: JSON output respects size limits**
 /// **Validates: Requirements 4.1.4**
@@ -1494,8 +1471,8 @@ mod spec_json_property {
 mod json_size_limits_property {
     use super::*;
     use xchecker::types::{
-        CurrentInputs, PhaseInfo, PhaseStatusInfo, ResumeJsonOutput, SpecConfigSummary,
-        SpecOutput, StatusJsonOutput,
+        CurrentInputs, PhaseInfo, PhaseStatusInfo, ResumeJsonOutput, SpecConfigSummary, SpecOutput,
+        StatusJsonOutput,
     };
 
     proptest! {
@@ -1509,7 +1486,7 @@ mod json_size_limits_property {
             num_phases in 0usize..7
         ) {
             let phase_names = ["requirements", "design", "tasks", "review", "fixup", "final"];
-            
+
             let phases: Vec<PhaseInfo> = phase_names
                 .iter()
                 .take(num_phases)
@@ -1575,7 +1552,7 @@ mod json_size_limits_property {
         ) {
             let phase_names = ["requirements", "design", "tasks", "review", "fixup", "final"];
             let statuses = ["success", "failed", "not_started"];
-            
+
             let phase_statuses: Vec<PhaseStatusInfo> = phase_names
                 .iter()
                 .take(num_phases)
@@ -1593,6 +1570,7 @@ mod json_size_limits_property {
                 phase_statuses,
                 pending_fixups,
                 has_errors,
+                strict_validation: false,
                 artifacts: Vec::new(),
                 effective_config: std::collections::BTreeMap::new(),
                 lock_drift: None,
@@ -1764,7 +1742,6 @@ mod json_size_limits_property {
     }
 }
 
-
 /// Property test: Workspace discovery searches upward
 ///
 /// **Feature: xchecker-llm-ecosystem, Property 13: Workspace discovery searches upward**
@@ -1775,9 +1752,9 @@ mod json_size_limits_property {
 /// **Validates: Requirements 4.3.6**
 #[test]
 fn prop_workspace_discovery_searches_upward() {
-    use xchecker::workspace::{self, Workspace, WORKSPACE_FILE_NAME};
-    use tempfile::TempDir;
     use std::path::PathBuf;
+    use tempfile::TempDir;
+    use xchecker::workspace::{self, WORKSPACE_FILE_NAME, Workspace};
 
     let config = proptest_config(None);
 
@@ -1796,7 +1773,7 @@ fn prop_workspace_discovery_searches_upward() {
         // Build nested directory structure
         let mut current_path = root.to_path_buf();
         let mut paths: Vec<PathBuf> = vec![current_path.clone()];
-        
+
         for i in 0..depth {
             current_path = current_path.join(format!("subdir_{}", i));
             std::fs::create_dir_all(&current_path).unwrap();
@@ -1807,7 +1784,7 @@ fn prop_workspace_discovery_searches_upward() {
         let actual_workspace_level = workspace_level.min(paths.len() - 1);
         let workspace_dir = &paths[actual_workspace_level];
         let workspace_path = workspace_dir.join(WORKSPACE_FILE_NAME);
-        
+
         // Create workspace file
         let ws = Workspace::new(&workspace_name);
         ws.save(&workspace_path).unwrap();
@@ -1863,8 +1840,8 @@ fn prop_workspace_discovery_searches_upward() {
 /// **Validates: Requirements 4.3.6**
 #[test]
 fn prop_workspace_discovery_first_found_no_merging() {
-    use xchecker::workspace::{self, Workspace, WORKSPACE_FILE_NAME};
     use tempfile::TempDir;
+    use xchecker::workspace::{self, WORKSPACE_FILE_NAME, Workspace};
 
     let config = proptest_config(None);
 
@@ -1882,7 +1859,7 @@ fn prop_workspace_discovery_first_found_no_merging() {
         // Build nested directory structure
         let mut current_path = root.to_path_buf();
         let mut paths = vec![current_path.clone()];
-        
+
         for i in 0..depth {
             current_path = current_path.join(format!("level_{}", i));
             std::fs::create_dir_all(&current_path).unwrap();
@@ -1906,7 +1883,7 @@ fn prop_workspace_discovery_first_found_no_merging() {
 
         // Property: Should find the nested workspace (first encountered going up)
         prop_assert!(discovered.is_some(), "Should find a workspace");
-        
+
         let found_path = discovered.unwrap();
         let loaded = Workspace::load(&found_path).unwrap();
 
@@ -1935,8 +1912,8 @@ fn prop_workspace_discovery_first_found_no_merging() {
 /// **Validates: Requirements 4.3.6**
 #[test]
 fn prop_workspace_discovery_returns_none_when_missing() {
-    use xchecker::workspace;
     use tempfile::TempDir;
+    use xchecker::workspace;
 
     let config = proptest_config(None);
 
@@ -1950,7 +1927,7 @@ fn prop_workspace_discovery_returns_none_when_missing() {
 
         // Build nested directory structure
         let mut current_path = root.to_path_buf();
-        
+
         for i in 0..depth {
             current_path = current_path.join(format!("empty_dir_{}", i));
             std::fs::create_dir_all(&current_path).unwrap();
@@ -1967,7 +1944,6 @@ fn prop_workspace_discovery_returns_none_when_missing() {
     });
 }
 
-
 /// Property test: Hooks are subject to timeouts
 ///
 /// **Feature: xchecker-llm-ecosystem, Property 16: Hooks are subject to timeouts**
@@ -1980,8 +1956,7 @@ fn prop_workspace_discovery_returns_none_when_missing() {
 mod hook_timeout_property {
     use super::*;
     use xchecker::hooks::{
-        HookConfig, HookOutcome, HookResult, HookType, OnFail,
-        process_hook_result,
+        HookConfig, HookOutcome, HookResult, HookType, OnFail, process_hook_result,
     };
     use xchecker::types::PhaseId;
 
@@ -2036,7 +2011,7 @@ mod hook_timeout_property {
                         matches!(outcome, HookOutcome::Warning { .. }),
                         "Timeout with on_fail=warn should produce Warning outcome"
                     );
-                    
+
                     // Warning should indicate timeout
                     let warning = outcome.warning().expect("Should have warning");
                     prop_assert!(
@@ -2059,7 +2034,7 @@ mod hook_timeout_property {
                         matches!(outcome, HookOutcome::Failure { .. }),
                         "Timeout with on_fail=fail should produce Failure outcome"
                     );
-                    
+
                     // Error should be a timeout error
                     let error = outcome.error().expect("Should have error");
                     prop_assert!(
@@ -2173,7 +2148,7 @@ mod hook_timeout_property {
                         matches!(outcome, HookOutcome::Warning { .. }),
                         "Failure with on_fail=warn should produce Warning outcome"
                     );
-                    
+
                     let warning = outcome.warning().expect("Should have warning");
                     prop_assert_eq!(
                         warning.exit_code,
@@ -2190,7 +2165,7 @@ mod hook_timeout_property {
                         matches!(outcome, HookOutcome::Failure { .. }),
                         "Failure with on_fail=fail should produce Failure outcome"
                     );
-                    
+
                     let error = outcome.error().expect("Should have error");
                     prop_assert!(
                         matches!(error, xchecker::hooks::HookError::ExecutionFailed { .. }),

@@ -148,7 +148,7 @@ async fn test_resume_with_failed_dependency_fails() -> Result<()> {
         xchecker::receipt::ReceiptManager::new(orchestrator.artifact_manager().base_path());
 
     let failed_receipt = receipt_manager.create_receipt(
-        &"test-resume-failed-dep".to_string(),
+        "test-resume-failed-dep",
         PhaseId::Requirements,
         1, // Non-zero exit code indicates failure
         vec![],
@@ -357,7 +357,7 @@ async fn test_resume_after_timeout() -> Result<()> {
         xchecker::receipt::ReceiptManager::new(orchestrator.artifact_manager().base_path());
 
     let timeout_receipt = receipt_manager.create_receipt(
-        &"test-resume-after-timeout".to_string(),
+        "test-resume-after-timeout",
         PhaseId::Requirements,
         10, // Exit code 10 for timeout
         vec![],

@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use blake3::Hasher;
-use serde_yaml_ng as serde_yaml;
 
 use crate::error::XCheckerError;
 use crate::types::FileType;

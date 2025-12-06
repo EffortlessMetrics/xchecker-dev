@@ -86,6 +86,8 @@ impl GoldenPipelineTestEnvironment {
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },
+            selectors: None,
+            strict_validation: false,
         }
     }
 }

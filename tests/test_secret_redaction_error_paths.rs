@@ -156,23 +156,23 @@ fn test_secret_in_warning_messages() {
         "test-warning-secret",
         PhaseId::Tasks,
         0,
-        vec![],                       // outputs
-        "0.1.0",                      // xchecker_version
-        "0.8.1",                      // claude_cli_version
-        "haiku", // model_full_name
-        None,                         // model_alias
-        HashMap::new(),               // flags
-        packet,                       // packet
-        None,                         // stderr_tail
-        None,                         // stderr_redacted
-        warnings_with_secrets,        // warnings
-        None,                         // fallback_used
-        "native",                     // runner
-        None,                         // runner_distro
-        None,                         // error_kind
-        None,                         // error_reason
-        None,                         // diff_context,
-        None,                         // pipeline
+        vec![],                // outputs
+        "0.1.0",               // xchecker_version
+        "0.8.1",               // claude_cli_version
+        "haiku",               // model_full_name
+        None,                  // model_alias
+        HashMap::new(),        // flags
+        packet,                // packet
+        None,                  // stderr_tail
+        None,                  // stderr_redacted
+        warnings_with_secrets, // warnings
+        None,                  // fallback_used
+        "native",              // runner
+        None,                  // runner_distro
+        None,                  // error_kind
+        None,                  // error_reason
+        None,                  // diff_context,
+        None,                  // pipeline
     );
 
     // Verify warnings are redacted
@@ -323,23 +323,23 @@ fn test_secret_in_slack_token_warning() {
         "test-slack-secret",
         PhaseId::Design,
         0,
-        vec![],                       // outputs
-        "0.1.0",                      // xchecker_version
-        "0.8.1",                      // claude_cli_version
-        "haiku", // model_full_name
-        None,                         // model_alias
-        HashMap::new(),               // flags
-        packet,                       // packet
-        None,                         // stderr_tail
-        None,                         // stderr_redacted
-        warnings,                     // warnings
-        None,                         // fallback_used
-        "native",                     // runner
-        None,                         // runner_distro
-        None,                         // error_kind
-        None,                         // error_reason
-        None,                         // diff_context,
-        None,                         // pipeline
+        vec![],         // outputs
+        "0.1.0",        // xchecker_version
+        "0.8.1",        // claude_cli_version
+        "haiku",        // model_full_name
+        None,           // model_alias
+        HashMap::new(), // flags
+        packet,         // packet
+        None,           // stderr_tail
+        None,           // stderr_redacted
+        warnings,       // warnings
+        None,           // fallback_used
+        "native",       // runner
+        None,           // runner_distro
+        None,           // error_kind
+        None,           // error_reason
+        None,           // diff_context,
+        None,           // pipeline
     );
 
     assert_eq!(receipt.warnings.len(), 1);
@@ -545,7 +545,7 @@ fn test_error_receipt_creation_with_secrets() {
         &error,
         "0.1.0",                              // xchecker_version
         "0.8.1",                              // claude_cli_version
-        "haiku",         // model_full_name
+        "haiku",                              // model_full_name
         None,                                 // model_alias
         HashMap::new(),                       // flags
         packet,                               // packet

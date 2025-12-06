@@ -65,6 +65,13 @@ pub enum XCheckerError {
 
     #[error("LLM backend error: {0}")]
     Llm(#[from] crate::llm::LlmError),
+
+    #[error("Validation failed for phase {phase}: {issue_count} issue(s)")]
+    ValidationFailed {
+        phase: String,
+        issues: Vec<crate::validation::ValidationError>,
+        issue_count: usize,
+    },
 }
 
 /// Trait for providing user-friendly error reporting with context and suggestions
@@ -1196,6 +1203,18 @@ impl UserFriendlyError for XCheckerError {
             Self::Fixup(fixup_err) => fixup_err.user_message(),
             Self::SpecId(spec_id_err) => spec_id_err.user_message(),
             Self::Lock(lock_err) => lock_err.user_message(),
+            Self::ValidationFailed {
+                phase,
+                issues,
+                issue_count: _,
+            } => {
+                let issue_list: Vec<String> = issues.iter().map(|i| i.to_string()).collect();
+                format!(
+                    "Validation failed for {} phase: {}",
+                    phase,
+                    issue_list.join("; ")
+                )
+            }
         }
     }
 
@@ -1232,6 +1251,9 @@ impl UserFriendlyError for XCheckerError {
             Self::Fixup(fixup_err) => fixup_err.context(),
             Self::SpecId(spec_id_err) => spec_id_err.context(),
             Self::Lock(lock_err) => lock_err.context(),
+            Self::ValidationFailed { .. } => {
+                Some("Strict validation is enabled. LLM output must meet quality requirements: no meta-summaries, minimum length, and required sections.".to_string())
+            }
         }
     }
 
@@ -1310,6 +1332,19 @@ impl UserFriendlyError for XCheckerError {
             Self::Fixup(fixup_err) => fixup_err.suggestions(),
             Self::SpecId(spec_id_err) => spec_id_err.suggestions(),
             Self::Lock(lock_err) => lock_err.suggestions(),
+            Self::ValidationFailed { phase, .. } => vec![
+                format!(
+                    "Set strict_validation = false in config to log warnings instead of failing"
+                ),
+                format!(
+                    "Review the {} phase prompt to ensure it produces compliant output",
+                    phase
+                ),
+                "Check if the LLM response starts with meta-commentary instead of content"
+                    .to_string(),
+                "Ensure the response meets minimum length requirements".to_string(),
+                "Verify required section headers are present in the output".to_string(),
+            ],
         }
     }
 
@@ -1332,6 +1367,7 @@ impl UserFriendlyError for XCheckerError {
             Self::Fixup(fixup_err) => fixup_err.category(),
             Self::SpecId(_) => ErrorCategory::Validation,
             Self::Lock(lock_err) => lock_err.category(),
+            Self::ValidationFailed { .. } => ErrorCategory::Validation,
         }
     }
 }

@@ -303,10 +303,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            (
-                "haiku".to_string(),
-                "defaults".to_string(),
-            ),
+            ("haiku".to_string(), "defaults".to_string()),
         );
         effective_config.insert(
             "max_turns".to_string(),
@@ -374,10 +371,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            (
-                "haiku".to_string(),
-                "defaults".to_string(),
-            ),
+            ("haiku".to_string(), "defaults".to_string()),
         );
         effective_config.insert(
             "max_turns".to_string(),
@@ -448,10 +442,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            (
-                "haiku".to_string(),
-                "defaults".to_string(),
-            ),
+            ("haiku".to_string(), "defaults".to_string()),
         );
         effective_config.insert(
             "max_turns".to_string(),
@@ -1058,10 +1049,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            (
-                "haiku".to_string(),
-                "defaults".to_string(),
-            ),
+            ("haiku".to_string(), "defaults".to_string()),
         );
 
         let status = StatusManager::generate_status_internal(

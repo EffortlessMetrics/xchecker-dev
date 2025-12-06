@@ -37,21 +37,21 @@ name: test
     println!("Hash 2: {}", hash2);
 
     // Let's also check what the JCS canonicalization produces
-    let yaml_value1: serde_yaml_ng::Value = serde_yaml_ng::from_str(yaml1)?;
-    let yaml_value2: serde_yaml_ng::Value = serde_yaml_ng::from_str(yaml2)?;
+    let yaml_value1: serde_yaml::Value = serde_yaml::from_str(yaml1)?;
+    let yaml_value2: serde_yaml::Value = serde_yaml::from_str(yaml2)?;
 
     println!("Parsed YAML 1: {:?}", yaml_value1);
     println!("Parsed YAML 2: {:?}", yaml_value2);
 
     // Convert to JSON
-    let json_str1 = serde_yaml_ng::to_string(&yaml_value1)?;
-    let json_str2 = serde_yaml_ng::to_string(&yaml_value2)?;
+    let json_str1 = serde_yaml::to_string(&yaml_value1)?;
+    let json_str2 = serde_yaml::to_string(&yaml_value2)?;
 
     println!("JSON string 1: {}", json_str1);
     println!("JSON string 2: {}", json_str2);
 
-    let json_value1: serde_json::Value = serde_yaml_ng::from_str(&json_str1)?;
-    let json_value2: serde_json::Value = serde_yaml_ng::from_str(&json_str2)?;
+    let json_value1: serde_json::Value = serde_yaml::from_str(&json_str1)?;
+    let json_value2: serde_json::Value = serde_yaml::from_str(&json_str2)?;
 
     println!("JSON value 1: {:?}", json_value1);
     println!("JSON value 2: {:?}", json_value2);

@@ -20,6 +20,8 @@ fn dry_run_config() -> xchecker::orchestrator::OrchestratorConfig {
     xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     }
 }
 
@@ -547,10 +549,8 @@ fn test_error_receipt_unknown_error() -> Result<()> {
     let spec_id = unique_spec_id("unknown-error");
 
     // Create a generic IO error
-    let error = xchecker::error::XCheckerError::Io(std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "Something unexpected happened",
-    ));
+    let error =
+        xchecker::error::XCheckerError::Io(std::io::Error::other("Something unexpected happened"));
 
     let spec_dir = xchecker::paths::spec_root(&spec_id);
     let receipt_manager = xchecker::receipt::ReceiptManager::new(&spec_dir);

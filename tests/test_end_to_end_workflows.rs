@@ -21,7 +21,6 @@
 use anyhow::Result;
 use std::fs;
 use tempfile::TempDir;
-use tokio;
 
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::{PhaseId, Receipt};
@@ -54,6 +53,8 @@ fn create_success_config() -> OrchestratorConfig {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     }
 }
 
@@ -87,7 +88,7 @@ async fn test_full_spec_generation_workflow() -> Result<()> {
     let receipts_dir = spec_dir.join("receipts");
     let receipt_count = fs::read_dir(&receipts_dir)?
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
         .count();
 
     assert!(receipt_count >= 1, "Should have at least 1 receipt");
@@ -171,10 +172,10 @@ async fn test_complete_end_to_end_integration() -> Result<()> {
     let receipts_dir = spec_dir.join("receipts");
     let receipt_files: Vec<_> = fs::read_dir(&receipts_dir)?
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "json"))
         .collect();
 
-    assert!(receipt_files.len() >= 1, "Should have at least 1 receipt");
+    assert!(!receipt_files.is_empty(), "Should have at least 1 receipt");
 
     for receipt_file in receipt_files {
         let receipt_content = fs::read_to_string(receipt_file.path())?;

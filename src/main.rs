@@ -12,6 +12,7 @@ mod doctor;
 mod error;
 mod error_reporter;
 mod exit_codes;
+mod extraction;
 mod fixup;
 mod gate;
 mod hooks;
@@ -34,6 +35,7 @@ mod status;
 mod template;
 mod tui;
 mod types;
+mod validation;
 mod workspace;
 mod wsl;
 

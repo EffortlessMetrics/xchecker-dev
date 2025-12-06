@@ -634,10 +634,7 @@ fn test_non_timeout_phase_errors() {
         code: 1,
     });
     let (code, kind) = (&err).into();
-    assert_eq!(
-        code, 1,
-        "ExecutionFailed should map to exit code 1"
-    );
+    assert_eq!(code, 1, "ExecutionFailed should map to exit code 1");
     assert_eq!(
         kind,
         ErrorKind::Unknown,

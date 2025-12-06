@@ -444,10 +444,7 @@ mod wsl_runner_tests {
         // 3. WSL can access it via /mnt/c/... paths
 
         // No actual test needed here - this is architectural documentation
-        assert!(
-            true,
-            "Artifact persistence is handled by orchestrator in Windows spec root"
-        );
+        // Artifact persistence is handled by orchestrator in Windows spec root
     }
 
     // Test runner_distro in receipts
@@ -523,8 +520,7 @@ mod wsl_runner_tests {
         // NOT: wsl.exe -c "claude --version"
 
         // This prevents shell injection and quoting issues.
-
-        assert!(true, "wsl.exe --exec is used with discrete argv elements");
+        // wsl.exe --exec is used with discrete argv elements
     }
 
     // Test that WSL execution handles timeout correctly

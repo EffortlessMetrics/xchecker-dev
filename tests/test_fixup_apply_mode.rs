@@ -483,9 +483,13 @@ FIXUP PLAN:
     let diffs = parser.parse_diffs(review_content)?;
 
     // Temporarily make writable for the test to work
-    let mut perms = fs::metadata(&test_file)?.permissions();
-    perms.set_readonly(false);
-    fs::set_permissions(&test_file, perms)?;
+    #[allow(clippy::permissions_set_readonly_false)]
+    // Intentional for test - restoring writable state
+    {
+        let mut perms = fs::metadata(&test_file)?.permissions();
+        perms.set_readonly(false);
+        fs::set_permissions(&test_file, perms)?;
+    }
 
     let result = parser.apply_changes(&diffs)?;
 

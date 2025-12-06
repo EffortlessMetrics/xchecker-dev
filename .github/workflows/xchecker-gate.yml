@@ -27,9 +27,9 @@ on:
         required: true
         default: 'my-spec'
       min_phase:
-        description: 'Minimum required phase'
+        description: 'Minimum required phase (requirements, design, tasks, review, fixup, final)'
         required: false
-        default: 'tasks'
+        default: 'requirements'
       fail_on_pending_fixups:
         description: 'Fail if pending fixups exist'
         required: false
@@ -81,14 +81,43 @@ jobs:
       - name: Build xchecker
         run: cargo build --release
 
+      - name: Initialize spec for gate check
+        run: |
+          # =============================================================
+          # NOTE: This is a SMOKE TEST demonstrating gate functionality.
+          # =============================================================
+          # In a real project, specs would already exist with actual phase
+          # receipts from prior xchecker runs. This step creates a minimal
+          # spec to verify the gate command works correctly.
+          #
+          # For production usage:
+          # - Remove this step (specs should already exist)
+          # - Set appropriate min-phase (e.g., 'design' or 'tasks')
+          # - Enable --fail-on-pending-fixups as needed
+
+          # Create a spec to gate against
+          ./target/release/xchecker init ${{ env.SPEC_ID }} || true
+
+          # Generate requirements phase in dry-run mode to produce receipts
+          # This simulates what a real CI pipeline would have from prior runs
+          echo "Generating requirements phase (dry-run)..."
+          echo "Build a simple test feature" | ./target/release/xchecker spec ${{ env.SPEC_ID }} --dry-run --phase requirements || true
+
+          # Show spec status before gate check
+          echo "=== Spec Status ==="
+          ./target/release/xchecker status ${{ env.SPEC_ID }} --json 2>&1 || echo "Note: Status unavailable"
+        shell: bash
+
       - name: Run gate check
         id: gate
         run: |
           # Build gate command with configured policy
           GATE_CMD="./target/release/xchecker gate ${{ env.SPEC_ID }}"
-          
-          # Add min-phase if specified (default: tasks)
-          MIN_PHASE="${{ github.event.inputs.min_phase || 'tasks' }}"
+
+          # Add min-phase if specified
+          # For smoke test: default to 'requirements' (lowest phase)
+          # For production: use 'design' or 'tasks' based on your workflow
+          MIN_PHASE="${{ github.event.inputs.min_phase || 'requirements' }}"
           if [ -n "$MIN_PHASE" ]; then
             GATE_CMD="$GATE_CMD --min-phase $MIN_PHASE"
           fi

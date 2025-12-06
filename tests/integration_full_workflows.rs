@@ -85,16 +85,17 @@ impl WorkflowTestEnvironment {
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },
+            selectors: None,
+            strict_validation: false,
         }
     }
 
     fn create_error_config(&self) -> OrchestratorConfig {
         OrchestratorConfig {
             dry_run: true,
-            config: {
-                let map = std::collections::HashMap::new();
-                map
-            },
+            config: std::collections::HashMap::new(),
+            selectors: None,
+            strict_validation: false,
         }
     }
 }
@@ -340,13 +341,12 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
         dry_run: true, // Use dry-run for deterministic simulation
         config: {
             let mut map = std::collections::HashMap::new();
-            map.insert(
-                "model".to_string(),
-                "haiku".to_string(),
-            );
+            map.insert("model".to_string(), "haiku".to_string());
             map.insert("verbose".to_string(), "false".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute Requirements phase in both environments
@@ -634,9 +634,9 @@ async fn test_artifact_content_validation() -> Result<()> {
     assert!(!tasks_yaml.is_empty(), "Tasks YAML should not be empty");
 
     // Validate YAML structure can be parsed
-    let _req_parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&req_yaml)?;
-    let _design_parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&design_yaml)?;
-    let _tasks_parsed: serde_yaml_ng::Value = serde_yaml_ng::from_str(&tasks_yaml)?;
+    let _req_parsed: serde_yaml::Value = serde_yaml::from_str(&req_yaml)?;
+    let _design_parsed: serde_yaml::Value = serde_yaml::from_str(&design_yaml)?;
+    let _tasks_parsed: serde_yaml::Value = serde_yaml::from_str(&tasks_yaml)?;
 
     println!("✓ Artifact content validation test passed");
     Ok(())

@@ -3,6 +3,7 @@
 //! This module defines the core Phase trait and related types that enable
 //! the structured execution of spec generation phases with separated concerns.
 
+use crate::config::Selectors;
 use crate::types::PhaseId;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -31,6 +32,17 @@ pub struct PhaseContext {
     pub config: HashMap<String, String>,
     /// Available artifacts from previous phases
     pub artifacts: Vec<String>,
+    /// Content selectors for packet building (from config)
+    ///
+    /// If `Some`, phases should use these selectors when building packets.
+    /// If `None`, phases fall back to built-in selector defaults.
+    pub selectors: Option<Selectors>,
+    /// Enable strict validation for phase outputs.
+    ///
+    /// When `true`, validation failures (meta-summaries, too-short output,
+    /// missing required sections) become hard errors that fail the phase.
+    /// When `false`, validation issues are logged as warnings only.
+    pub strict_validation: bool,
 }
 
 /// A packet of content prepared for Claude CLI consumption

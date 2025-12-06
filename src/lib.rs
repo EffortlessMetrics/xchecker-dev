@@ -27,6 +27,7 @@ pub mod error;
 pub mod error_reporter;
 pub mod example_generators;
 pub mod exit_codes;
+pub mod extraction;
 pub mod fixup;
 pub mod gate;
 pub mod hooks;
@@ -47,8 +48,9 @@ pub mod source;
 pub mod spec_id;
 pub mod status;
 pub mod template;
-pub mod types;
 pub mod tui;
+pub mod types;
+pub mod validation;
 pub mod workspace;
 pub mod wsl;
 

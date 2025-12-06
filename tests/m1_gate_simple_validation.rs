@@ -9,7 +9,6 @@
 use anyhow::Result;
 use std::env;
 use tempfile::TempDir;
-use tokio;
 
 use xchecker::claude::ClaudeWrapper;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
@@ -40,6 +39,8 @@ async fn test_m1_gate_requirements_phase_integration() -> Result<()> {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute Requirements phase
@@ -252,10 +253,7 @@ async fn test_m1_gate_model_resolution() -> Result<()> {
         Some("sonnet".to_string()),
         "Should preserve model alias"
     );
-    assert_eq!(
-        full_name, "haiku",
-        "Should resolve alias to full name"
-    );
+    assert_eq!(full_name, "haiku", "Should resolve alias to full name");
 
     // Test version capture
     let version = wrapper_with_alias.get_version();

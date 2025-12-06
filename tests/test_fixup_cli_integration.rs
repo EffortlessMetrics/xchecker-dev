@@ -129,6 +129,8 @@ async fn test_fixup_phase_preview_mode() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true, // Use dry-run to avoid actual Claude calls
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute fixup phase
@@ -171,6 +173,8 @@ async fn test_fixup_phase_apply_mode() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true, // Use dry-run to avoid actual Claude calls
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute fixup phase
@@ -217,6 +221,8 @@ async fn test_fixup_phase_validates_dependencies() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     };
 
     // Try to execute fixup without dependencies - should fail
@@ -246,6 +252,8 @@ async fn test_fixup_phase_creates_artifacts() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute fixup phase
@@ -253,13 +261,10 @@ async fn test_fixup_phase_creates_artifacts() -> Result<()> {
         .resume_from_phase(PhaseId::Fixup, &config)
         .await;
 
-    if let Ok(exec_result) = result {
+    if let Ok(_exec_result) = result {
         // In dry-run mode, artifacts might not be created
         // But the execution should complete successfully
-        assert!(
-            exec_result.success || !exec_result.success,
-            "Fixup phase should complete"
-        );
+        // (Either success or failure is valid for dry-run - we just verify it completes)
     }
 
     println!("✓ Fixup phase artifact creation test passed");

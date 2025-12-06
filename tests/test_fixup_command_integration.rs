@@ -45,6 +45,8 @@ async fn test_fixup_command_parsing() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Create dummy artifacts for dependencies
@@ -242,8 +244,7 @@ fn test_plan_validation() -> Result<()> {
     let test_file = temp_dir.path().join("test.txt");
     fs::write(&test_file, "original content\n")?;
 
-    let review_content = format!(
-        r#"# Review Document
+    let review_content = r#"# Review Document
 
 ## FIXUP PLAN:
 
@@ -255,7 +256,7 @@ fn test_plan_validation() -> Result<()> {
 +modified content
 ```
 "#
-    );
+    .to_string();
 
     // Parse and validate
     let diffs = parser.parse_diffs(&review_content)?;

@@ -355,4 +355,31 @@ mod tests {
         assert_eq!(code, codes::CLAUDE_FAILURE);
         assert_eq!(kind, ErrorKind::ClaudeFailure);
     }
+
+    #[test]
+    fn test_validation_failed_mapping() {
+        // ValidationFailed maps to exit code 1 (general error) with Unknown kind
+        // This is intentional: validation failures are user-recoverable errors
+        // that don't fit into infrastructure-level categories
+        use crate::validation::ValidationError;
+        let err = XCheckerError::ValidationFailed {
+            phase: "requirements".to_string(),
+            issue_count: 2,
+            issues: vec![
+                ValidationError::MetaSummaryDetected {
+                    pattern: "Here is".to_string(),
+                },
+                ValidationError::TooShort {
+                    actual: 10,
+                    minimum: 30,
+                },
+            ],
+        };
+        let (code, kind) = (&err).into();
+        assert_eq!(
+            code, 1,
+            "ValidationFailed should use exit code 1 (general error)"
+        );
+        assert_eq!(kind, ErrorKind::Unknown);
+    }
 }

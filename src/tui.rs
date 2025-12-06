@@ -12,15 +12,15 @@ use anyhow::{Context, Result};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
-    Frame, Terminal,
 };
 use std::io;
 use std::path::Path;
@@ -91,7 +91,7 @@ impl TuiApp {
         let workspace = Workspace::load(workspace_path)?;
         let spec_statuses = Self::collect_spec_statuses(&workspace);
         let summary = Self::calculate_summary(&spec_statuses);
-        
+
         let mut list_state = ListState::default();
         if !spec_statuses.is_empty() {
             list_state.select(Some(0));
@@ -121,55 +121,56 @@ impl TuiApp {
                 let receipt_manager = ReceiptManager::new(&base_path);
                 let receipts = receipt_manager.list_receipts().unwrap_or_default();
 
-                let (status, latest_phase, last_activity, has_errors, receipt_summary) =
-                    if receipts.is_empty() {
-                        ("not_started".to_string(), None, None, false, None)
-                    } else {
-                        let latest = receipts.last().unwrap();
-                        let last_activity_time = latest.emitted_at;
-                        let is_stale =
-                            now.signed_duration_since(last_activity_time) > stale_threshold;
+                let (status, latest_phase, last_activity, has_errors, receipt_summary) = if receipts
+                    .is_empty()
+                {
+                    ("not_started".to_string(), None, None, false, None)
+                } else {
+                    let latest = receipts.last().unwrap();
+                    let last_activity_time = latest.emitted_at;
+                    let is_stale = now.signed_duration_since(last_activity_time) > stale_threshold;
 
-                        let summary = ReceiptSummary {
-                            phase: latest.phase.clone(),
-                            exit_code: latest.exit_code,
-                            emitted_at: latest.emitted_at,
-                            model: latest.model_full_name.clone(),
-                            runner: latest.runner.clone(),
-                            warnings_count: latest.warnings.len(),
-                            outputs_count: latest.outputs.len(),
-                        };
+                    let summary = ReceiptSummary {
+                        phase: latest.phase.clone(),
+                        exit_code: latest.exit_code,
+                        emitted_at: latest.emitted_at,
+                        model: latest.model_full_name.clone(),
+                        runner: latest.runner.clone(),
+                        warnings_count: latest.warnings.len(),
+                        outputs_count: latest.outputs.len(),
+                    };
 
-                        if latest.exit_code == 0 {
-                            let all_phases_complete =
-                                receipts.iter().any(|r| r.phase == "final" && r.exit_code == 0);
-                            if all_phases_complete {
-                                (
-                                    if is_stale { "stale" } else { "success" }.to_string(),
-                                    Some(latest.phase.clone()),
-                                    Some(last_activity_time),
-                                    false,
-                                    Some(summary),
-                                )
-                            } else {
-                                (
-                                    if is_stale { "stale" } else { "pending" }.to_string(),
-                                    Some(latest.phase.clone()),
-                                    Some(last_activity_time),
-                                    false,
-                                    Some(summary),
-                                )
-                            }
-                        } else {
+                    if latest.exit_code == 0 {
+                        let all_phases_complete = receipts
+                            .iter()
+                            .any(|r| r.phase == "final" && r.exit_code == 0);
+                        if all_phases_complete {
                             (
-                                "failed".to_string(),
+                                if is_stale { "stale" } else { "success" }.to_string(),
                                 Some(latest.phase.clone()),
                                 Some(last_activity_time),
-                                true,
+                                false,
+                                Some(summary),
+                            )
+                        } else {
+                            (
+                                if is_stale { "stale" } else { "pending" }.to_string(),
+                                Some(latest.phase.clone()),
+                                Some(last_activity_time),
+                                false,
                                 Some(summary),
                             )
                         }
-                    };
+                    } else {
+                        (
+                            "failed".to_string(),
+                            Some(latest.phase.clone()),
+                            Some(last_activity_time),
+                            true,
+                            Some(summary),
+                        )
+                    }
+                };
 
                 let pending_fixups = count_pending_fixups_for_spec(&spec.id);
 
@@ -317,30 +318,31 @@ fn run_app<B: ratatui::backend::Backend>(
         terminal.draw(|f| ui(f, app))?;
 
         if let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press {
-                match key.code {
-                    KeyCode::Char('q') => return Ok(()),
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        if !app.show_details {
-                            app.select_previous();
-                        }
+            && key.kind == KeyEventKind::Press
+        {
+            match key.code {
+                KeyCode::Char('q') => return Ok(()),
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if !app.show_details {
+                        app.select_previous();
                     }
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        if !app.show_details {
-                            app.select_next();
-                        }
-                    }
-                    KeyCode::Enter => app.toggle_details(),
-                    KeyCode::Esc => {
-                        if app.show_details {
-                            app.show_details = false;
-                        } else {
-                            return Ok(());
-                        }
-                    }
-                    _ => {}
                 }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if !app.show_details {
+                        app.select_next();
+                    }
+                }
+                KeyCode::Enter => app.toggle_details(),
+                KeyCode::Esc => {
+                    if app.show_details {
+                        app.show_details = false;
+                    } else {
+                        return Ok(());
+                    }
+                }
+                _ => {}
             }
+        }
     }
 }
 
@@ -358,20 +360,25 @@ fn ui(f: &mut Frame, app: &TuiApp) {
 
     render_header(f, app, chunks[0]);
     render_summary(f, app, chunks[1]);
-    
+
     if app.show_details {
         render_details(f, app, chunks[2]);
     } else {
         render_specs_list(f, app, chunks[2]);
     }
-    
+
     render_footer(f, app, chunks[3]);
 }
 
 /// Render the header
 fn render_header(f: &mut Frame, app: &TuiApp, area: Rect) {
     let header = Paragraph::new(vec![Line::from(vec![
-        Span::styled("xchecker ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "xchecker ",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("workspace: "),
         Span::styled(&app.workspace.name, Style::default().fg(Color::Yellow)),
     ])])
@@ -386,13 +393,15 @@ fn render_header(f: &mut Frame, app: &TuiApp, area: Rect) {
 /// Render the summary section
 fn render_summary(f: &mut Frame, app: &TuiApp, area: Rect) {
     let summary = &app.summary;
-    
+
     let summary_text = vec![
         Line::from(vec![
             Span::raw("Total: "),
             Span::styled(
                 format!("{}", summary.total_specs),
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             ),
             Span::raw("  "),
             Span::styled("✓ ", Style::default().fg(Color::Green)),
@@ -453,7 +462,9 @@ fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
                 "success" => Style::default().fg(Color::Green),
                 "failed" => Style::default().fg(Color::Red),
                 "pending" => Style::default().fg(Color::Yellow),
-                "stale" => Style::default().fg(Color::Yellow).add_modifier(Modifier::DIM),
+                "stale" => Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::DIM),
                 "not_started" => Style::default().fg(Color::DarkGray),
                 _ => Style::default(),
             };
@@ -548,11 +559,17 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
             }),
         ]),
         Line::from(vec![
-            Span::styled("Latest Phase: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Latest Phase: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::raw(spec.latest_phase.as_deref().unwrap_or("-")),
         ]),
         Line::from(vec![
-            Span::styled("Last Activity: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Last Activity: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::raw(
                 spec.last_activity
                     .map(|t| t.format("%Y-%m-%d %H:%M:%S UTC").to_string())
@@ -560,7 +577,10 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
             ),
         ]),
         Line::from(vec![
-            Span::styled("Pending Fixups: ", Style::default().add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Pending Fixups: ",
+                Style::default().add_modifier(Modifier::BOLD),
+            ),
             Span::styled(
                 format!("{}", spec.pending_fixups),
                 if spec.pending_fixups > 0 {
@@ -596,7 +616,12 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
         ]));
         lines.push(Line::from(vec![
             Span::raw("  Emitted: "),
-            Span::raw(receipt.emitted_at.format("%Y-%m-%d %H:%M:%S UTC").to_string()),
+            Span::raw(
+                receipt
+                    .emitted_at
+                    .format("%Y-%m-%d %H:%M:%S UTC")
+                    .to_string(),
+            ),
         ]));
         lines.push(Line::from(vec![
             Span::raw("  Model: "),
@@ -652,7 +677,6 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
     f.render_widget(footer, area);
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -661,21 +685,29 @@ mod tests {
     fn create_test_workspace() -> (TempDir, std::path::PathBuf) {
         let temp_dir = TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join("workspace.yaml");
-        
+
         let mut workspace = Workspace::new("test-project");
-        workspace.add_spec("spec-1", vec!["backend".to_string()], false).unwrap();
-        workspace.add_spec("spec-2", vec!["frontend".to_string(), "ui".to_string()], false).unwrap();
+        workspace
+            .add_spec("spec-1", vec!["backend".to_string()], false)
+            .unwrap();
+        workspace
+            .add_spec(
+                "spec-2",
+                vec!["frontend".to_string(), "ui".to_string()],
+                false,
+            )
+            .unwrap();
         workspace.save(&workspace_path).unwrap();
-        
+
         (temp_dir, workspace_path)
     }
 
     #[test]
     fn test_tui_app_creation() {
         let (_temp_dir, workspace_path) = create_test_workspace();
-        
+
         let app = TuiApp::new(&workspace_path).unwrap();
-        
+
         assert_eq!(app.workspace.name, "test-project");
         assert_eq!(app.spec_statuses.len(), 2);
         assert_eq!(app.selected_index, 0);
@@ -685,24 +717,24 @@ mod tests {
     #[test]
     fn test_tui_app_navigation() {
         let (_temp_dir, workspace_path) = create_test_workspace();
-        
+
         let mut app = TuiApp::new(&workspace_path).unwrap();
-        
+
         // Initial selection
         assert_eq!(app.selected_index, 0);
-        
+
         // Move down
         app.select_next();
         assert_eq!(app.selected_index, 1);
-        
+
         // Move down again (should wrap to 0)
         app.select_next();
         assert_eq!(app.selected_index, 0);
-        
+
         // Move up (should wrap to last)
         app.select_previous();
         assert_eq!(app.selected_index, 1);
-        
+
         // Move up
         app.select_previous();
         assert_eq!(app.selected_index, 0);
@@ -711,14 +743,14 @@ mod tests {
     #[test]
     fn test_tui_app_details_toggle() {
         let (_temp_dir, workspace_path) = create_test_workspace();
-        
+
         let mut app = TuiApp::new(&workspace_path).unwrap();
-        
+
         assert!(!app.show_details);
-        
+
         app.toggle_details();
         assert!(app.show_details);
-        
+
         app.toggle_details();
         assert!(!app.show_details);
     }
@@ -727,12 +759,12 @@ mod tests {
     fn test_tui_app_empty_workspace() {
         let temp_dir = TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join("workspace.yaml");
-        
+
         let workspace = Workspace::new("empty-project");
         workspace.save(&workspace_path).unwrap();
-        
+
         let app = TuiApp::new(&workspace_path).unwrap();
-        
+
         assert_eq!(app.workspace.name, "empty-project");
         assert!(app.spec_statuses.is_empty());
         assert_eq!(app.summary.total_specs, 0);
@@ -741,9 +773,9 @@ mod tests {
     #[test]
     fn test_tui_app_summary_calculation() {
         let (_temp_dir, workspace_path) = create_test_workspace();
-        
+
         let app = TuiApp::new(&workspace_path).unwrap();
-        
+
         // Both specs should be "not_started" since there are no receipts
         assert_eq!(app.summary.total_specs, 2);
         assert_eq!(app.summary.not_started_specs, 2);
@@ -755,9 +787,9 @@ mod tests {
     #[test]
     fn test_spec_status_fields() {
         let (_temp_dir, workspace_path) = create_test_workspace();
-        
+
         let app = TuiApp::new(&workspace_path).unwrap();
-        
+
         let spec1 = &app.spec_statuses[0];
         assert_eq!(spec1.id, "spec-1");
         assert_eq!(spec1.tags, vec!["backend"]);
@@ -766,7 +798,7 @@ mod tests {
         assert!(spec1.last_activity.is_none());
         assert_eq!(spec1.pending_fixups, 0);
         assert!(!spec1.has_errors);
-        
+
         let spec2 = &app.spec_statuses[1];
         assert_eq!(spec2.id, "spec-2");
         assert_eq!(spec2.tags, vec!["frontend", "ui"]);
@@ -775,12 +807,12 @@ mod tests {
     #[test]
     fn test_selected_spec() {
         let (_temp_dir, workspace_path) = create_test_workspace();
-        
+
         let mut app = TuiApp::new(&workspace_path).unwrap();
-        
+
         let selected = app.selected_spec().unwrap();
         assert_eq!(selected.id, "spec-1");
-        
+
         app.select_next();
         let selected = app.selected_spec().unwrap();
         assert_eq!(selected.id, "spec-2");
@@ -790,23 +822,23 @@ mod tests {
     fn test_navigation_with_empty_workspace() {
         let temp_dir = TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join("workspace.yaml");
-        
+
         let workspace = Workspace::new("empty-project");
         workspace.save(&workspace_path).unwrap();
-        
+
         let mut app = TuiApp::new(&workspace_path).unwrap();
-        
+
         // Navigation should be no-op with empty workspace
         app.select_next();
         assert_eq!(app.selected_index, 0);
-        
+
         app.select_previous();
         assert_eq!(app.selected_index, 0);
-        
+
         // Toggle details should be no-op
         app.toggle_details();
         assert!(!app.show_details);
-        
+
         // Selected spec should be None
         assert!(app.selected_spec().is_none());
     }

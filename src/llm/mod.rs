@@ -16,10 +16,9 @@ mod types;
 mod tests;
 
 // Public exports for production use
-#[allow(unused_imports)] // ExecutionStrategy is part of public API, used in types but not in this module
-pub use types::{
-    ExecutionStrategy, LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role,
-};
+#[allow(unused_imports)]
+// ExecutionStrategy is part of public API, used in types but not in this module
+pub use types::{ExecutionStrategy, LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role};
 
 // Test-only exports - hidden from documentation
 #[doc(hidden)]
@@ -71,7 +70,8 @@ fn construct_backend_for_provider(
             let config_budget = config.llm.openrouter.as_ref().and_then(|or| or.budget);
 
             // Wrap with BudgetedBackend for cost control
-            let budgeted = BudgetedBackend::with_limit_from_config(Box::new(backend), config_budget);
+            let budgeted =
+                BudgetedBackend::with_limit_from_config(Box::new(backend), config_budget);
             Ok(Box::new(budgeted))
         }
         "anthropic" => {
@@ -201,7 +201,10 @@ fn redact_error_for_logging(error: &LlmError) -> String {
         LlmError::ProviderOutage(_) => "Provider outage (details redacted)".to_string(),
         LlmError::Timeout { duration } => format!("Timeout after {}s", duration.as_secs()),
         LlmError::BudgetExceeded { limit, attempted } => {
-            format!("Budget exceeded: {} calls attempted, limit is {}", attempted, limit)
+            format!(
+                "Budget exceeded: {} calls attempted, limit is {}",
+                attempted, limit
+            )
         }
         LlmError::Misconfiguration(msg) => format!("Configuration error: {}", redact_paths(msg)),
         LlmError::Unsupported(msg) => format!("Unsupported: {}", msg),
@@ -213,12 +216,12 @@ fn redact_paths(msg: &str) -> String {
     // Simple redaction: replace common path patterns
     // This is a basic implementation - could be enhanced with regex
     let mut redacted = msg.to_string();
-    
+
     // Redact common path separators and home directory indicators
     if redacted.contains('/') || redacted.contains('\\') {
         redacted = "[path redacted]".to_string();
     }
-    
+
     redacted
 }
 
@@ -253,7 +256,10 @@ mod factory_tests {
                 // Acceptable if binary not found
             }
             Err(e) => {
-                panic!("Expected Ok or Misconfiguration for gemini-cli, got {:?}", e);
+                panic!(
+                    "Expected Ok or Misconfiguration for gemini-cli, got {:?}",
+                    e
+                );
             }
         }
 
@@ -272,7 +278,10 @@ mod factory_tests {
                 // Acceptable if API key not found or model not configured
             }
             Err(e) => {
-                panic!("Expected Ok or Misconfiguration for openrouter, got {:?}", e);
+                panic!(
+                    "Expected Ok or Misconfiguration for openrouter, got {:?}",
+                    e
+                );
             }
         }
 
@@ -438,7 +447,10 @@ mod factory_tests {
                 // Acceptable if binary not found
             }
             Err(e) => {
-                panic!("Expected Ok or Misconfiguration for gemini-cli, got {:?}", e);
+                panic!(
+                    "Expected Ok or Misconfiguration for gemini-cli, got {:?}",
+                    e
+                );
             }
         }
     }
@@ -461,7 +473,7 @@ mod factory_tests {
     }
 
     /// Test that OpenRouter backend is wrapped with BudgetedBackend
-    /// 
+    ///
     /// This test verifies that the factory correctly wraps OpenRouter in a BudgetedBackend
     /// for cost control, as required by the design.
     #[test]
@@ -475,11 +487,11 @@ mod factory_tests {
         unsafe {
             env::set_var("OPENROUTER_API_KEY", "test-key-for-factory-test");
         }
-        
+
         let mut config = Config::minimal_for_testing();
         config.llm.provider = Some("openrouter".to_string());
         config.llm.execution_strategy = Some("controlled".to_string());
-        
+
         // Configure OpenRouter with required fields
         config.llm.openrouter = Some(crate::config::OpenRouterConfig {
             base_url: Some("https://openrouter.ai/api/v1/chat/completions".to_string()),
@@ -491,39 +503,43 @@ mod factory_tests {
         });
 
         let result = from_config(&config);
-        
+
         // Clean up
         // SAFETY: Cleaning up the environment variable we set above
         unsafe {
             env::remove_var("OPENROUTER_API_KEY");
         }
-        
+
         match result {
             Ok(backend) => {
                 // We can't directly inspect the type due to trait object,
                 // but we can verify it was created successfully.
                 // The fact that it succeeds with OpenRouter config means
                 // the factory created and wrapped the backend correctly.
-                
+
                 // The backend should be a BudgetedBackend wrapping OpenRouterBackend.
                 // We verify this indirectly by checking that the backend exists.
                 drop(backend); // Explicitly drop to show we got a valid backend
             }
             Err(e) => {
-                panic!("Expected Ok for properly configured OpenRouter, got {:?}", e);
+                panic!(
+                    "Expected Ok for properly configured OpenRouter, got {:?}",
+                    e
+                );
             }
         }
     }
 
     /// Test budget exhaustion behavior in production path
-    /// 
+    ///
     /// This test verifies that when OpenRouter is configured through from_config,
     /// the budget enforcement works correctly and fails with BudgetExceeded when
     /// the limit is reached.
-    /// 
+    ///
     /// Note: This test uses a budget of 0 to immediately trigger budget exhaustion
     /// without making any network calls.
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)] // Test synchronization using mutex guards across awaits is intentional
     async fn test_openrouter_budget_exhaustion_in_production_path() {
         use std::env;
         use std::time::Duration;
@@ -536,17 +552,17 @@ mod factory_tests {
             env::remove_var("OPENROUTER_API_KEY");
             env::remove_var("XCHECKER_OPENROUTER_BUDGET");
         }
-        
+
         // Set up environment for OpenRouter with budget of 0 (immediate exhaustion)
         unsafe {
             env::set_var("OPENROUTER_API_KEY", "test-key-for-budget-test");
             env::set_var("XCHECKER_OPENROUTER_BUDGET", "0");
         }
-        
+
         let mut config = Config::minimal_for_testing();
         config.llm.provider = Some("openrouter".to_string());
         config.llm.execution_strategy = Some("controlled".to_string());
-        
+
         // Configure OpenRouter with required fields
         config.llm.openrouter = Some(crate::config::OpenRouterConfig {
             base_url: Some("https://openrouter.ai/api/v1/chat/completions".to_string()),
@@ -558,7 +574,7 @@ mod factory_tests {
         });
 
         let backend = from_config(&config).expect("Failed to create backend");
-        
+
         // Create test invocation
         let inv = LlmInvocation::new(
             "test-spec",
@@ -576,10 +592,13 @@ mod factory_tests {
                 assert_eq!(attempted, 1, "First attempt should be recorded");
             }
             other => {
-                panic!("Expected BudgetExceeded on first call with budget=0, got {:?}", other);
+                panic!(
+                    "Expected BudgetExceeded on first call with budget=0, got {:?}",
+                    other
+                );
             }
         }
-        
+
         // Clean up
         // SAFETY: Cleaning up the environment variables we set above
         unsafe {
@@ -589,14 +608,14 @@ mod factory_tests {
     }
 
     /// Test fallback on missing binary
-    /// 
+    ///
     /// This test verifies that when the primary CLI provider's binary is not found,
     /// the system attempts to use the fallback provider.
-    /// 
+    ///
     /// Note: CLI backends don't validate binary existence during construction,
     /// only during invoke(). So we test with CLI providers that have no binary
     /// configured (forcing PATH lookup) and no binary in PATH.
-    /// 
+    ///
     /// **Property: Fallback provider is used on primary failure**
     /// **Validates: Requirements 3.2.6**
     #[test]
@@ -607,12 +626,12 @@ mod factory_tests {
         config.llm.provider = Some("claude-cli".to_string());
         config.llm.fallback_provider = Some("claude-cli".to_string()); // Use same provider for fallback
         config.llm.execution_strategy = Some("controlled".to_string());
-        
+
         // Don't configure any binary paths - this forces PATH lookup
         config.llm.claude = None;
-        
+
         let result = from_config(&config);
-        
+
         // If claude is not in PATH, both primary and fallback should fail
         // If claude IS in PATH, both should succeed
         // Either way, the fallback logic should have been attempted
@@ -620,9 +639,11 @@ mod factory_tests {
             Err(LlmError::Misconfiguration(msg)) => {
                 // Expected if claude is not in PATH
                 assert!(
-                    msg.contains("claude") || msg.contains("Claude") 
-                    || msg.contains("binary") || msg.contains("not found")
-                    || msg.contains("PATH")
+                    msg.contains("claude")
+                        || msg.contains("Claude")
+                        || msg.contains("binary")
+                        || msg.contains("not found")
+                        || msg.contains("PATH")
                 );
             }
             Ok(_) => {
@@ -637,26 +658,26 @@ mod factory_tests {
     }
 
     /// Test fallback on missing API key
-    /// 
+    ///
     /// This test verifies that when the primary HTTP provider's API key is missing,
     /// the system attempts to use the fallback provider.
     #[test]
     fn test_fallback_on_missing_api_key() {
         use std::env;
-        
+
         // Clean up environment first
         // SAFETY: This is a test function that runs in isolation
         unsafe {
             env::remove_var("OPENROUTER_API_KEY");
             env::remove_var("ANTHROPIC_API_KEY");
         }
-        
+
         // Configure primary provider (openrouter) without API key
         let mut config = Config::minimal_for_testing();
         config.llm.provider = Some("openrouter".to_string());
         config.llm.fallback_provider = Some("anthropic".to_string());
         config.llm.execution_strategy = Some("controlled".to_string());
-        
+
         // Configure OpenRouter (API key env var not set)
         config.llm.openrouter = Some(crate::config::OpenRouterConfig {
             base_url: Some("https://openrouter.ai/api/v1/chat/completions".to_string()),
@@ -666,7 +687,7 @@ mod factory_tests {
             temperature: Some(0.2),
             budget: None,
         });
-        
+
         // Configure Anthropic (API key env var also not set, so fallback fails too)
         config.llm.anthropic = Some(crate::config::AnthropicConfig {
             base_url: Some("https://api.anthropic.com/v1/messages".to_string()),
@@ -675,33 +696,36 @@ mod factory_tests {
             max_tokens: Some(2048),
             temperature: Some(0.2),
         });
-        
+
         let result = from_config(&config);
-        
+
         // Both should fail due to missing API keys
         match result {
             Err(LlmError::Misconfiguration(msg)) => {
                 // The error should mention API key or environment variable
                 assert!(
-                    msg.to_lowercase().contains("api") 
-                    || msg.to_lowercase().contains("key") 
-                    || msg.to_lowercase().contains("env")
+                    msg.to_lowercase().contains("api")
+                        || msg.to_lowercase().contains("key")
+                        || msg.to_lowercase().contains("env")
                 );
             }
             Ok(_) => {
                 panic!("Expected Misconfiguration error for missing API key, got Ok");
             }
             Err(e) => {
-                panic!("Expected Misconfiguration error for missing API key, got error: {}", e);
+                panic!(
+                    "Expected Misconfiguration error for missing API key, got error: {}",
+                    e
+                );
             }
         }
     }
 
     /// Test no fallback on runtime timeout
-    /// 
+    ///
     /// This test verifies that runtime errors (like timeouts) do NOT trigger fallback.
     /// Fallback is only for construction/validation failures.
-    /// 
+    ///
     /// Note: This test verifies the design constraint that fallback only happens during
     /// backend construction, not during runtime invocation. Since timeouts occur during
     /// invoke(), they should never trigger fallback logic.
@@ -710,30 +734,30 @@ mod factory_tests {
         // This test documents the design: fallback only happens in from_config(),
         // not during backend.invoke(). Runtime errors like timeouts are returned
         // directly to the caller without attempting fallback.
-        
+
         // The from_config() function only handles construction errors.
         // Once a backend is successfully constructed, runtime errors (timeouts,
         // outages, quota) are the caller's responsibility to handle.
-        
+
         // We verify this by checking that from_config() doesn't have any code
         // path that would trigger fallback after successful construction.
-        
+
         // This is a design verification test - the implementation of from_config()
         // ensures that fallback only happens when construct_backend_for_provider()
         // returns an error, which only happens during construction/validation.
-        
+
         // If a backend is successfully constructed, from_config() returns Ok(backend),
         // and any subsequent invoke() errors are handled by the orchestrator, not
         // by the factory function.
-        
-        assert!(true, "Design constraint verified: fallback only on construction failure");
+        //
+        // Design constraint verified: fallback only on construction failure
     }
 
     /// Test no fallback on provider outage
-    /// 
+    ///
     /// This test verifies that runtime errors (like provider outages) do NOT trigger fallback.
     /// Fallback is only for construction/validation failures.
-    /// 
+    ///
     /// Note: Similar to the timeout test, this verifies that runtime errors during
     /// invoke() do not trigger fallback logic.
     #[test]
@@ -741,20 +765,20 @@ mod factory_tests {
         // This test documents the design: fallback only happens in from_config(),
         // not during backend.invoke(). Runtime errors like provider outages are
         // returned directly to the caller without attempting fallback.
-        
+
         // The design explicitly states:
         // "Fallback is only triggered on construction/validation failure, not runtime errors"
         // "Ensure runtime errors (timeouts, outages, quota) do not trigger fallback"
-        
+
         // This prevents silent cost/compliance issues where a temporary outage
         // would cause the system to switch to a different provider mid-run.
-        
+
         // The implementation ensures this by:
         // 1. from_config() only handles construction errors
         // 2. Once a backend is returned, it's the orchestrator's job to handle
         //    runtime errors from invoke()
         // 3. The orchestrator does not have access to fallback configuration
-        
-        assert!(true, "Design constraint verified: no fallback on runtime errors");
+        //
+        // Design constraint verified: no fallback on runtime errors
     }
 }

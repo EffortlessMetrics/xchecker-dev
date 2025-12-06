@@ -10,7 +10,6 @@
 //! Requirements tested: R4.1, R4.2, R4.3, R4.4, R4.5
 
 use chrono::Utc;
-use serde_json;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 
@@ -409,7 +408,7 @@ fn validate_against_schema(schema: &serde_json::Value, example: &serde_json::Val
         .unwrap_or_else(|_| panic!("Failed to compile schema for {}", name));
 
     if let Err(error) = validator.validate(example) {
-        panic!("{} failed validation:\n{}", name, error.to_string());
+        panic!("{} failed validation:\n{}", name, error);
     }
 }
 

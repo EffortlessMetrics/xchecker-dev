@@ -232,6 +232,7 @@ impl ClaudeWrapper {
     /// This is a best-effort validation that attempts to check if the model
     /// is available. If the validation fails, we'll still allow the model
     /// and let Claude CLI handle the final validation during execution.
+    #[allow(dead_code)] // Legacy/test-only; will be removed in V19+
     fn validate_model_name(model_name: &str, runner: &Runner) -> Result<(), ClaudeError> {
         // Try to query available models to validate the model exists
         // This is a best-effort check - if it fails, we'll still proceed
@@ -620,10 +621,7 @@ mod tests {
         assert_eq!(content, "Hello world");
         assert_eq!(metadata.input_tokens, Some(10));
         assert_eq!(metadata.output_tokens, Some(5));
-        assert_eq!(
-            metadata.model,
-            Some("haiku".to_string())
-        );
+        assert_eq!(metadata.model, Some("haiku".to_string()));
         assert_eq!(metadata.stop_reason, Some("end_turn".to_string()));
     }
 

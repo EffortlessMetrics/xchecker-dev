@@ -287,7 +287,7 @@ fn test_jcs_numeric_normalization() -> Result<()> {
     // Create two JSON objects with equivalent numeric values but different representations
     let json1 = serde_json::json!({
         "integer": 42,
-        "float": 3.14,
+        "float": 3.15,  // Avoid 3.14 which clippy considers too close to PI
         "zero": 0,
         "negative": -10,
         "large": 1000000,

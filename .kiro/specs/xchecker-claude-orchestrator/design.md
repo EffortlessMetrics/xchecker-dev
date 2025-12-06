@@ -586,7 +586,7 @@ pub enum XCheckerError {
 ### Canonicalization Algorithms
 
 **YAML Canonicalization (v1):**
-1. Parse YAML structure using serde_yaml_ng
+1. Parse YAML structure using serde_yaml
 2. Emit with normalized formatting:
    - `\n` newlines only (no `\r\n` or `\r`)
    - UTF-8 encoding

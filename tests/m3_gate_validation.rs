@@ -203,6 +203,8 @@ async fn test_complete_multi_phase_flow() -> Result<()> {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Phase 1: Execute Requirements phase
@@ -405,6 +407,8 @@ async fn test_resume_functionality_from_intermediate_phases() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Step 1: Execute Requirements phase only
@@ -520,6 +524,8 @@ async fn test_generated_core_yaml_canonicalization() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute Requirements phase to generate actual *.core.yaml
@@ -540,8 +546,8 @@ async fn test_generated_core_yaml_canonicalization() -> Result<()> {
 
     // Create a manually reordered version of the same YAML content
     // Parse and re-serialize with different key ordering
-    let parsed_yaml: serde_yaml_ng::Value = serde_yaml_ng::from_str(&original_yaml_content)?;
-    let reordered_yaml_content = serde_yaml_ng::to_string(&parsed_yaml)?;
+    let parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&original_yaml_content)?;
+    let reordered_yaml_content = serde_yaml::to_string(&parsed_yaml)?;
 
     // Create version with different whitespace
     let whitespace_yaml_content = original_yaml_content
@@ -592,6 +598,8 @@ async fn test_resume_dependency_validation() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Try to resume from Design phase without completing Requirements first
@@ -665,6 +673,8 @@ async fn test_canonicalization_metadata_in_receipts() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute Requirements phase

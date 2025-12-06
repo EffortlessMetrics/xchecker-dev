@@ -4,7 +4,6 @@
 //! conforms to the JSON schemas. It also tests array sorting and stable key ordering.
 
 use chrono::Utc;
-use serde_json;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use tempfile::TempDir;
@@ -80,10 +79,7 @@ fn test_generated_receipt_validates_against_schema() {
     let validator = jsonschema::validator_for(&schema).expect("Failed to compile receipt schema");
 
     if let Err(error) = validator.validate(&json_value) {
-        panic!(
-            "Generated receipt failed validation:\n{}",
-            error.to_string()
-        );
+        panic!("Generated receipt failed validation:\n{}", error);
     }
 
     println!("✓ Generated receipt validates against schema");
@@ -156,7 +152,7 @@ fn test_generated_status_validates_against_schema() {
     let validator = jsonschema::validator_for(&schema).expect("Failed to compile status schema");
 
     if let Err(error) = validator.validate(&json_value) {
-        panic!("Generated status failed validation:\n{}", error.to_string());
+        panic!("Generated status failed validation:\n{}", error);
     }
 
     println!("✓ Generated status validates against schema");
@@ -204,10 +200,7 @@ fn test_generated_doctor_validates_against_schema() {
     let validator = jsonschema::validator_for(&schema).expect("Failed to compile doctor schema");
 
     if let Err(error) = validator.validate(&json_value) {
-        panic!(
-            "Generated doctor output failed validation:\n{}",
-            error.to_string()
-        );
+        panic!("Generated doctor output failed validation:\n{}", error);
     }
 
     println!("✓ Generated doctor output validates against schema");

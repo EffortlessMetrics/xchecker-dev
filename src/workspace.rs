@@ -58,26 +58,25 @@ impl Workspace {
     pub fn load(path: &Path) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read workspace file: {}", path.display()))?;
-        
-        let workspace: Self = serde_yaml_ng::from_str(&content)
+
+        let workspace: Self = serde_yaml::from_str(&content)
             .with_context(|| format!("Failed to parse workspace file: {}", path.display()))?;
-        
+
         Ok(workspace)
     }
 
     /// Save the workspace to a file
     pub fn save(&self, path: &Path) -> Result<()> {
-        let content = serde_yaml_ng::to_string(self)
-            .context("Failed to serialize workspace")?;
-        
+        let content = serde_yaml::to_string(self).context("Failed to serialize workspace")?;
+
         std::fs::write(path, content)
             .with_context(|| format!("Failed to write workspace file: {}", path.display()))?;
-        
+
         Ok(())
     }
 
     /// Add a spec to the workspace
-    /// 
+    ///
     /// Returns an error if the spec already exists and `force` is false.
     pub fn add_spec(&mut self, id: &str, tags: Vec<String>, force: bool) -> Result<()> {
         // Check if spec already exists
@@ -119,13 +118,13 @@ impl Workspace {
 }
 
 /// Discover workspace by searching upward from the given directory
-/// 
+///
 /// This function searches upward from `start_dir` looking for a `workspace.yaml` file.
 /// The first workspace found is returned (no merging of multiple workspaces).
-/// 
+///
 /// # Arguments
 /// * `start_dir` - Directory to start searching from
-/// 
+///
 /// # Returns
 /// * `Ok(Some(path))` - Path to the discovered workspace file
 /// * `Ok(None)` - No workspace file found
@@ -160,7 +159,7 @@ pub fn discover_workspace(start_dir: &Path) -> Result<Option<PathBuf>> {
 }
 
 /// Discover workspace from current working directory
-/// 
+///
 /// Convenience function that starts discovery from CWD.
 pub fn discover_workspace_from_cwd() -> Result<Option<PathBuf>> {
     let cwd = std::env::current_dir().context("Failed to get current directory")?;
@@ -168,13 +167,13 @@ pub fn discover_workspace_from_cwd() -> Result<Option<PathBuf>> {
 }
 
 /// Resolve workspace path with optional override
-/// 
+///
 /// If `override_path` is provided, it is used directly.
 /// Otherwise, workspace discovery is performed from CWD.
-/// 
+///
 /// # Arguments
 /// * `override_path` - Optional explicit path to workspace file
-/// 
+///
 /// # Returns
 /// * `Ok(Some(path))` - Resolved workspace path
 /// * `Ok(None)` - No workspace found and no override provided
@@ -192,25 +191,22 @@ pub fn resolve_workspace(override_path: Option<&Path>) -> Result<Option<PathBuf>
 }
 
 /// Initialize a new workspace in the given directory
-/// 
+///
 /// Creates a `workspace.yaml` file with the given name.
-/// 
+///
 /// # Arguments
 /// * `dir` - Directory to create the workspace in
 /// * `name` - Name for the workspace
-/// 
+///
 /// # Returns
 /// * `Ok(path)` - Path to the created workspace file
 /// * `Err(_)` - Error during creation
 pub fn init_workspace(dir: &Path, name: &str) -> Result<PathBuf> {
     let workspace_path = dir.join(WORKSPACE_FILE_NAME);
-    
+
     // Check if workspace already exists
     if workspace_path.exists() {
-        anyhow::bail!(
-            "Workspace already exists at: {}",
-            workspace_path.display()
-        );
+        anyhow::bail!("Workspace already exists at: {}", workspace_path.display());
     }
 
     // Create the workspace
@@ -240,7 +236,9 @@ mod tests {
 
         // Create and save workspace
         let mut workspace = Workspace::new("test-project");
-        workspace.add_spec("spec-1", vec!["tag1".to_string()], false).unwrap();
+        workspace
+            .add_spec("spec-1", vec!["tag1".to_string()], false)
+            .unwrap();
         workspace.save(&workspace_path).unwrap();
 
         // Load and verify
@@ -255,13 +253,15 @@ mod tests {
     fn test_workspace_add_spec_duplicate() {
         let mut workspace = Workspace::new("test");
         workspace.add_spec("spec-1", vec![], false).unwrap();
-        
+
         // Should fail without force
         let result = workspace.add_spec("spec-1", vec![], false);
         assert!(result.is_err());
-        
+
         // Should succeed with force
-        workspace.add_spec("spec-1", vec!["new-tag".to_string()], true).unwrap();
+        workspace
+            .add_spec("spec-1", vec!["new-tag".to_string()], true)
+            .unwrap();
         assert_eq!(workspace.specs.len(), 1);
         assert_eq!(workspace.specs[0].tags, vec!["new-tag"]);
     }
@@ -270,7 +270,7 @@ mod tests {
     fn test_discover_workspace_in_current_dir() {
         let temp_dir = TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
-        
+
         // Create workspace file
         let workspace = Workspace::new("test");
         workspace.save(&workspace_path).unwrap();
@@ -285,7 +285,7 @@ mod tests {
     fn test_discover_workspace_in_parent_dir() {
         let temp_dir = TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
-        
+
         // Create workspace file in root
         let workspace = Workspace::new("test");
         workspace.save(&workspace_path).unwrap();
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn test_discover_workspace_not_found() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // No workspace file exists
         let discovered = discover_workspace(temp_dir.path()).unwrap();
         assert!(discovered.is_none());
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_discover_workspace_first_found() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create workspace in root
         let root_workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
         let root_workspace = Workspace::new("root");
@@ -334,10 +334,10 @@ mod tests {
     #[test]
     fn test_init_workspace() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         let workspace_path = init_workspace(temp_dir.path(), "my-project").unwrap();
         assert!(workspace_path.exists());
-        
+
         let workspace = Workspace::load(&workspace_path).unwrap();
         assert_eq!(workspace.name, "my-project");
     }
@@ -345,10 +345,10 @@ mod tests {
     #[test]
     fn test_init_workspace_already_exists() {
         let temp_dir = TempDir::new().unwrap();
-        
+
         // Create first workspace
         init_workspace(temp_dir.path(), "first").unwrap();
-        
+
         // Second init should fail
         let result = init_workspace(temp_dir.path(), "second");
         assert!(result.is_err());
@@ -358,7 +358,7 @@ mod tests {
     fn test_resolve_workspace_with_override() {
         let temp_dir = TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
-        
+
         // Create workspace
         let workspace = Workspace::new("test");
         workspace.save(&workspace_path).unwrap();

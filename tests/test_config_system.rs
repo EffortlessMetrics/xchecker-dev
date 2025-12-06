@@ -123,7 +123,10 @@ max_turns = 8
 
     // Should find config from inside git boundary, NOT from above
     // If discovery crossed the boundary, we'd see "opus-above-boundary" and max_turns=99
-    assert_eq!(config.defaults.model, Some("sonnet-inside-boundary".to_string()));
+    assert_eq!(
+        config.defaults.model,
+        Some("sonnet-inside-boundary".to_string())
+    );
     assert_eq!(config.defaults.max_turns, Some(8));
 
     Ok(())

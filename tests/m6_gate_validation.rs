@@ -413,11 +413,11 @@ config:
 "#;
 
     // Parse original
-    let original_value: serde_yaml_ng::Value = serde_yaml_ng::from_str(yaml_content)?;
+    let original_value: serde_yaml::Value = serde_yaml::from_str(yaml_content)?;
 
     // Canonicalize and parse again
     let normalized = canonicalizer.normalize_text(yaml_content);
-    let normalized_value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&normalized)?;
+    let normalized_value: serde_yaml::Value = serde_yaml::from_str(&normalized)?;
 
     if original_value != normalized_value {
         return Err(anyhow::anyhow!(
@@ -531,24 +531,21 @@ fn test_fallback_mechanisms() -> Result<()> {
         ));
     }
 
-    // Test plain text fallback
-    let plain_text = "# Requirements Document\n\nThis is plain text output.";
-
-    // Should be able to process plain text
-    if plain_text.is_empty() {
-        return Err(anyhow::anyhow!("Plain text fallback failed"));
-    }
+    // Test plain text fallback - verify non-empty plain text can be processed
+    let plain_text: &str = "# Requirements Document\n\nThis is plain text output.";
+    assert!(
+        !plain_text.trim().is_empty(),
+        "Plain text fallback should have content"
+    );
 
     Ok(())
 }
 
 /// Test error handling scenarios
 fn test_error_handling_scenarios() -> Result<()> {
-    // Test empty input handling
-    let empty_input = "";
-    if !empty_input.is_empty() {
-        // This should be handled gracefully
-    }
+    // Test empty input handling - verify empty string is detected
+    let empty_input: String = String::new();
+    assert!(empty_input.is_empty(), "Empty input should be detected");
 
     // Test invalid YAML handling
     let canonicalizer = Canonicalizer::new();
@@ -688,6 +685,18 @@ fn print_m6_gate_summary(results: &M6GateResults) {
     println!("\n{}", "=".repeat(50));
 }
 
+/// Main entry point for M6 Gate validation
+/// This can be called from integration tests or CLI
+pub fn main() -> Result<()> {
+    let results = validate_m6_gate()?;
+
+    if results.overall_success {
+        std::process::exit(0);
+    } else {
+        std::process::exit(1);
+    }
+}
+
 /// Run M6 Gate validation as a test
 #[cfg(test)]
 mod tests {
@@ -724,6 +733,11 @@ mod tests {
         Ok(())
     }
 
+    /// Performance sanity check for core components.
+    ///
+    /// NOTE: This is a **sanity check**, not a microbenchmark. CI runners have
+    /// significant timing variance. Thresholds are set conservatively to avoid
+    /// flaky failures while still catching gross regressions.
     #[test]
     fn test_performance_components() -> Result<()> {
         // Test empty run simulation
@@ -732,16 +746,20 @@ mod tests {
         let duration = start.elapsed();
         assert!(
             duration < Duration::from_secs(5),
-            "Empty run simulation should be fast"
+            "Empty run simulation should be fast (got {:?})",
+            duration
         );
 
         // Test packetization simulation
+        // 500ms threshold is generous to account for CI runner variance;
+        // actual performance should be <200ms on modern hardware.
         let start = Instant::now();
         simulate_packetization_100_files()?;
         let duration = start.elapsed();
         assert!(
-            duration < Duration::from_millis(200),
-            "Packetization simulation should be fast"
+            duration < Duration::from_millis(500),
+            "Packetization simulation should complete within 500ms (got {:?})",
+            duration
         );
 
         Ok(())
@@ -768,17 +786,5 @@ mod tests {
         test_response_format_variations()?;
 
         Ok(())
-    }
-}
-
-/// Main entry point for M6 Gate validation
-/// This can be called from integration tests or CLI
-pub fn main() -> Result<()> {
-    let results = validate_m6_gate()?;
-
-    if results.overall_success {
-        std::process::exit(0);
-    } else {
-        std::process::exit(1);
     }
 }

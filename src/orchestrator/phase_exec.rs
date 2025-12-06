@@ -373,9 +373,9 @@ impl PhaseOrchestrator {
             exit_codes::codes::PHASE_TIMEOUT, // Exit code 10
             vec![],                           // No successful outputs
             env!("CARGO_PKG_VERSION"),
-            "0.8.1",                          // Default Claude CLI version
-            "haiku",     // Default model
-            None,                             // No model alias
+            "0.8.1", // Default Claude CLI version
+            "haiku", // Default model
+            None,    // No model alias
             flags,
             packet_evidence,
             None, // No stderr_tail
@@ -709,9 +709,9 @@ impl PhaseOrchestrator {
                 exit_codes::codes::SECRET_DETECTED, // Exit code 8
                 vec![],                             // No successful outputs
                 env!("CARGO_PKG_VERSION"),
-                "0.8.1",                            // Default Claude CLI version
-                "haiku",       // Default model
-                None,                               // No model alias
+                "0.8.1", // Default Claude CLI version
+                "haiku", // Default model
+                None,    // No model alias
                 flags,
                 packet_evidence,
                 None, // No stderr_tail
@@ -797,49 +797,50 @@ impl PhaseOrchestrator {
                     // Check if this is a budget exhaustion error by downcasting
                     if let Some(xchecker_err) = e.downcast_ref::<XCheckerError>()
                         && let XCheckerError::Llm(llm_err) = xchecker_err
-                            && matches!(llm_err, crate::llm::LlmError::BudgetExceeded { .. }) {
-                                // Handle budget exhaustion specially - create receipt with budget_exhausted flag
-                                let packet_evidence = packet.evidence.clone();
-                                let mut flags = HashMap::new();
-                                flags.insert("phase".to_string(), phase_id.as_str().to_string());
+                        && matches!(llm_err, crate::llm::LlmError::BudgetExceeded { .. })
+                    {
+                        // Handle budget exhaustion specially - create receipt with budget_exhausted flag
+                        let packet_evidence = packet.evidence.clone();
+                        let mut flags = HashMap::new();
+                        flags.insert("phase".to_string(), phase_id.as_str().to_string());
 
-                                let mut receipt = self.receipt_manager().create_receipt(
-                                    self.spec_id(),
-                                    phase_id,
-                                    exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
-                                    vec![],  // No successful outputs
-                                    env!("CARGO_PKG_VERSION"),
-                                    "0.8.1", // Default Claude CLI version
-                                    "unknown", // Model unknown for budget exhaustion
-                                    None,    // No model alias
-                                    flags,
-                                    packet_evidence,
-                                    None, // No stderr_tail
-                                    None, // No stderr_redacted
-                                    vec![format!("LLM budget exhausted: {}", llm_err)],
-                                    None,     // No fallback
-                                    "native", // Default runner
-                                    None,     // No runner distro
-                                    Some(ErrorKind::ClaudeFailure),
-                                    Some(llm_err.to_string()),
-                                    None, // No diff_context
-                                    None, // No pipeline info
-                                );
+                        let mut receipt = self.receipt_manager().create_receipt(
+                            self.spec_id(),
+                            phase_id,
+                            exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
+                            vec![],                            // No successful outputs
+                            env!("CARGO_PKG_VERSION"),
+                            "0.8.1",   // Default Claude CLI version
+                            "unknown", // Model unknown for budget exhaustion
+                            None,      // No model alias
+                            flags,
+                            packet_evidence,
+                            None, // No stderr_tail
+                            None, // No stderr_redacted
+                            vec![format!("LLM budget exhausted: {}", llm_err)],
+                            None,     // No fallback
+                            "native", // Default runner
+                            None,     // No runner distro
+                            Some(ErrorKind::ClaudeFailure),
+                            Some(llm_err.to_string()),
+                            None, // No diff_context
+                            None, // No pipeline info
+                        );
 
-                                // Attach LlmInfo with budget_exhausted flag
-                                receipt.llm = Some(crate::receipt::LlmInfo::for_budget_exhaustion());
+                        // Attach LlmInfo with budget_exhausted flag
+                        receipt.llm = Some(crate::receipt::LlmInfo::for_budget_exhaustion());
 
-                                let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
+                        let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
 
-                                return Ok(ExecutionResult {
-                                    phase: phase_id,
-                                    success: false,
-                                    exit_code: exit_codes::codes::CLAUDE_FAILURE,
-                                    artifact_paths: vec![],
-                                    receipt_path: Some(receipt_path.into_std_path_buf()),
-                                    error: Some(llm_err.to_string()),
-                                });
-                            }
+                        return Ok(ExecutionResult {
+                            phase: phase_id,
+                            success: false,
+                            exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                            artifact_paths: vec![],
+                            receipt_path: Some(receipt_path.into_std_path_buf()),
+                            error: Some(llm_err.to_string()),
+                        });
+                    }
                     // For other errors, propagate normally
                     return Err(e);
                 }
@@ -885,7 +886,7 @@ impl PhaseOrchestrator {
                 self.spec_id(),
                 phase_id,
                 claude_exit_code,
-                vec![],  // No successful outputs
+                vec![], // No successful outputs
                 env!("CARGO_PKG_VERSION"),
                 claude_metadata
                     .as_ref()
@@ -1098,6 +1099,8 @@ impl PhaseOrchestrator {
                 .into_std_path_buf(),
             config: config.config.clone(),
             artifacts,
+            selectors: config.selectors.clone(),
+            strict_validation: config.strict_validation,
         })
     }
 

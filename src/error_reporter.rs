@@ -204,7 +204,9 @@ pub mod utils {
     pub fn should_show_details(error: &XCheckerError) -> bool {
         matches!(
             error.category(),
-            ErrorCategory::Configuration | ErrorCategory::ClaudeIntegration | ErrorCategory::PhaseExecution
+            ErrorCategory::Configuration
+                | ErrorCategory::ClaudeIntegration
+                | ErrorCategory::PhaseExecution
         )
     }
 

@@ -37,6 +37,8 @@ async fn test_debug_packet_written_with_flag() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true, // Use dry-run to avoid actual Claude invocation
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute requirements phase
@@ -82,6 +84,8 @@ async fn test_debug_packet_not_written_without_flag() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute requirements phase
@@ -129,6 +133,8 @@ async fn test_debug_packet_not_written_on_secret_detection() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute requirements phase (will fail due to secret detection)
@@ -137,7 +143,7 @@ async fn test_debug_packet_not_written_on_secret_detection() -> Result<()> {
     // Secret detection returns an error from the orchestrator
     // The key assertion is that the debug packet file was NOT written
     // before the secret was detected
-    
+
     // Verify debug packet file was NOT written (secret scan failed before debug packet could be written)
     let debug_packet_path = spec_context_dir.join("requirements-packet-debug.txt");
 
@@ -181,6 +187,8 @@ async fn test_debug_packet_not_in_receipts() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute requirements phase
@@ -227,6 +235,8 @@ async fn test_packet_preview_always_written() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute requirements phase

@@ -751,24 +751,24 @@ fn test_error_receipts_include_standard_fields() {
         "test-standard-fields",
         PhaseId::Requirements,
         &error,
-        "0.1.0",                      // xchecker_version
-        "0.8.1",                      // claude_cli_version
-        "haiku", // model_full_name
-        Some("sonnet".to_string()),   // model_alias
-        HashMap::new(),               // flags
+        "0.1.0",                    // xchecker_version
+        "0.8.1",                    // claude_cli_version
+        "haiku",                    // model_full_name
+        Some("sonnet".to_string()), // model_alias
+        HashMap::new(),             // flags
         PacketEvidence {
             files: vec![],
             max_bytes: 65536,
             max_lines: 1200,
         }, // packet
         Some("stderr output".to_string()), // stderr_tail
-        None,                         // stderr_redacted
+        None,                       // stderr_redacted
         vec!["warning1".to_string()], // warnings
-        Some(false),                  // fallback_used
-        "wsl",                        // runner
-        None,                         // runner_distro
-        None,                         // diff_context,
-        None,                         // pipeline
+        Some(false),                // fallback_used
+        "wsl",                      // runner
+        None,                       // runner_distro
+        None,                       // diff_context,
+        None,                       // pipeline
     );
 
     // Verify all standard fields are present

@@ -25,6 +25,8 @@ fn create_test_context(spec_id: &str, spec_dir: PathBuf) -> PhaseContext {
         spec_dir,
         config,
         artifacts: vec![],
+        selectors: None,
+        strict_validation: false,
     }
 }
 
@@ -42,6 +44,8 @@ fn create_test_context_with_artifacts(
         spec_dir,
         config,
         artifacts,
+        selectors: None,
+        strict_validation: false,
     }
 }
 

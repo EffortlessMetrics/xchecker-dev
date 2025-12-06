@@ -918,6 +918,68 @@ async fn test_requirements_receipt_has_pipeline_info() -> Result<()> {
 | `claude_scenario` | String | "success" | Scenario for claude-stub testing |
 | `runner_mode` | String | "auto" | Runner mode: native, wsl, docker |
 | `runner_distro` | String | N/A | WSL distro name if using WSL runner |
+| `strict_validation` | bool | false | Treat validation failures as hard errors |
+
+### Strict Validation Mode
+
+Strict validation mode controls how the orchestrator handles low-quality or invalid LLM output.
+
+**Configuration Flow:**
+
+```
+[defaults]                    Config::strict_validation()
+strict_validation = true  →   OrchestratorConfig.strict_validation  →  PhaseContext.strict_validation
+                                                                              ↓
+                                                                    Phase::postprocess() checks
+                                                                              ↓
+                                                          ValidationFailed error (if strict) or warning (if soft)
+```
+
+**Where `strict_validation` is Read:**
+- `Config::strict_validation()` in `src/config.rs` - reads from config file
+- CLI flags `--strict-validation` / `--no-strict-validation` override config
+- Merged into `OrchestratorConfig` during orchestrator initialization
+
+**How It Flows Through Execution:**
+1. `OrchestratorConfig.strict_validation` is set from config + CLI flags
+2. `PhaseContext.strict_validation` is populated in `create_phase_context()` (`src/orchestrator/phase_exec.rs`)
+3. Each phase's `postprocess()` method checks `ctx.strict_validation`
+4. `OutputValidator::validate()` runs regardless of mode
+
+**Behavior Difference:**
+
+| Mode | On Validation Failure | Exit Code | Effect |
+|------|----------------------|-----------|--------|
+| Soft (`false`) | Log warning to stderr | 0 (success) | Artifacts written, execution continues |
+| Strict (`true`) | Return `ValidationFailed` error | 1 | Phase fails, no artifacts written |
+
+**Example Configuration:**
+
+```toml
+# .xchecker/config.toml
+[defaults]
+strict_validation = true  # Fail on low-quality LLM output
+```
+
+**CLI Override:**
+
+```bash
+# Enable strict mode for this run only
+xchecker spec my-spec --strict-validation
+
+# Disable strict mode even if config enables it
+xchecker spec my-spec --no-strict-validation
+```
+
+**What Triggers Validation Failures:**
+- Meta-summary responses ("Since no specific problem statement was provided...")
+- Missing required sections in phase output
+- Malformed markdown structure
+- Empty or placeholder content
+
+**See Also:**
+- [CONFIGURATION.md](CONFIGURATION.md) - Full config reference including `[defaults].strict_validation`
+- [TEST_MATRIX.md](TEST_MATRIX.md) - FR-VLD test coverage for validation
 
 ### Exit Codes
 

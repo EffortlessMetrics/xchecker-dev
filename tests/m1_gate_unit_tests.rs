@@ -126,10 +126,7 @@ async fn test_m1_gate_model_resolution() -> Result<()> {
         Some("sonnet".to_string()),
         "Should preserve model alias"
     );
-    assert_eq!(
-        full_name, "haiku",
-        "Should resolve alias to full name"
-    );
+    assert_eq!(full_name, "haiku", "Should resolve alias to full name");
 
     // Test full model name (no alias)
     let wrapper_with_full = ClaudeWrapper {
@@ -150,10 +147,7 @@ async fn test_m1_gate_model_resolution() -> Result<()> {
         Some("haiku".to_string()),
         "Should preserve full name as alias"
     );
-    assert_eq!(
-        full_name2, "haiku",
-        "Should use full name as-is"
-    );
+    assert_eq!(full_name2, "haiku", "Should use full name as-is");
 
     // Test version capture
     let version = wrapper_with_alias.get_version();

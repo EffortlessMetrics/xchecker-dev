@@ -23,7 +23,10 @@ use xchecker::doctor::{CheckStatus, DoctorCommand};
 static DOCTOR_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn doctor_env_guard() -> MutexGuard<'static, ()> {
-    DOCTOR_ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
+    DOCTOR_ENV_LOCK
+        .get_or_init(|| Mutex::new(()))
+        .lock()
+        .unwrap()
 }
 
 // ===== Helper Functions =====

@@ -15,7 +15,6 @@ use anyhow::Result;
 use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
-use tokio;
 use xchecker::runner::Runner;
 
 use xchecker::claude::ClaudeWrapper;
@@ -72,6 +71,8 @@ async fn test_complete_requirements_phase_with_claude_integration() -> Result<()
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute Requirements phase
@@ -158,6 +159,8 @@ async fn test_receipt_metadata_completeness() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute phase
@@ -260,10 +263,7 @@ async fn test_receipt_metadata_completeness() -> Result<()> {
 #[ignore = "requires_claude_stub"]
 async fn test_claude_wrapper_stream_json_success() -> Result<()> {
     // Test Claude wrapper directly with stream-json format
-    let wrapper = ClaudeWrapper::new(
-        Some("haiku".to_string()),
-        Runner::native(),
-    )?;
+    let wrapper = ClaudeWrapper::new(Some("haiku".to_string()), Runner::native())?;
 
     // Mock the Claude CLI execution by setting up environment
     // In a real test, this would call the actual Claude CLI
@@ -332,6 +332,8 @@ async fn test_claude_wrapper_fallback_behavior() -> Result<()> {
             map.insert("claude_scenario".to_string(), "malformed".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute phase - this should trigger fallback behavior
@@ -373,16 +375,10 @@ async fn test_model_resolution_and_version_capture() -> Result<()> {
         Some("sonnet".to_string()),
         "Should preserve model alias"
     );
-    assert_eq!(
-        full_name, "haiku",
-        "Should resolve alias to full name"
-    );
+    assert_eq!(full_name, "haiku", "Should resolve alias to full name");
 
     // Test full model name (no alias)
-    let wrapper_with_full = ClaudeWrapper::new(
-        Some("haiku".to_string()),
-        Runner::native(),
-    )?;
+    let wrapper_with_full = ClaudeWrapper::new(Some("haiku".to_string()), Runner::native())?;
     let (alias2, full_name2) = wrapper_with_full.get_model_info();
 
     assert_eq!(
@@ -390,10 +386,7 @@ async fn test_model_resolution_and_version_capture() -> Result<()> {
         Some("haiku".to_string()),
         "Should preserve full name as alias"
     );
-    assert_eq!(
-        full_name2, "haiku",
-        "Should use full name as-is"
-    );
+    assert_eq!(full_name2, "haiku", "Should use full name as-is");
 
     // Test version capture
     let version = wrapper_with_alias.get_version();
@@ -423,6 +416,8 @@ async fn test_end_to_end_m1_gate_validation() -> Result<()> {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute complete Requirements phase
@@ -522,6 +517,8 @@ async fn test_error_handling_and_partial_outputs() -> Result<()> {
             map.insert("claude_scenario".to_string(), "error".to_string());
             map
         },
+        selectors: None,
+        strict_validation: false,
     };
 
     // Execute phase - this should fail

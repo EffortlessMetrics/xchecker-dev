@@ -6,7 +6,7 @@
 
 use serde_json::Value;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
 
@@ -25,7 +25,7 @@ fn run_xchecker_command(args: &[&str], temp_dir: &TempDir) -> (i32, PathBuf) {
 }
 
 /// Helper to read the latest receipt for a spec
-fn read_latest_receipt(spec_base: &PathBuf, spec_id: &str) -> Option<Value> {
+fn read_latest_receipt(spec_base: &Path, spec_id: &str) -> Option<Value> {
     let receipts_dir = spec_base.join(spec_id).join("receipts");
 
     if !receipts_dir.exists() {

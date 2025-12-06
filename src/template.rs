@@ -88,7 +88,6 @@ pub fn is_valid_template(id: &str) -> bool {
     BUILT_IN_TEMPLATES.contains(&id)
 }
 
-
 /// Initialize a spec from a template
 ///
 /// Creates the spec directory structure and seeds it with template content:
@@ -106,11 +105,12 @@ pub fn is_valid_template(id: &str) -> bool {
 /// * `Err(_)` if template is invalid or spec creation fails
 pub fn init_from_template(template_id: &str, spec_id: &str) -> Result<()> {
     // Validate template
-    let template = get_template(template_id)
-        .ok_or_else(|| anyhow::anyhow!(
+    let template = get_template(template_id).ok_or_else(|| {
+        anyhow::anyhow!(
             "Unknown template '{}'. Run 'xchecker template list' to see available templates.",
             template_id
-        ))?;
+        )
+    })?;
 
     // Create spec directory structure
     let spec_dir = crate::paths::spec_root(spec_id);
@@ -120,11 +120,7 @@ pub fn init_from_template(template_id: &str, spec_id: &str) -> Result<()> {
 
     // Check if spec already exists
     if spec_dir.exists() {
-        anyhow::bail!(
-            "Spec '{}' already exists at: {}",
-            spec_id,
-            spec_dir
-        );
+        anyhow::bail!("Spec '{}' already exists at: {}", spec_id, spec_dir);
     }
 
     // Create directories
@@ -337,7 +333,8 @@ Refactor and improve documentation with the following goals:
 
 /// Generate README content for a template
 fn generate_readme(template: &TemplateInfo) -> String {
-    let prerequisites = template.prerequisites
+    let prerequisites = template
+        .prerequisites
         .iter()
         .map(|p| format!("- {}", p))
         .collect::<Vec<_>>()
@@ -421,8 +418,12 @@ fn ensure_minimal_config() -> Result<()> {
 
     // Create .xchecker directory if needed
     if !config_dir.exists() {
-        std::fs::create_dir_all(config_dir)
-            .with_context(|| format!("Failed to create config directory: {}", config_dir.display()))?;
+        std::fs::create_dir_all(config_dir).with_context(|| {
+            format!(
+                "Failed to create config directory: {}",
+                config_dir.display()
+            )
+        })?;
     }
 
     let config_content = r#"# xchecker configuration
@@ -458,7 +459,7 @@ mod tests {
     fn test_list_templates() {
         let templates = list_templates();
         assert_eq!(templates.len(), 4);
-        
+
         let ids: Vec<&str> = templates.iter().map(|t| t.id).collect();
         assert!(ids.contains(&TEMPLATE_FULLSTACK_NEXTJS));
         assert!(ids.contains(&TEMPLATE_RUST_MICROSERVICE));

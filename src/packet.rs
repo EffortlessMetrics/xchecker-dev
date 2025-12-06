@@ -5,6 +5,7 @@
 //! maintaining evidence for auditability.
 
 use crate::cache::{InsightCache, calculate_content_hash};
+use crate::config::Selectors;
 use crate::error::XCheckerError;
 use crate::logging::Logger;
 use crate::phase::{BudgetUsage, Packet};
@@ -57,6 +58,9 @@ impl Default for PriorityRules {
         high_builder.add(Glob::new("**/*SPEC*").unwrap());
         high_builder.add(Glob::new("**/*ADR*").unwrap());
         high_builder.add(Glob::new("**/*REPORT*").unwrap());
+        // Problem statement files get high priority - critical context for LLM
+        high_builder.add(Glob::new("**/problem-statement*").unwrap());
+        high_builder.add(Glob::new("**/*problem-statement*").unwrap());
 
         let mut medium_builder = GlobSetBuilder::new();
         medium_builder.add(Glob::new("**/README*").unwrap());
@@ -90,13 +94,17 @@ impl ContentSelector {
         include_builder.add(Glob::new("**/ADR*")?);
         include_builder.add(Glob::new("**/REPORT*")?);
         include_builder.add(Glob::new("**/SCHEMA*")?);
+        // Spec context directories - problem statements, notes
+        include_builder.add(Glob::new("context/**/*.md")?);
+        include_builder.add(Glob::new("source/**/*.md")?);
 
         let mut exclude_builder = GlobSetBuilder::new();
         // Default exclude patterns
         exclude_builder.add(Glob::new("**/target/**")?);
         exclude_builder.add(Glob::new("**/node_modules/**")?);
         exclude_builder.add(Glob::new("**/.git/**")?);
-        exclude_builder.add(Glob::new("**/.xchecker/**")?);
+        // Note: .xchecker/** is excluded for repo-level searches,
+        // but when building packets from spec_dir, we're already inside .xchecker/specs/<id>
 
         Ok(Self {
             include_patterns: include_builder.build()?,
@@ -124,6 +132,39 @@ impl ContentSelector {
             exclude_patterns: exclude_builder.build()?,
             priority_rules: PriorityRules::default(),
         })
+    }
+
+    /// Create a `ContentSelector` from optional config selectors.
+    ///
+    /// # Precedence
+    ///
+    /// - If `selectors` is `Some`: use those include/exclude patterns.
+    /// - If `None`: fall back to built-in defaults.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any glob pattern is invalid.
+    pub fn from_selectors(selectors: Option<&Selectors>) -> Result<Self> {
+        match selectors {
+            Some(sel) => {
+                let mut include_builder = GlobSetBuilder::new();
+                for pattern in &sel.include {
+                    include_builder.add(Glob::new(pattern)?);
+                }
+
+                let mut exclude_builder = GlobSetBuilder::new();
+                for pattern in &sel.exclude {
+                    exclude_builder.add(Glob::new(pattern)?);
+                }
+
+                Ok(Self {
+                    include_patterns: include_builder.build()?,
+                    exclude_patterns: exclude_builder.build()?,
+                    priority_rules: PriorityRules::default(),
+                })
+            }
+            None => Self::new(),
+        }
     }
 
     /// Determine the priority of a file based on its path
@@ -391,6 +432,45 @@ impl PacketBuilder {
             cache: Some(InsightCache::new(cache_dir)?),
             max_bytes: DEFAULT_PACKET_MAX_BYTES,
             max_lines: DEFAULT_PACKET_MAX_LINES,
+        })
+    }
+
+    /// Create a `PacketBuilder` using selectors from Config, if present.
+    ///
+    /// If `selectors` is `None`, falls back to built-in selector defaults.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if selector patterns are invalid or redactor creation fails.
+    pub fn with_selectors(selectors: Option<&Selectors>) -> Result<Self> {
+        Ok(Self {
+            selector: ContentSelector::from_selectors(selectors)?,
+            redactor: SecretRedactor::new()?,
+            cache: None,
+            max_bytes: DEFAULT_PACKET_MAX_BYTES,
+            max_lines: DEFAULT_PACKET_MAX_LINES,
+        })
+    }
+
+    /// Create a `PacketBuilder` with selectors and custom limits.
+    ///
+    /// If `selectors` is `None`, falls back to built-in selector defaults.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if selector patterns are invalid or redactor creation fails.
+    #[allow(dead_code)] // Builder pattern method for API surface
+    pub fn with_selectors_and_limits(
+        selectors: Option<&Selectors>,
+        max_bytes: usize,
+        max_lines: usize,
+    ) -> Result<Self> {
+        Ok(Self {
+            selector: ContentSelector::from_selectors(selectors)?,
+            redactor: SecretRedactor::new()?,
+            cache: None,
+            max_bytes,
+            max_lines,
         })
     }
 
@@ -1468,6 +1548,159 @@ mod packet_builder_tests {
         // No files should be selected
         assert_eq!(packet.evidence.files.len(), 0);
         assert!(packet.content.is_empty() || packet.content.trim().is_empty());
+
+        Ok(())
+    }
+
+    // ===== Selector Wiring Tests (B2) =====
+
+    #[test]
+    fn test_content_selector_from_selectors_uses_defaults_when_none() -> Result<()> {
+        let selector = ContentSelector::from_selectors(None)?;
+
+        // Verify that when None is passed, selector uses default patterns
+        // We test this by checking it accepts default include patterns and rejects default excludes
+        // Default includes: *.md, *.yaml, *.yml, etc.
+        assert!(selector.should_include(Utf8Path::new("README.md")));
+        assert!(selector.should_include(Utf8Path::new("config.yaml")));
+
+        // Default excludes: .git/*, target/*, node_modules/*, etc.
+        assert!(!selector.should_include(Utf8Path::new(".git/config")));
+        assert!(!selector.should_include(Utf8Path::new("target/debug/main")));
+        assert!(!selector.should_include(Utf8Path::new("node_modules/foo/bar.js")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_content_selector_from_selectors_uses_provided_patterns() -> Result<()> {
+        let selectors = Selectors {
+            include: vec!["src/**".to_string()],
+            exclude: vec!["**/*.log".to_string()],
+        };
+
+        let selector = ContentSelector::from_selectors(Some(&selectors))?;
+
+        // Should include files matching custom include patterns
+        assert!(selector.should_include(Utf8Path::new("src/main.rs")));
+        assert!(selector.should_include(Utf8Path::new("src/lib/utils.rs")));
+
+        // Should NOT include files outside custom include patterns (no default includes)
+        assert!(!selector.should_include(Utf8Path::new("README.md")));
+        assert!(!selector.should_include(Utf8Path::new("config.yaml")));
+
+        // Should exclude files matching custom exclude patterns
+        assert!(!selector.should_include(Utf8Path::new("src/debug.log")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_content_selector_from_selectors_empty_patterns() -> Result<()> {
+        let selectors = Selectors {
+            include: vec![],
+            exclude: vec![],
+        };
+
+        let selector = ContentSelector::from_selectors(Some(&selectors))?;
+
+        // With empty patterns, nothing matches include (empty globset never matches)
+        // and nothing matches exclude (empty globset never matches)
+        assert!(!selector.should_include(Utf8Path::new("README.md")));
+        assert!(!selector.should_include(Utf8Path::new("src/main.rs")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_packet_builder_with_selectors_uses_defaults_when_none() -> Result<()> {
+        let builder = PacketBuilder::with_selectors(None)?;
+
+        // Verify builder uses default limits
+        assert_eq!(builder.max_bytes, DEFAULT_PACKET_MAX_BYTES);
+        assert_eq!(builder.max_lines, DEFAULT_PACKET_MAX_LINES);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_packet_builder_with_selectors_accepts_custom_patterns() -> Result<()> {
+        let selectors = Selectors {
+            include: vec!["**/*.rs".to_string()],
+            exclude: vec!["**/test_*.rs".to_string()],
+        };
+
+        let builder = PacketBuilder::with_selectors(Some(&selectors))?;
+
+        // Verify builder was created successfully with custom selectors
+        assert_eq!(builder.max_bytes, DEFAULT_PACKET_MAX_BYTES);
+        assert_eq!(builder.max_lines, DEFAULT_PACKET_MAX_LINES);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_packet_builder_with_selectors_and_limits() -> Result<()> {
+        let selectors = Selectors {
+            include: vec!["docs/**".to_string()],
+            exclude: vec![],
+        };
+
+        let builder = PacketBuilder::with_selectors_and_limits(Some(&selectors), 32768, 600)?;
+
+        // Verify builder was created with custom limits
+        assert_eq!(builder.max_bytes, 32768);
+        assert_eq!(builder.max_lines, 600);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_packet_builder_with_custom_selectors_filters_files() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create various test files
+        fs::write(base_path.join("README.md"), "# Test Project")?;
+        fs::write(base_path.join("config.yaml"), "key: value")?;
+        fs::create_dir_all(base_path.join("src"))?;
+        fs::write(base_path.join("src/main.rs"), "fn main() {}")?;
+        fs::write(base_path.join("src/lib.rs"), "pub fn lib() {}")?;
+
+        // Create builder with custom selectors that only include .rs files
+        let selectors = Selectors {
+            include: vec!["**/*.rs".to_string()],
+            exclude: vec![],
+        };
+        let mut builder = PacketBuilder::with_selectors(Some(&selectors))?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // Should only include .rs files
+        assert_eq!(packet.evidence.files.len(), 2);
+        assert!(
+            packet
+                .evidence
+                .files
+                .iter()
+                .all(|f| f.path.ends_with(".rs"))
+        );
+
+        // README.md and config.yaml should NOT be included
+        assert!(
+            !packet
+                .evidence
+                .files
+                .iter()
+                .any(|f| f.path.ends_with(".md"))
+        );
+        assert!(
+            !packet
+                .evidence
+                .files
+                .iter()
+                .any(|f| f.path.ends_with(".yaml"))
+        );
 
         Ok(())
     }

@@ -150,10 +150,7 @@ impl GateCommand {
         let mut failure_reasons = Vec::new();
 
         // Get receipts for evaluation
-        let receipts = handle
-            .receipt_manager()
-            .list_receipts()
-            .unwrap_or_default();
+        let receipts = handle.receipt_manager().list_receipts().unwrap_or_default();
 
         // Evaluate min-phase condition
         let min_phase_result = self.evaluate_min_phase(&handle, &receipts);
@@ -183,7 +180,10 @@ impl GateCommand {
         // Determine overall result
         let passed = failure_reasons.is_empty();
         let summary = if passed {
-            format!("Gate PASSED: Spec '{}' meets all policy requirements", self.spec_id)
+            format!(
+                "Gate PASSED: Spec '{}' meets all policy requirements",
+                self.spec_id
+            )
         } else {
             format!(
                 "Gate FAILED: Spec '{}' has {} policy violation(s)",
@@ -202,9 +202,13 @@ impl GateCommand {
     }
 
     /// Evaluate the minimum phase requirement
-    fn evaluate_min_phase(&self, handle: &OrchestratorHandle, receipts: &[Receipt]) -> GateCondition {
+    fn evaluate_min_phase(
+        &self,
+        handle: &OrchestratorHandle,
+        receipts: &[Receipt],
+    ) -> GateCondition {
         let required_phase = self.policy.min_phase;
-        
+
         // Check if the required phase has a successful receipt
         let phase_str = required_phase.as_str();
         let has_successful_receipt = receipts
@@ -254,7 +258,10 @@ impl GateCommand {
         let mut latest: Option<&str> = None;
         for phase in &phase_order {
             let phase_str = phase.as_str();
-            if receipts.iter().any(|r| r.phase == phase_str && r.exit_code == 0) {
+            if receipts
+                .iter()
+                .any(|r| r.phase == phase_str && r.exit_code == 0)
+            {
                 latest = Some(phase_str);
             }
         }
@@ -280,12 +287,12 @@ impl GateCommand {
     }
 
     /// Evaluate the phase age condition
-    /// 
+    ///
     /// Phase age is defined as wall-clock time since the latest SUCCESSFUL receipt
     /// for the min_phase. Failed receipts do not count towards age.
     fn evaluate_phase_age(&self, receipts: &[Receipt], max_age: Duration) -> GateCondition {
         let phase_str = self.policy.min_phase.as_str();
-        
+
         // Find the latest SUCCESSFUL receipt for the required phase
         let latest_successful = receipts
             .iter()
@@ -296,7 +303,7 @@ impl GateCommand {
             Some(receipt) => {
                 let age = Utc::now() - receipt.emitted_at;
                 let passed = age <= max_age;
-                
+
                 let age_str = format_duration(age);
                 let max_age_str = format_duration(max_age);
 
@@ -306,21 +313,22 @@ impl GateCommand {
                     description: if passed {
                         format!("Phase '{}' is fresh (age: {})", phase_str, age_str)
                     } else {
-                        format!("Phase '{}' is stale (age: {}, max: {})", phase_str, age_str, max_age_str)
+                        format!(
+                            "Phase '{}' is stale (age: {}, max: {})",
+                            phase_str, age_str, max_age_str
+                        )
                     },
                     actual: Some(age_str),
                     expected: Some(format!("<= {}", max_age_str)),
                 }
             }
-            None => {
-                GateCondition {
-                    name: "max_phase_age".to_string(),
-                    passed: false,
-                    description: format!("No successful receipt found for phase '{}'", phase_str),
-                    actual: Some("no successful receipt".to_string()),
-                    expected: Some(format!("<= {}", format_duration(max_age))),
-                }
-            }
+            None => GateCondition {
+                name: "max_phase_age".to_string(),
+                passed: false,
+                description: format!("No successful receipt found for phase '{}'", phase_str),
+                actual: Some("no successful receipt".to_string()),
+                expected: Some(format!("<= {}", format_duration(max_age))),
+            },
         }
     }
 }
@@ -361,7 +369,7 @@ fn count_pending_fixups(handle: &OrchestratorHandle) -> u32 {
 /// Format a duration in a human-readable way
 fn format_duration(duration: Duration) -> String {
     let total_seconds = duration.num_seconds();
-    
+
     if total_seconds < 60 {
         format!("{}s", total_seconds)
     } else if total_seconds < 3600 {
@@ -412,7 +420,8 @@ pub fn parse_duration(s: &str) -> Result<Duration> {
         (s, "d")
     };
 
-    let num: i64 = num_str.parse()
+    let num: i64 = num_str
+        .parse()
         .with_context(|| format!("Invalid duration number: '{}'", num_str))?;
 
     let duration = match unit {
@@ -445,10 +454,10 @@ pub fn parse_phase(s: &str) -> Result<PhaseId> {
 /// Emit gate result as canonical JSON using JCS (RFC 8785)
 pub fn emit_gate_json(result: &GateResult) -> Result<String> {
     let output: GateJsonOutput = result.clone().into();
-    
+
     // Serialize to JSON value
-    let json_value = serde_json::to_value(&output)
-        .context("Failed to serialize gate output to JSON value")?;
+    let json_value =
+        serde_json::to_value(&output).context("Failed to serialize gate output to JSON value")?;
 
     // Apply JCS canonicalization for stable output
     let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
@@ -518,7 +527,7 @@ mod tests {
         assert_eq!(parse_phase("review").unwrap(), PhaseId::Review);
         assert_eq!(parse_phase("fixup").unwrap(), PhaseId::Fixup);
         assert_eq!(parse_phase("final").unwrap(), PhaseId::Final);
-        
+
         // Case insensitive
         assert_eq!(parse_phase("REQUIREMENTS").unwrap(), PhaseId::Requirements);
         assert_eq!(parse_phase("Design").unwrap(), PhaseId::Design);
@@ -559,15 +568,13 @@ mod tests {
         let result = GateResult {
             passed: true,
             spec_id: "test-spec".to_string(),
-            conditions: vec![
-                GateCondition {
-                    name: "min_phase".to_string(),
-                    passed: true,
-                    description: "Required phase 'tasks' is completed".to_string(),
-                    actual: Some("tasks completed".to_string()),
-                    expected: Some("tasks or later".to_string()),
-                },
-            ],
+            conditions: vec![GateCondition {
+                name: "min_phase".to_string(),
+                passed: true,
+                description: "Required phase 'tasks' is completed".to_string(),
+                actual: Some("tasks completed".to_string()),
+                expected: Some("tasks or later".to_string()),
+            }],
             failure_reasons: vec![],
             summary: "Gate PASSED: Spec 'test-spec' meets all policy requirements".to_string(),
         };
@@ -583,257 +590,265 @@ mod tests {
     #[test]
     fn test_gate_nonexistent_spec() {
         let _temp_dir = crate::paths::with_isolated_home();
-        
+
         let policy = GatePolicy::default();
         let gate = GateCommand::new("nonexistent-spec".to_string(), policy);
-        
+
         let result = gate.execute().unwrap();
-        
+
         assert!(!result.passed);
-        assert!(result.failure_reasons.iter().any(|r| r.contains("does not exist")));
+        assert!(
+            result
+                .failure_reasons
+                .iter()
+                .any(|r| r.contains("does not exist"))
+        );
     }
 }
 
+// ===== Gate Exit Code Tests (Task 33.3) =====
+// **Property: Gate returns correct exit codes**
+// **Validates: Requirements 4.5.2**
 
-    // ===== Gate Exit Code Tests (Task 33.3) =====
-    // **Property: Gate returns correct exit codes**
-    // **Validates: Requirements 4.5.2**
+#[test]
+fn test_gate_exit_code_policy_pass() {
+    // Verify POLICY_PASS is 0
+    assert_eq!(exit_codes::POLICY_PASS, 0);
+}
 
-    #[test]
-    fn test_gate_exit_code_policy_pass() {
-        // Verify POLICY_PASS is 0
-        assert_eq!(exit_codes::POLICY_PASS, 0);
-    }
+#[test]
+fn test_gate_exit_code_policy_violation() {
+    // Verify POLICY_VIOLATION is 1
+    assert_eq!(exit_codes::POLICY_VIOLATION, 1);
+}
 
-    #[test]
-    fn test_gate_exit_code_policy_violation() {
-        // Verify POLICY_VIOLATION is 1
-        assert_eq!(exit_codes::POLICY_VIOLATION, 1);
-    }
-
-    #[test]
-    fn test_gate_result_passed_has_no_failures() {
-        let result = GateResult {
+#[test]
+fn test_gate_result_passed_has_no_failures() {
+    let result = GateResult {
+        passed: true,
+        spec_id: "test-spec".to_string(),
+        conditions: vec![GateCondition {
+            name: "min_phase".to_string(),
             passed: true,
-            spec_id: "test-spec".to_string(),
-            conditions: vec![
-                GateCondition {
-                    name: "min_phase".to_string(),
-                    passed: true,
-                    description: "Required phase 'tasks' is completed".to_string(),
-                    actual: Some("tasks completed".to_string()),
-                    expected: Some("tasks or later".to_string()),
-                },
-            ],
-            failure_reasons: vec![],
-            summary: "Gate PASSED".to_string(),
-        };
+            description: "Required phase 'tasks' is completed".to_string(),
+            actual: Some("tasks completed".to_string()),
+            expected: Some("tasks or later".to_string()),
+        }],
+        failure_reasons: vec![],
+        summary: "Gate PASSED".to_string(),
+    };
 
-        assert!(result.passed);
-        assert!(result.failure_reasons.is_empty());
-    }
+    assert!(result.passed);
+    assert!(result.failure_reasons.is_empty());
+}
 
-    #[test]
-    fn test_gate_result_failed_has_failures() {
-        let result = GateResult {
+#[test]
+fn test_gate_result_failed_has_failures() {
+    let result = GateResult {
+        passed: false,
+        spec_id: "test-spec".to_string(),
+        conditions: vec![GateCondition {
+            name: "min_phase".to_string(),
             passed: false,
-            spec_id: "test-spec".to_string(),
-            conditions: vec![
-                GateCondition {
-                    name: "min_phase".to_string(),
-                    passed: false,
-                    description: "Required phase 'tasks' not completed".to_string(),
-                    actual: Some("latest: requirements".to_string()),
-                    expected: Some("tasks or later".to_string()),
-                },
-            ],
-            failure_reasons: vec!["Required phase 'tasks' not completed".to_string()],
-            summary: "Gate FAILED".to_string(),
-        };
+            description: "Required phase 'tasks' not completed".to_string(),
+            actual: Some("latest: requirements".to_string()),
+            expected: Some("tasks or later".to_string()),
+        }],
+        failure_reasons: vec!["Required phase 'tasks' not completed".to_string()],
+        summary: "Gate FAILED".to_string(),
+    };
 
-        assert!(!result.passed);
-        assert!(!result.failure_reasons.is_empty());
-    }
+    assert!(!result.passed);
+    assert!(!result.failure_reasons.is_empty());
+}
 
-    #[test]
-    fn test_gate_stale_spec_with_recent_failure() {
-        // Test that a spec with success 10 days ago and failure yesterday is still stale
-        // per max-phase-age. Failed receipts do not count towards age.
-        use crate::types::{PacketEvidence, Receipt};
-        
-        let _temp_dir = crate::paths::with_isolated_home();
-        
-        // Create a spec with receipts
-        let spec_id = "test-stale-spec";
-        let base_path = crate::paths::spec_root(spec_id);
-        crate::paths::ensure_dir_all(&base_path.join("receipts")).unwrap();
-        
-        // Create a successful receipt from 10 days ago
-        let old_success_time = Utc::now() - Duration::days(10);
-        let old_receipt = Receipt {
-            schema_version: "1".to_string(),
-            emitted_at: old_success_time,
-            spec_id: spec_id.to_string(),
-            phase: "tasks".to_string(),
-            xchecker_version: "1.0.0".to_string(),
-            claude_cli_version: "0.8.1".to_string(),
-            model_full_name: "haiku".to_string(),
-            model_alias: None,
-            canonicalization_version: "yaml-v1,md-v1".to_string(),
-            canonicalization_backend: "jcs-rfc8785".to_string(),
-            flags: std::collections::HashMap::new(),
-            runner: "native".to_string(),
-            runner_distro: None,
-            packet: PacketEvidence {
-                files: vec![],
-                max_bytes: 65536,
-                max_lines: 1200,
-            },
-            outputs: vec![],
-            exit_code: 0, // SUCCESS
-            error_kind: None,
-            error_reason: None,
-            stderr_tail: None,
-            stderr_redacted: None,
-            warnings: vec![],
-            fallback_used: None,
-            diff_context: None,
-            llm: None,
-            pipeline: None,
-        };
-        
-        // Create a failed receipt from yesterday
-        let recent_failure_time = Utc::now() - Duration::days(1);
-        let recent_receipt = Receipt {
-            schema_version: "1".to_string(),
-            emitted_at: recent_failure_time,
-            spec_id: spec_id.to_string(),
-            phase: "tasks".to_string(),
-            xchecker_version: "1.0.0".to_string(),
-            claude_cli_version: "0.8.1".to_string(),
-            model_full_name: "haiku".to_string(),
-            model_alias: None,
-            canonicalization_version: "yaml-v1,md-v1".to_string(),
-            canonicalization_backend: "jcs-rfc8785".to_string(),
-            flags: std::collections::HashMap::new(),
-            runner: "native".to_string(),
-            runner_distro: None,
-            packet: PacketEvidence {
-                files: vec![],
-                max_bytes: 65536,
-                max_lines: 1200,
-            },
-            outputs: vec![],
-            exit_code: 1, // FAILURE - should not count towards age
-            error_kind: None,
-            error_reason: Some("Test failure".to_string()),
-            stderr_tail: None,
-            stderr_redacted: None,
-            warnings: vec![],
-            fallback_used: None,
-            diff_context: None,
-            llm: None,
-            pipeline: None,
-        };
-        
-        // Write receipts
-        let _receipt_manager = crate::receipt::ReceiptManager::new(&base_path);
-        
-        // Write old success receipt
-        let old_json = serde_json::to_string_pretty(&old_receipt).unwrap();
-        let old_filename = format!("tasks-{}.json", old_success_time.format("%Y%m%d_%H%M%S"));
-        std::fs::write(base_path.join("receipts").join(&old_filename), &old_json).unwrap();
-        
-        // Write recent failure receipt
-        let recent_json = serde_json::to_string_pretty(&recent_receipt).unwrap();
-        let recent_filename = format!("tasks-{}.json", recent_failure_time.format("%Y%m%d_%H%M%S"));
-        std::fs::write(base_path.join("receipts").join(&recent_filename), &recent_json).unwrap();
-        
-        // Create artifacts directory so spec is considered to exist
-        crate::paths::ensure_dir_all(&base_path.join("artifacts")).unwrap();
-        
-        // Evaluate gate with max-phase-age of 7 days
-        let policy = GatePolicy {
-            min_phase: PhaseId::Tasks,
-            fail_on_pending_fixups: false,
-            max_phase_age: Some(Duration::days(7)),
-        };
-        
-        let gate = GateCommand::new(spec_id.to_string(), policy);
-        let result = gate.execute().unwrap();
-        
-        // The gate should FAIL because:
-        // - The latest SUCCESSFUL receipt is 10 days old (exceeds 7 day limit)
-        // - The recent FAILED receipt does NOT count towards age
-        assert!(!result.passed, "Gate should fail for stale spec");
-        assert!(
-            result.failure_reasons.iter().any(|r| r.contains("stale")),
-            "Failure reason should mention staleness: {:?}",
-            result.failure_reasons
-        );
-    }
+#[test]
+fn test_gate_stale_spec_with_recent_failure() {
+    // Test that a spec with success 10 days ago and failure yesterday is still stale
+    // per max-phase-age. Failed receipts do not count towards age.
+    use crate::types::{PacketEvidence, Receipt};
 
-    #[test]
-    fn test_gate_fresh_spec_passes_age_check() {
-        use crate::types::{PacketEvidence, Receipt};
-        
-        let _temp_dir = crate::paths::with_isolated_home();
-        
-        // Create a spec with a recent successful receipt
-        let spec_id = "test-fresh-spec";
-        let base_path = crate::paths::spec_root(spec_id);
-        crate::paths::ensure_dir_all(&base_path.join("receipts")).unwrap();
-        crate::paths::ensure_dir_all(&base_path.join("artifacts")).unwrap();
-        
-        // Create a successful receipt from 2 days ago
-        let recent_time = Utc::now() - Duration::days(2);
-        let receipt = Receipt {
-            schema_version: "1".to_string(),
-            emitted_at: recent_time,
-            spec_id: spec_id.to_string(),
-            phase: "tasks".to_string(),
-            xchecker_version: "1.0.0".to_string(),
-            claude_cli_version: "0.8.1".to_string(),
-            model_full_name: "haiku".to_string(),
-            model_alias: None,
-            canonicalization_version: "yaml-v1,md-v1".to_string(),
-            canonicalization_backend: "jcs-rfc8785".to_string(),
-            flags: std::collections::HashMap::new(),
-            runner: "native".to_string(),
-            runner_distro: None,
-            packet: PacketEvidence {
-                files: vec![],
-                max_bytes: 65536,
-                max_lines: 1200,
-            },
-            outputs: vec![],
-            exit_code: 0, // SUCCESS
-            error_kind: None,
-            error_reason: None,
-            stderr_tail: None,
-            stderr_redacted: None,
-            warnings: vec![],
-            fallback_used: None,
-            diff_context: None,
-            llm: None,
-            pipeline: None,
-        };
-        
-        // Write receipt
-        let json = serde_json::to_string_pretty(&receipt).unwrap();
-        let filename = format!("tasks-{}.json", recent_time.format("%Y%m%d_%H%M%S"));
-        std::fs::write(base_path.join("receipts").join(&filename), &json).unwrap();
-        
-        // Evaluate gate with max-phase-age of 7 days
-        let policy = GatePolicy {
-            min_phase: PhaseId::Tasks,
-            fail_on_pending_fixups: false,
-            max_phase_age: Some(Duration::days(7)),
-        };
-        
-        let gate = GateCommand::new(spec_id.to_string(), policy);
-        let result = gate.execute().unwrap();
-        
-        // The gate should PASS because the successful receipt is only 2 days old
-        assert!(result.passed, "Gate should pass for fresh spec: {:?}", result.failure_reasons);
-    }
+    let _temp_dir = crate::paths::with_isolated_home();
+
+    // Create a spec with receipts
+    let spec_id = "test-stale-spec";
+    let base_path = crate::paths::spec_root(spec_id);
+    crate::paths::ensure_dir_all(base_path.join("receipts")).unwrap();
+
+    // Create a successful receipt from 10 days ago
+    let old_success_time = Utc::now() - Duration::days(10);
+    let old_receipt = Receipt {
+        schema_version: "1".to_string(),
+        emitted_at: old_success_time,
+        spec_id: spec_id.to_string(),
+        phase: "tasks".to_string(),
+        xchecker_version: "1.0.0".to_string(),
+        claude_cli_version: "0.8.1".to_string(),
+        model_full_name: "haiku".to_string(),
+        model_alias: None,
+        canonicalization_version: "yaml-v1,md-v1".to_string(),
+        canonicalization_backend: "jcs-rfc8785".to_string(),
+        flags: std::collections::HashMap::new(),
+        runner: "native".to_string(),
+        runner_distro: None,
+        packet: PacketEvidence {
+            files: vec![],
+            max_bytes: 65536,
+            max_lines: 1200,
+        },
+        outputs: vec![],
+        exit_code: 0, // SUCCESS
+        error_kind: None,
+        error_reason: None,
+        stderr_tail: None,
+        stderr_redacted: None,
+        warnings: vec![],
+        fallback_used: None,
+        diff_context: None,
+        llm: None,
+        pipeline: None,
+    };
+
+    // Create a failed receipt from yesterday
+    let recent_failure_time = Utc::now() - Duration::days(1);
+    let recent_receipt = Receipt {
+        schema_version: "1".to_string(),
+        emitted_at: recent_failure_time,
+        spec_id: spec_id.to_string(),
+        phase: "tasks".to_string(),
+        xchecker_version: "1.0.0".to_string(),
+        claude_cli_version: "0.8.1".to_string(),
+        model_full_name: "haiku".to_string(),
+        model_alias: None,
+        canonicalization_version: "yaml-v1,md-v1".to_string(),
+        canonicalization_backend: "jcs-rfc8785".to_string(),
+        flags: std::collections::HashMap::new(),
+        runner: "native".to_string(),
+        runner_distro: None,
+        packet: PacketEvidence {
+            files: vec![],
+            max_bytes: 65536,
+            max_lines: 1200,
+        },
+        outputs: vec![],
+        exit_code: 1, // FAILURE - should not count towards age
+        error_kind: None,
+        error_reason: Some("Test failure".to_string()),
+        stderr_tail: None,
+        stderr_redacted: None,
+        warnings: vec![],
+        fallback_used: None,
+        diff_context: None,
+        llm: None,
+        pipeline: None,
+    };
+
+    // Write receipts
+    let _receipt_manager = crate::receipt::ReceiptManager::new(&base_path);
+
+    // Write old success receipt
+    let old_json = serde_json::to_string_pretty(&old_receipt).unwrap();
+    let old_filename = format!("tasks-{}.json", old_success_time.format("%Y%m%d_%H%M%S"));
+    std::fs::write(base_path.join("receipts").join(&old_filename), &old_json).unwrap();
+
+    // Write recent failure receipt
+    let recent_json = serde_json::to_string_pretty(&recent_receipt).unwrap();
+    let recent_filename = format!("tasks-{}.json", recent_failure_time.format("%Y%m%d_%H%M%S"));
+    std::fs::write(
+        base_path.join("receipts").join(&recent_filename),
+        &recent_json,
+    )
+    .unwrap();
+
+    // Create artifacts directory so spec is considered to exist
+    crate::paths::ensure_dir_all(base_path.join("artifacts")).unwrap();
+
+    // Evaluate gate with max-phase-age of 7 days
+    let policy = GatePolicy {
+        min_phase: PhaseId::Tasks,
+        fail_on_pending_fixups: false,
+        max_phase_age: Some(Duration::days(7)),
+    };
+
+    let gate = GateCommand::new(spec_id.to_string(), policy);
+    let result = gate.execute().unwrap();
+
+    // The gate should FAIL because:
+    // - The latest SUCCESSFUL receipt is 10 days old (exceeds 7 day limit)
+    // - The recent FAILED receipt does NOT count towards age
+    assert!(!result.passed, "Gate should fail for stale spec");
+    assert!(
+        result.failure_reasons.iter().any(|r| r.contains("stale")),
+        "Failure reason should mention staleness: {:?}",
+        result.failure_reasons
+    );
+}
+
+#[test]
+fn test_gate_fresh_spec_passes_age_check() {
+    use crate::types::{PacketEvidence, Receipt};
+
+    let _temp_dir = crate::paths::with_isolated_home();
+
+    // Create a spec with a recent successful receipt
+    let spec_id = "test-fresh-spec";
+    let base_path = crate::paths::spec_root(spec_id);
+    crate::paths::ensure_dir_all(base_path.join("receipts")).unwrap();
+    crate::paths::ensure_dir_all(base_path.join("artifacts")).unwrap();
+
+    // Create a successful receipt from 2 days ago
+    let recent_time = Utc::now() - Duration::days(2);
+    let receipt = Receipt {
+        schema_version: "1".to_string(),
+        emitted_at: recent_time,
+        spec_id: spec_id.to_string(),
+        phase: "tasks".to_string(),
+        xchecker_version: "1.0.0".to_string(),
+        claude_cli_version: "0.8.1".to_string(),
+        model_full_name: "haiku".to_string(),
+        model_alias: None,
+        canonicalization_version: "yaml-v1,md-v1".to_string(),
+        canonicalization_backend: "jcs-rfc8785".to_string(),
+        flags: std::collections::HashMap::new(),
+        runner: "native".to_string(),
+        runner_distro: None,
+        packet: PacketEvidence {
+            files: vec![],
+            max_bytes: 65536,
+            max_lines: 1200,
+        },
+        outputs: vec![],
+        exit_code: 0, // SUCCESS
+        error_kind: None,
+        error_reason: None,
+        stderr_tail: None,
+        stderr_redacted: None,
+        warnings: vec![],
+        fallback_used: None,
+        diff_context: None,
+        llm: None,
+        pipeline: None,
+    };
+
+    // Write receipt
+    let json = serde_json::to_string_pretty(&receipt).unwrap();
+    let filename = format!("tasks-{}.json", recent_time.format("%Y%m%d_%H%M%S"));
+    std::fs::write(base_path.join("receipts").join(&filename), &json).unwrap();
+
+    // Evaluate gate with max-phase-age of 7 days
+    let policy = GatePolicy {
+        min_phase: PhaseId::Tasks,
+        fail_on_pending_fixups: false,
+        max_phase_age: Some(Duration::days(7)),
+    };
+
+    let gate = GateCommand::new(spec_id.to_string(), policy);
+    let result = gate.execute().unwrap();
+
+    // The gate should PASS because the successful receipt is only 2 days old
+    assert!(
+        result.passed,
+        "Gate should pass for fresh spec: {:?}",
+        result.failure_reasons
+    );
+}

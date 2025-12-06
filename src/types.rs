@@ -391,6 +391,8 @@ pub struct StatusJsonOutput {
     pub pending_fixups: u32,
     /// Whether any errors exist in the spec
     pub has_errors: bool,
+    /// Whether strict validation mode is enabled (validation failures fail phases)
+    pub strict_validation: bool,
     /// Artifacts with path and blake3_first8 hash (first 8 chars of BLAKE3)
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub artifacts: Vec<ArtifactInfo>,
@@ -444,7 +446,6 @@ pub struct CurrentInputs {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest_completed_phase: Option<String>,
 }
-
 
 /// Workspace status output structure for JSON emission (schema workspace-status-json.v1)
 /// Used by `xchecker project status --json` command for aggregated workspace status

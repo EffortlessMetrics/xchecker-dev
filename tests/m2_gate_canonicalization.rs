@@ -230,7 +230,7 @@ fn test_malformed_input_handling() -> Result<()> {
     let canonicalizer = Canonicalizer::new();
 
     // Test malformed YAML - use cases that will definitely fail parsing
-    let malformed_yaml_cases = vec![
+    let malformed_yaml_cases = [
         "invalid: yaml: content: [unclosed",      // Unclosed bracket
         "{\n  \"unclosed\": \"json",              // Unclosed JSON-style YAML
         "key: value\n\t  mixed_tabs_spaces: bad", // Mixed tabs and spaces (if serde_yaml is strict)

@@ -56,6 +56,8 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), 300);
@@ -66,6 +68,8 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::MIN_SECS);
@@ -74,6 +78,8 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -84,6 +90,8 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -103,6 +111,8 @@ async fn test_timeout_creates_partial_and_receipt() -> Result<()> {
     let _config = OrchestratorConfig {
         dry_run: false, // Use real execution to test timeout
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     // Note: This test would need a way to simulate a slow Claude response

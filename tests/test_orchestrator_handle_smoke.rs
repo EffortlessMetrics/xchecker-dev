@@ -30,6 +30,8 @@ fn dry_run_config() -> OrchestratorConfig {
     OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     }
 }
 

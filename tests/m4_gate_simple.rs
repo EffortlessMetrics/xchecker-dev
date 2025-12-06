@@ -358,7 +358,7 @@ fn test_case_insensitive_marker_detection() -> Result<()> {
 
         let extracted = parser
             .detect_fixup_markers(&content)
-            .expect(&format!("Should extract content for marker: {}", marker));
+            .unwrap_or_else(|| panic!("Should extract content for marker: {}", marker));
 
         assert!(
             extracted.contains("Some fixup details"),

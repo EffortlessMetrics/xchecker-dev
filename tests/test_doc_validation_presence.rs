@@ -16,7 +16,7 @@ use std::process::Command;
 fn test_doctests_are_present() {
     // Run cargo test --doc in list mode to count available doctests
     let output = Command::new("cargo")
-        .args(&["test", "--doc", "--", "--list"])
+        .args(["test", "--doc", "--", "--list"])
         .current_dir(env!("CARGO_MANIFEST_DIR"))
         .output()
         .expect("Failed to execute cargo test --doc");

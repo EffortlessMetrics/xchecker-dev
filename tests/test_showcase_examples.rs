@@ -31,8 +31,8 @@ fn assert_dir_exists(path: &str) {
 
 /// Validate that a file contains expected content
 fn assert_file_contains(path: &str, expected: &str) {
-    let content = std::fs::read_to_string(path)
-        .unwrap_or_else(|_| panic!("Failed to read file: {}", path));
+    let content =
+        std::fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {}", path));
     assert!(
         content.contains(expected),
         "File {} should contain '{}'\nActual content:\n{}",
@@ -57,10 +57,7 @@ fn test_fullstack_nextjs_readme_content() {
         "examples/fullstack-nextjs/README.md",
         "Full-Stack Next.js Example",
     );
-    assert_file_contains(
-        "examples/fullstack-nextjs/README.md",
-        "xchecker",
-    );
+    assert_file_contains("examples/fullstack-nextjs/README.md", "xchecker");
 }
 
 #[test]
@@ -74,10 +71,7 @@ fn test_fullstack_nextjs_workspace_content() {
         "examples/fullstack-nextjs/workspace.yaml",
         "fullstack-nextjs-example",
     );
-    assert_file_contains(
-        "examples/fullstack-nextjs/workspace.yaml",
-        "task-manager",
-    );
+    assert_file_contains("examples/fullstack-nextjs/workspace.yaml", "task-manager");
 }
 
 #[test]
@@ -148,12 +142,21 @@ fn test_mono_repo_workspace_exists() {
 fn test_mono_repo_workspace_content() {
     let content = std::fs::read_to_string("examples/mono-repo/workspace.yaml")
         .expect("Failed to read workspace.yaml");
-    
+
     // Verify all three specs are registered
-    assert!(content.contains("user-service"), "Should contain user-service spec");
-    assert!(content.contains("product-catalog"), "Should contain product-catalog spec");
-    assert!(content.contains("order-api"), "Should contain order-api spec");
-    
+    assert!(
+        content.contains("user-service"),
+        "Should contain user-service spec"
+    );
+    assert!(
+        content.contains("product-catalog"),
+        "Should contain product-catalog spec"
+    );
+    assert!(
+        content.contains("order-api"),
+        "Should contain order-api spec"
+    );
+
     // Verify tags are present
     assert!(content.contains("rust"), "Should have rust tag");
     assert!(content.contains("python"), "Should have python tag");
@@ -212,9 +215,7 @@ fn test_mono_repo_product_catalog_spec() {
 fn test_mono_repo_order_api_spec() {
     assert_dir_exists("examples/mono-repo/.xchecker/specs/order-api");
     assert_dir_exists("examples/mono-repo/.xchecker/specs/order-api/context");
-    assert_file_exists(
-        "examples/mono-repo/.xchecker/specs/order-api/context/problem-statement.md",
-    );
+    assert_file_exists("examples/mono-repo/.xchecker/specs/order-api/context/problem-statement.md");
     assert_file_contains(
         "examples/mono-repo/.xchecker/specs/order-api/context/problem-statement.md",
         "Order API",

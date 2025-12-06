@@ -32,7 +32,6 @@ anyhow = "1.0"
 blake3 = { version = "1.5", features = ["rayon"] }
 tempfile = "3.8"
 camino = "1.1"
-serde_yaml_ng = "0.10"
 toml = "0.9"
 globset = "0.4"
 ignore = "0.4"
@@ -52,7 +51,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 ratatui = "0.29"
-crossterm = "0.28"
+crossterm = "0.29"
+serde_yaml = { package = "serde_yaml_ng", version = "0.10.0" }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

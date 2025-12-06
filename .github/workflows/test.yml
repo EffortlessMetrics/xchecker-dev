@@ -180,7 +180,10 @@ jobs:
 
       - name: Run stub integration tests
         run: |
+          # Run serially to avoid race conditions from tests that use set_current_dir
+          # Tests with #[ignore] that change CWD interfere when run in parallel
           cargo test --tests -- \
+            --test-threads=1 \
             --include-ignored \
             --skip requires_real_claude \
             --skip requires_xchecker_binary \

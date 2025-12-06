@@ -16,6 +16,8 @@ fn dry_run_config() -> xchecker::orchestrator::OrchestratorConfig {
     xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     }
 }
 
@@ -500,6 +502,8 @@ async fn test_packet_construction_in_execute_phase_core() -> Result<()> {
     let config = xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
@@ -873,6 +877,8 @@ async fn test_packet_evidence_round_trip_validation() -> Result<()> {
     let config = xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
 
     let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;

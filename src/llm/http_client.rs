@@ -59,7 +59,9 @@ impl HttpClient {
             .pool_max_idle_per_host(10)
             .use_rustls_tls()
             .build()
-            .map_err(|e| LlmError::Misconfiguration(format!("Failed to build HTTP client: {}", e)))?;
+            .map_err(|e| {
+                LlmError::Misconfiguration(format!("Failed to build HTTP client: {}", e))
+            })?;
 
         Ok(Self {
             client: Arc::new(client),
@@ -197,10 +199,9 @@ fn map_client_error(status: StatusCode, provider_name: &str) -> LlmError {
             "{} authentication failed: {}",
             provider_name, status
         )),
-        StatusCode::TOO_MANY_REQUESTS => LlmError::ProviderQuota(format!(
-            "{} rate limit exceeded: {}",
-            provider_name, status
-        )),
+        StatusCode::TOO_MANY_REQUESTS => {
+            LlmError::ProviderQuota(format!("{} rate limit exceeded: {}", provider_name, status))
+        }
         _ => LlmError::Transport(format!(
             "{} returned client error: {}",
             provider_name, status
@@ -215,7 +216,9 @@ static URL_WITH_CREDS: Lazy<Regex> =
 /// Pattern to match potential API keys (long alphanumeric strings)
 /// Matches sequences of 32+ characters that are alphanumeric, underscore, or dash
 /// Uses lookahead/lookbehind to handle keys that start/end with - or _
-static POTENTIAL_KEY: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?:^|[^A-Za-z0-9_-])[A-Za-z0-9_-]{32,}(?:[^A-Za-z0-9_-]|$)").unwrap());
+static POTENTIAL_KEY: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?:^|[^A-Za-z0-9_-])[A-Za-z0-9_-]{32,}(?:[^A-Za-z0-9_-]|$)").unwrap()
+});
 
 /// Redact sensitive information from error messages
 ///
@@ -263,7 +266,10 @@ mod tests {
     fn test_http_client_with_custom_timeout() {
         let custom_timeout = Duration::from_secs(60);
         let client = HttpClient::with_max_timeout(custom_timeout);
-        assert!(client.is_ok(), "Should construct HTTP client with custom timeout");
+        assert!(
+            client.is_ok(),
+            "Should construct HTTP client with custom timeout"
+        );
 
         let client = client.unwrap();
         assert_eq!(
@@ -380,10 +386,7 @@ mod tests {
             redacted.contains("[REDACTED]@"),
             "Should replace credentials with [REDACTED]"
         );
-        assert!(
-            redacted.contains("api.example.com"),
-            "Should preserve host"
-        );
+        assert!(redacted.contains("api.example.com"), "Should preserve host");
 
         // Test HTTPS as well
         let message = "Error: https://token123:secret456@openrouter.ai/api/v1";

@@ -7,9 +7,11 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use crate::config::{ClaudeConfig, Config, Defaults, LlmConfig, RunnerConfig, Selectors};
-use crate::hooks::HooksConfig;
+use crate::config::{
+    ClaudeConfig, Config, Defaults, LlmConfig, PhaseConfig, PhasesConfig, RunnerConfig, Selectors,
+};
 use crate::error::XCheckerError;
+use crate::hooks::HooksConfig;
 use crate::llm::{LlmBackend, LlmInvocation, LlmResult, Message};
 use crate::types::PhaseId;
 
@@ -53,6 +55,42 @@ impl PhaseOrchestrator {
         let llm_provider = orc_config.config.get("llm_provider").cloned();
         let llm_claude_binary = orc_config.config.get("llm_claude_binary").cloned();
 
+        // Helper to build PhaseConfig from OrchestratorConfig keys
+        let build_phase_config = |phase_name: &str| -> Option<PhaseConfig> {
+            let model = orc_config
+                .config
+                .get(&format!("phases.{phase_name}.model"))
+                .cloned();
+            let max_turns = orc_config
+                .config
+                .get(&format!("phases.{phase_name}.max_turns"))
+                .and_then(|s| s.parse::<u32>().ok());
+            let phase_timeout = orc_config
+                .config
+                .get(&format!("phases.{phase_name}.phase_timeout"))
+                .and_then(|s| s.parse::<u64>().ok());
+
+            if model.is_some() || max_turns.is_some() || phase_timeout.is_some() {
+                Some(PhaseConfig {
+                    model,
+                    max_turns,
+                    phase_timeout,
+                })
+            } else {
+                None
+            }
+        };
+
+        // Build phases config from OrchestratorConfig
+        let phases = PhasesConfig {
+            requirements: build_phase_config("requirements"),
+            design: build_phase_config("design"),
+            tasks: build_phase_config("tasks"),
+            review: build_phase_config("review"),
+            fixup: build_phase_config("fixup"),
+            final_: build_phase_config("final"),
+        };
+
         // Build Config
         Config {
             defaults: Defaults {
@@ -78,6 +116,7 @@ impl PhaseOrchestrator {
                 execution_strategy: None, // Will be set by Config::discover
                 prompt_template: None, // Will use default template
             },
+            phases,
             hooks: HooksConfig::default(),
             source_attribution: HashMap::new(),
         }
@@ -104,24 +143,26 @@ impl PhaseOrchestrator {
     /// Build `LlmInvocation` from packet and phase context.
     ///
     /// Internal helper that constructs an invocation with model, timeout, and messages.
+    /// Uses per-phase model configuration with precedence:
+    /// 1. Phase-specific override (`[phases.<phase>].model`)
+    /// 2. Global default (`[defaults].model`)
+    /// 3. Hard default: `"haiku"`
+    ///
     /// This is not part of the public API.
     pub(crate) fn build_llm_invocation(
         &self,
         phase_id: PhaseId,
         prompt: &str,
-        config: &OrchestratorConfig,
+        orc_config: &OrchestratorConfig,
     ) -> LlmInvocation {
-        // Get model from config.
-        // Default: haiku (fast, cost-effective for testing/development).
-        // For production, configure model = "sonnet" or "default" in xchecker.toml.
-        let model = config
-            .config
-            .get("model")
-            .cloned()
-            .unwrap_or_else(|| "haiku".to_string());
+        // Build Config from OrchestratorConfig to use model_for_phase
+        let cfg = self.config_from_orchestrator_config(orc_config);
+
+        // Get model for this specific phase using the precedence rules
+        let model = cfg.model_for_phase(phase_id);
 
         // Get timeout from config (default 600 seconds)
-        let timeout_secs = config
+        let timeout_secs = orc_config
             .config
             .get("phase_timeout")
             .and_then(|s| s.parse::<u64>().ok())

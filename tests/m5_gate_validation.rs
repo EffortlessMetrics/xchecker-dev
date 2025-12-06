@@ -102,10 +102,7 @@ distro = "Ubuntu-22.04"
     // Verify config file values override defaults (or use defaults if config not found)
     // Note: In test environment, config discovery may not work as expected
     if config_file_only.defaults.model.is_some() {
-        assert_eq!(
-            config_file_only.defaults.model,
-            Some("sonnet".to_string())
-        );
+        assert_eq!(config_file_only.defaults.model, Some("sonnet".to_string()));
         assert_eq!(config_file_only.defaults.max_turns, Some(8));
         assert_eq!(config_file_only.defaults.packet_max_bytes, Some(32768));
         assert_eq!(config_file_only.defaults.packet_max_lines, Some(800));
@@ -150,11 +147,11 @@ distro = "Ubuntu-22.04"
 
     // Test 2: CLI overrides config file
     let cli_args_override = CliArgs {
-        model: Some("opus".to_string()), // CLI override
-        max_turns: Some(12),                      // CLI override
-        output_format: Some("text".to_string()),  // CLI override
-        verbose: Some(true),                      // CLI override
-        runner_mode: Some("wsl".to_string()),     // CLI override
+        model: Some("opus".to_string()),                  // CLI override
+        max_turns: Some(12),                              // CLI override
+        output_format: Some("text".to_string()),          // CLI override
+        verbose: Some(true),                              // CLI override
+        runner_mode: Some("wsl".to_string()),             // CLI override
         claude_path: Some("/usr/bin/claude".to_string()), // CLI override
         ..CliArgs::default()
     };
@@ -162,10 +159,7 @@ distro = "Ubuntu-22.04"
     let config_cli_override = Config::discover(&cli_args_override)?;
 
     // Verify CLI overrides take precedence
-    assert_eq!(
-        config_cli_override.defaults.model,
-        Some("opus".to_string())
-    );
+    assert_eq!(config_cli_override.defaults.model, Some("opus".to_string()));
     assert_eq!(config_cli_override.defaults.max_turns, Some(12));
     assert_eq!(
         config_cli_override.defaults.output_format,
@@ -513,9 +507,9 @@ mode = "native"
 
     // Create CLI args with some overrides
     let cli_args = CliArgs {
-        model: Some("opus".to_string()),  // CLI override
-        packet_max_lines: Some(1500),     // CLI override
-        verbose: Some(true),              // CLI override
+        model: Some("opus".to_string()), // CLI override
+        packet_max_lines: Some(1500),    // CLI override
+        verbose: Some(true),             // CLI override
         ..CliArgs::default()
     };
 

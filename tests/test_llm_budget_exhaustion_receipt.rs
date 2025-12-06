@@ -9,8 +9,8 @@
 //! **Validates: Requirements 3.8.5**
 
 use anyhow::Result;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use xchecker::llm::{LlmBackend, LlmError, LlmInvocation, LlmResult};
 use xchecker::paths::with_isolated_home;
@@ -126,7 +126,9 @@ fn test_budget_exhaustion_error_message() {
 
     let suggestions = error.suggestions();
     assert!(!suggestions.is_empty());
-    assert!(suggestions
-        .iter()
-        .any(|s| s.contains("XCHECKER_OPENROUTER_BUDGET")));
+    assert!(
+        suggestions
+            .iter()
+            .any(|s| s.contains("XCHECKER_OPENROUTER_BUDGET"))
+    );
 }

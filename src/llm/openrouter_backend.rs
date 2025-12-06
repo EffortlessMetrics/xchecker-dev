@@ -239,12 +239,9 @@ impl LlmBackend for OpenRouterBackend {
         })?;
 
         // Extract content from first choice
-        let choice = response_body
-            .choices
-            .first()
-            .ok_or_else(|| {
-                LlmError::Transport("OpenRouter response missing choices[0]".to_string())
-            })?;
+        let choice = response_body.choices.first().ok_or_else(|| {
+            LlmError::Transport("OpenRouter response missing choices[0]".to_string())
+        })?;
 
         // Validate that the response role is "assistant" (expected from LLM)
         debug!(
@@ -253,10 +250,9 @@ impl LlmBackend for OpenRouterBackend {
             "Received response from OpenRouter"
         );
 
-        let content = choice.message.content.clone()
-            .ok_or_else(|| {
-                LlmError::Transport("OpenRouter response missing content in choices[0]".to_string())
-            })?;
+        let content = choice.message.content.clone().ok_or_else(|| {
+            LlmError::Transport("OpenRouter response missing content in choices[0]".to_string())
+        })?;
 
         // Build result
         let mut result = LlmResult::new(content, "openrouter", model);
@@ -463,7 +459,7 @@ mod tests {
     fn test_new_from_config_missing_api_key() {
         // Use a unique env var name to avoid conflicts with other tests
         let test_env_var = "OPENROUTER_API_KEY_TEST_MISSING";
-        
+
         // Clear the environment variable if it exists
         unsafe {
             std::env::remove_var(test_env_var);
@@ -483,8 +479,16 @@ mod tests {
 
         match result {
             Err(LlmError::Misconfiguration(msg)) => {
-                assert!(msg.contains(test_env_var), "Expected error to mention env var, got: {}", msg);
-                assert!(msg.contains("not found"), "Expected error to mention 'not found', got: {}", msg);
+                assert!(
+                    msg.contains(test_env_var),
+                    "Expected error to mention env var, got: {}",
+                    msg
+                );
+                assert!(
+                    msg.contains("not found"),
+                    "Expected error to mention 'not found', got: {}",
+                    msg
+                );
             }
             _ => panic!("Expected Misconfiguration error for missing API key"),
         }
@@ -494,7 +498,7 @@ mod tests {
     fn test_new_from_config_missing_model() {
         // Use a unique env var name to avoid conflicts with other tests
         let test_env_var = "OPENROUTER_API_KEY_TEST_MODEL";
-        
+
         // Set a dummy API key
         unsafe {
             std::env::set_var(test_env_var, "test-key");
@@ -514,8 +518,16 @@ mod tests {
 
         match result {
             Err(LlmError::Misconfiguration(msg)) => {
-                assert!(msg.contains("model") || msg.contains("Model"), "Expected error to mention model, got: {}", msg);
-                assert!(msg.contains("not specified") || msg.contains("specified"), "Expected error to mention 'specified', got: {}", msg);
+                assert!(
+                    msg.contains("model") || msg.contains("Model"),
+                    "Expected error to mention model, got: {}",
+                    msg
+                );
+                assert!(
+                    msg.contains("not specified") || msg.contains("specified"),
+                    "Expected error to mention 'specified', got: {}",
+                    msg
+                );
             }
             _ => panic!("Expected Misconfiguration error for missing model"),
         }

@@ -122,11 +122,7 @@ mod llm_tests {
 
     #[test]
     fn test_llm_result_construction() {
-        let result = LlmResult::new(
-            "This is the response",
-            "claude-cli",
-            "haiku",
-        );
+        let result = LlmResult::new("This is the response", "claude-cli", "haiku");
 
         assert_eq!(result.raw_response, "This is the response");
         assert_eq!(result.provider, "claude-cli");
@@ -147,8 +143,7 @@ mod llm_tests {
 
     #[test]
     fn test_llm_result_with_timeout() {
-        let result =
-            LlmResult::new("Partial response", "anthropic", "opus").with_timeout(true);
+        let result = LlmResult::new("Partial response", "anthropic", "opus").with_timeout(true);
 
         assert_eq!(result.timed_out, Some(true));
     }

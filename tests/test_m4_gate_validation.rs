@@ -367,6 +367,8 @@ fn test_phase_timeout_configuration() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: HashMap::new(),
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -377,6 +379,8 @@ fn test_phase_timeout_configuration() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), 300);
@@ -387,6 +391,8 @@ fn test_phase_timeout_configuration() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        selectors: None,
+        strict_validation: false,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::MIN_SECS);

@@ -21,6 +21,8 @@ pub struct Config {
     pub selectors: Selectors,
     pub runner: RunnerConfig,
     pub llm: LlmConfig,
+    /// Per-phase configuration overrides (B-series feature)
+    pub phases: PhasesConfig,
     /// Hooks configuration for pre/post phase scripts
     // Reserved for hooks integration; not wired in v1.0
     #[allow(dead_code)]
@@ -54,6 +56,12 @@ pub struct Defaults {
     pub lock_ttl_seconds: Option<u64>,
     pub debug_packet: Option<bool>,
     pub allow_links: Option<bool>,
+    /// Enable strict validation for phase outputs.
+    ///
+    /// When enabled, validation failures (meta-summaries, too-short output,
+    /// missing required sections) become hard errors that fail the phase.
+    /// When disabled (default), validation issues are logged as warnings only.
+    pub strict_validation: Option<bool>,
 }
 
 /// LLM provider configuration
@@ -67,18 +75,18 @@ pub struct LlmConfig {
     pub anthropic: Option<AnthropicConfig>,
     pub execution_strategy: Option<String>,
     /// Prompt template to use for LLM interactions
-    /// 
+    ///
     /// Available templates:
     /// - "default": Universal template compatible with all providers
     /// - "claude-optimized": Optimized for Claude CLI and Anthropic API
     /// - "openai-compatible": Optimized for OpenRouter and OpenAI-compatible APIs
-    /// 
+    ///
     /// If not specified, defaults to "default" which works with all providers.
     pub prompt_template: Option<String>,
 }
 
 /// Prompt template types for provider-specific optimizations
-/// 
+///
 /// Templates define how prompts are structured for different LLM providers.
 /// Some templates are optimized for specific providers and may not work
 /// correctly with others.
@@ -97,15 +105,17 @@ pub enum PromptTemplate {
 
 impl PromptTemplate {
     /// Parse a template name string into a PromptTemplate
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if the template name is not recognized.
     pub fn parse(s: &str) -> Result<Self, String> {
         match s.to_lowercase().as_str() {
             "default" => Ok(Self::Default),
             "claude-optimized" | "claude_optimized" | "claude" => Ok(Self::ClaudeOptimized),
-            "openai-compatible" | "openai_compatible" | "openai" | "openrouter" => Ok(Self::OpenAiCompatible),
+            "openai-compatible" | "openai_compatible" | "openai" | "openrouter" => {
+                Ok(Self::OpenAiCompatible)
+            }
             _ => Err(format!(
                 "Unknown prompt template '{}'. Available templates: default, claude-optimized, openai-compatible",
                 s
@@ -114,13 +124,13 @@ impl PromptTemplate {
     }
 
     /// Check if this template is compatible with the given provider
-    /// 
+    ///
     /// Returns `Ok(())` if compatible, or an error message explaining the incompatibility.
     pub fn validate_provider_compatibility(&self, provider: &str) -> Result<(), String> {
         match (self, provider) {
             // Default template is compatible with all providers
             (Self::Default, _) => Ok(()),
-            
+
             // Claude-optimized template is compatible with Claude CLI and Anthropic
             (Self::ClaudeOptimized, "claude-cli" | "anthropic") => Ok(()),
             (Self::ClaudeOptimized, provider) => Err(format!(
@@ -131,7 +141,7 @@ impl PromptTemplate {
                  Use 'default' template for cross-provider compatibility.",
                 provider
             )),
-            
+
             // OpenAI-compatible template is compatible with OpenRouter and Gemini
             (Self::OpenAiCompatible, "openrouter" | "gemini-cli") => Ok(()),
             (Self::OpenAiCompatible, provider) => Err(format!(
@@ -217,6 +227,48 @@ pub struct Selectors {
     pub exclude: Vec<String>,
 }
 
+/// Per-phase configuration overrides
+///
+/// Allows configuring model, timeout, and max_turns on a per-phase basis.
+/// Values set here override the global defaults for that specific phase.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct PhaseConfig {
+    /// Model to use for this phase (overrides defaults.model)
+    pub model: Option<String>,
+    /// Maximum turns for this phase (overrides defaults.max_turns)
+    pub max_turns: Option<u32>,
+    /// Phase timeout in seconds (overrides defaults.phase_timeout)
+    pub phase_timeout: Option<u64>,
+}
+
+/// Phase-specific configuration section
+///
+/// Contains optional per-phase configuration overrides.
+/// If a phase is not specified or None, global defaults are used.
+///
+/// # Example
+///
+/// ```toml
+/// [defaults]
+/// model = "haiku"
+///
+/// [phases.design]
+/// model = "sonnet"
+///
+/// [phases.tasks]
+/// model = "sonnet"
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct PhasesConfig {
+    pub requirements: Option<PhaseConfig>,
+    pub design: Option<PhaseConfig>,
+    pub tasks: Option<PhaseConfig>,
+    pub review: Option<PhaseConfig>,
+    pub fixup: Option<PhaseConfig>,
+    #[serde(rename = "final")]
+    pub final_: Option<PhaseConfig>,
+}
+
 /// Runner configuration for cross-platform execution
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RunnerConfig {
@@ -250,6 +302,7 @@ struct TomlConfig {
     selectors: Option<Selectors>,
     runner: Option<RunnerConfig>,
     llm: Option<LlmConfig>,
+    phases: Option<PhasesConfig>,
     hooks: Option<HooksConfig>,
 }
 
@@ -277,6 +330,7 @@ pub struct CliArgs {
     pub lock_ttl_seconds: Option<u64>,
     pub debug_packet: bool,
     pub allow_links: bool,
+    pub strict_validation: Option<bool>,
     pub llm_provider: Option<String>,
     pub llm_claude_binary: Option<String>,
     pub llm_gemini_binary: Option<String>,
@@ -298,6 +352,7 @@ impl Default for Defaults {
             lock_ttl_seconds: Some(900),     // 15 minutes
             debug_packet: Some(false),
             allow_links: Some(false),
+            strict_validation: None, // Default: soft validation (warnings only)
         }
     }
 }
@@ -366,6 +421,7 @@ impl Config {
             prompt_template: None,
         };
         let mut hooks = HooksConfig::default();
+        let mut phases = PhasesConfig::default();
 
         // Track default sources
         source_attribution.insert("max_turns".to_string(), ConfigSource::Defaults);
@@ -449,6 +505,11 @@ impl Config {
                     defaults.allow_links = file_defaults.allow_links;
                     source_attribution.insert("allow_links".to_string(), config_source.clone());
                 }
+                if file_defaults.strict_validation.is_some() {
+                    defaults.strict_validation = file_defaults.strict_validation;
+                    source_attribution
+                        .insert("strict_validation".to_string(), config_source.clone());
+                }
             }
 
             if let Some(file_selectors) = file_config.selectors {
@@ -508,12 +569,19 @@ impl Config {
                 }
                 if file_llm.execution_strategy.is_some() {
                     llm.execution_strategy = file_llm.execution_strategy;
-                    source_attribution.insert("execution_strategy".to_string(), config_source.clone());
+                    source_attribution
+                        .insert("execution_strategy".to_string(), config_source.clone());
                 }
                 if file_llm.prompt_template.is_some() {
                     llm.prompt_template = file_llm.prompt_template;
                     source_attribution.insert("prompt_template".to_string(), config_source.clone());
                 }
+            }
+
+            // Load phases configuration from file
+            if let Some(file_phases) = file_config.phases {
+                phases = file_phases;
+                source_attribution.insert("phases".to_string(), config_source.clone());
             }
 
             // Load hooks configuration from file
@@ -584,14 +652,19 @@ impl Config {
             defaults.allow_links = Some(true);
             source_attribution.insert("allow_links".to_string(), ConfigSource::Cli);
         }
+        if let Some(strict_validation) = cli_args.strict_validation {
+            defaults.strict_validation = Some(strict_validation);
+            source_attribution.insert("strict_validation".to_string(), ConfigSource::Cli);
+        }
 
         // Apply LLM configuration with precedence: CLI > env > config > defaults
         // Check environment variable first
         if let Ok(env_provider) = env::var("XCHECKER_LLM_PROVIDER")
-            && !env_provider.is_empty() {
-                llm.provider = Some(env_provider);
-                source_attribution.insert("llm_provider".to_string(), ConfigSource::Cli);
-            }
+            && !env_provider.is_empty()
+        {
+            llm.provider = Some(env_provider);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Cli);
+        }
 
         // CLI flag overrides environment variable
         if let Some(provider) = &cli_args.llm_provider {
@@ -634,10 +707,11 @@ impl Config {
         // Apply execution strategy configuration with precedence: CLI > env > config > default
         // Check environment variable (overrides config file)
         if let Ok(env_strategy) = env::var("XCHECKER_EXECUTION_STRATEGY")
-            && !env_strategy.is_empty() {
-                llm.execution_strategy = Some(env_strategy);
-                source_attribution.insert("execution_strategy".to_string(), ConfigSource::Cli);
-            }
+            && !env_strategy.is_empty()
+        {
+            llm.execution_strategy = Some(env_strategy);
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Cli);
+        }
 
         // CLI flag overrides everything
         if let Some(strategy) = &cli_args.execution_strategy {
@@ -656,6 +730,7 @@ impl Config {
             selectors,
             runner,
             llm,
+            phases,
             hooks,
             source_attribution,
         };
@@ -716,6 +791,7 @@ impl Config {
                     selectors: None,
                     runner: None,
                     llm: None,
+                    phases: None,
                     hooks: None,
                 })
             }
@@ -942,12 +1018,14 @@ impl Config {
             let provider = self.llm.provider.as_deref().unwrap_or("claude-cli");
 
             // Validate compatibility
-            template.validate_provider_compatibility(provider).map_err(|e| {
-                XCheckerError::Config(ConfigError::InvalidValue {
-                    key: "llm.prompt_template".to_string(),
-                    value: e,
-                })
-            })?;
+            template
+                .validate_provider_compatibility(provider)
+                .map_err(|e| {
+                    XCheckerError::Config(ConfigError::InvalidValue {
+                        key: "llm.prompt_template".to_string(),
+                        value: e,
+                    })
+                })?;
         }
 
         Ok(())
@@ -1033,6 +1111,67 @@ impl Config {
             .into()),
         }
     }
+
+    /// Get the model to use for a specific phase.
+    ///
+    /// Precedence (highest to lowest):
+    /// 1. Phase-specific override (`[phases.<phase>].model`)
+    /// 2. Global default (`[defaults].model`)
+    /// 3. Hard default: `"haiku"` (fast, cost-effective for testing/development)
+    ///
+    /// # Example
+    ///
+    /// ```toml
+    /// [defaults]
+    /// model = "haiku"
+    ///
+    /// [phases.design]
+    /// model = "sonnet"
+    ///
+    /// [phases.tasks]
+    /// model = "sonnet"
+    /// ```
+    ///
+    /// With the above config:
+    /// - `model_for_phase(Requirements)` → "haiku"
+    /// - `model_for_phase(Design)` → "sonnet"
+    /// - `model_for_phase(Tasks)` → "sonnet"
+    #[must_use]
+    pub fn model_for_phase(&self, phase: crate::types::PhaseId) -> String {
+        use crate::types::PhaseId;
+
+        // First, check for phase-specific override
+        let phase_model = match phase {
+            PhaseId::Requirements => self.phases.requirements.as_ref(),
+            PhaseId::Design => self.phases.design.as_ref(),
+            PhaseId::Tasks => self.phases.tasks.as_ref(),
+            PhaseId::Review => self.phases.review.as_ref(),
+            PhaseId::Fixup => self.phases.fixup.as_ref(),
+            PhaseId::Final => self.phases.final_.as_ref(),
+        }
+        .and_then(|pc| pc.model.clone());
+
+        // Precedence: phase-specific > global default > "haiku"
+        phase_model
+            .or_else(|| self.defaults.model.clone())
+            .unwrap_or_else(|| "haiku".to_string())
+    }
+
+    /// Check if strict validation is enabled.
+    ///
+    /// When strict validation is enabled, phase output validation failures
+    /// (meta-summaries, too-short output, missing required sections) become
+    /// hard errors that fail the phase. When disabled, validation issues are
+    /// logged as warnings only.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if strict validation is enabled, `false` otherwise.
+    /// Defaults to `false` if not explicitly configured.
+    #[must_use]
+    pub fn strict_validation(&self) -> bool {
+        self.defaults.strict_validation.unwrap_or(false)
+    }
 }
 
 #[cfg(test)]
@@ -1056,6 +1195,7 @@ impl Config {
                 execution_strategy: None,
                 prompt_template: None,
             },
+            phases: PhasesConfig::default(),
             hooks: HooksConfig::default(),
             source_attribution: HashMap::new(),
         }
@@ -1153,6 +1293,7 @@ mode = "native"
             lock_ttl_seconds: None,
             debug_packet: false,
             allow_links: false,
+            strict_validation: None,
             llm_provider: None,
             llm_claude_binary: None,
             llm_gemini_binary: None,
@@ -1614,10 +1755,7 @@ exclude = ["**/[test]/**"]
         };
         let config = Config::discover(&cli_args).unwrap();
 
-        assert_eq!(
-            config.defaults.model,
-            Some("sonnet-@#$%".to_string())
-        );
+        assert_eq!(config.defaults.model, Some("sonnet-@#$%".to_string()));
         assert!(
             config
                 .selectors
@@ -1711,8 +1849,8 @@ max_turns = 10
 
         let cli_args = CliArgs {
             config_path: Some(config_path),
-            model: Some("opus".to_string()),   // CLI override
-            packet_max_bytes: Some(32768),     // CLI override
+            model: Some("opus".to_string()), // CLI override
+            packet_max_bytes: Some(32768),   // CLI override
             ..Default::default()
         };
 
@@ -1803,7 +1941,8 @@ max_turns = 10
                         );
                     } else {
                         assert!(
-                            value.contains("Supported providers") || value.contains("not supported"),
+                            value.contains("Supported providers")
+                                || value.contains("not supported"),
                             "Error message should mention supported providers: {}",
                             value
                         );
@@ -2035,18 +2174,48 @@ execution_strategy = "controlled"
     #[test]
     fn test_prompt_template_parsing() {
         // Test valid template names
-        assert_eq!(PromptTemplate::parse("default").unwrap(), PromptTemplate::Default);
-        assert_eq!(PromptTemplate::parse("claude-optimized").unwrap(), PromptTemplate::ClaudeOptimized);
-        assert_eq!(PromptTemplate::parse("claude_optimized").unwrap(), PromptTemplate::ClaudeOptimized);
-        assert_eq!(PromptTemplate::parse("claude").unwrap(), PromptTemplate::ClaudeOptimized);
-        assert_eq!(PromptTemplate::parse("openai-compatible").unwrap(), PromptTemplate::OpenAiCompatible);
-        assert_eq!(PromptTemplate::parse("openai_compatible").unwrap(), PromptTemplate::OpenAiCompatible);
-        assert_eq!(PromptTemplate::parse("openai").unwrap(), PromptTemplate::OpenAiCompatible);
-        assert_eq!(PromptTemplate::parse("openrouter").unwrap(), PromptTemplate::OpenAiCompatible);
+        assert_eq!(
+            PromptTemplate::parse("default").unwrap(),
+            PromptTemplate::Default
+        );
+        assert_eq!(
+            PromptTemplate::parse("claude-optimized").unwrap(),
+            PromptTemplate::ClaudeOptimized
+        );
+        assert_eq!(
+            PromptTemplate::parse("claude_optimized").unwrap(),
+            PromptTemplate::ClaudeOptimized
+        );
+        assert_eq!(
+            PromptTemplate::parse("claude").unwrap(),
+            PromptTemplate::ClaudeOptimized
+        );
+        assert_eq!(
+            PromptTemplate::parse("openai-compatible").unwrap(),
+            PromptTemplate::OpenAiCompatible
+        );
+        assert_eq!(
+            PromptTemplate::parse("openai_compatible").unwrap(),
+            PromptTemplate::OpenAiCompatible
+        );
+        assert_eq!(
+            PromptTemplate::parse("openai").unwrap(),
+            PromptTemplate::OpenAiCompatible
+        );
+        assert_eq!(
+            PromptTemplate::parse("openrouter").unwrap(),
+            PromptTemplate::OpenAiCompatible
+        );
 
         // Test case insensitivity
-        assert_eq!(PromptTemplate::parse("DEFAULT").unwrap(), PromptTemplate::Default);
-        assert_eq!(PromptTemplate::parse("Claude-Optimized").unwrap(), PromptTemplate::ClaudeOptimized);
+        assert_eq!(
+            PromptTemplate::parse("DEFAULT").unwrap(),
+            PromptTemplate::Default
+        );
+        assert_eq!(
+            PromptTemplate::parse("Claude-Optimized").unwrap(),
+            PromptTemplate::ClaudeOptimized
+        );
 
         // Test invalid template names
         assert!(PromptTemplate::parse("invalid").is_err());
@@ -2056,29 +2225,80 @@ execution_strategy = "controlled"
     #[test]
     fn test_prompt_template_provider_compatibility() {
         // Default template is compatible with all providers
-        assert!(PromptTemplate::Default.validate_provider_compatibility("claude-cli").is_ok());
-        assert!(PromptTemplate::Default.validate_provider_compatibility("gemini-cli").is_ok());
-        assert!(PromptTemplate::Default.validate_provider_compatibility("openrouter").is_ok());
-        assert!(PromptTemplate::Default.validate_provider_compatibility("anthropic").is_ok());
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("claude-cli")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("gemini-cli")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("openrouter")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("anthropic")
+                .is_ok()
+        );
 
         // Claude-optimized template is compatible with Claude CLI and Anthropic
-        assert!(PromptTemplate::ClaudeOptimized.validate_provider_compatibility("claude-cli").is_ok());
-        assert!(PromptTemplate::ClaudeOptimized.validate_provider_compatibility("anthropic").is_ok());
-        assert!(PromptTemplate::ClaudeOptimized.validate_provider_compatibility("gemini-cli").is_err());
-        assert!(PromptTemplate::ClaudeOptimized.validate_provider_compatibility("openrouter").is_err());
+        assert!(
+            PromptTemplate::ClaudeOptimized
+                .validate_provider_compatibility("claude-cli")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::ClaudeOptimized
+                .validate_provider_compatibility("anthropic")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::ClaudeOptimized
+                .validate_provider_compatibility("gemini-cli")
+                .is_err()
+        );
+        assert!(
+            PromptTemplate::ClaudeOptimized
+                .validate_provider_compatibility("openrouter")
+                .is_err()
+        );
 
         // OpenAI-compatible template is compatible with OpenRouter and Gemini
-        assert!(PromptTemplate::OpenAiCompatible.validate_provider_compatibility("openrouter").is_ok());
-        assert!(PromptTemplate::OpenAiCompatible.validate_provider_compatibility("gemini-cli").is_ok());
-        assert!(PromptTemplate::OpenAiCompatible.validate_provider_compatibility("claude-cli").is_err());
-        assert!(PromptTemplate::OpenAiCompatible.validate_provider_compatibility("anthropic").is_err());
+        assert!(
+            PromptTemplate::OpenAiCompatible
+                .validate_provider_compatibility("openrouter")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::OpenAiCompatible
+                .validate_provider_compatibility("gemini-cli")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::OpenAiCompatible
+                .validate_provider_compatibility("claude-cli")
+                .is_err()
+        );
+        assert!(
+            PromptTemplate::OpenAiCompatible
+                .validate_provider_compatibility("anthropic")
+                .is_err()
+        );
     }
 
     #[test]
     fn test_prompt_template_as_str() {
         assert_eq!(PromptTemplate::Default.as_str(), "default");
         assert_eq!(PromptTemplate::ClaudeOptimized.as_str(), "claude-optimized");
-        assert_eq!(PromptTemplate::OpenAiCompatible.as_str(), "openai-compatible");
+        assert_eq!(
+            PromptTemplate::OpenAiCompatible.as_str(),
+            "openai-compatible"
+        );
     }
 
     #[test]
@@ -2141,7 +2361,10 @@ prompt_template = "claude-optimized"
         };
 
         let config = Config::discover(&cli_args).unwrap();
-        assert_eq!(config.llm.prompt_template, Some("claude-optimized".to_string()));
+        assert_eq!(
+            config.llm.prompt_template,
+            Some("claude-optimized".to_string())
+        );
     }
 
     #[test]
@@ -2164,7 +2387,10 @@ prompt_template = "openai-compatible"
         };
 
         let config = Config::discover(&cli_args).unwrap();
-        assert_eq!(config.llm.prompt_template, Some("openai-compatible".to_string()));
+        assert_eq!(
+            config.llm.prompt_template,
+            Some("openai-compatible".to_string())
+        );
     }
 
     #[test]
@@ -2188,7 +2414,10 @@ prompt_template = "claude-optimized"
         };
 
         let result = Config::discover(&cli_args);
-        assert!(result.is_err(), "Should reject incompatible template and provider");
+        assert!(
+            result.is_err(),
+            "Should reject incompatible template and provider"
+        );
 
         let error = result.unwrap_err();
         match error.downcast_ref::<XCheckerError>() {
@@ -2222,7 +2451,10 @@ prompt_template = "openai-compatible"
         };
 
         let result = Config::discover(&cli_args);
-        assert!(result.is_err(), "Should reject incompatible template and provider");
+        assert!(
+            result.is_err(),
+            "Should reject incompatible template and provider"
+        );
 
         let error = result.unwrap_err();
         match error.downcast_ref::<XCheckerError>() {
@@ -2290,5 +2522,321 @@ provider = "claude-cli"
         let config = Config::discover(&cli_args).unwrap();
         // prompt_template should be None (implicit default behavior)
         assert_eq!(config.llm.prompt_template, None);
+    }
+
+    // ===== Per-Phase Model Configuration Tests (B-series feature) =====
+
+    #[test]
+    fn test_model_for_phase_defaults_to_global() {
+        use crate::types::PhaseId;
+
+        let mut cfg = Config::minimal_for_testing();
+        cfg.defaults.model = Some("haiku".to_string());
+
+        // All phases should use the global default
+        assert_eq!(cfg.model_for_phase(PhaseId::Requirements), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Design), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Tasks), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Review), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Fixup), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Final), "haiku");
+    }
+
+    #[test]
+    fn test_model_for_phase_defaults_to_haiku_when_no_global() {
+        use crate::types::PhaseId;
+
+        let cfg = Config::minimal_for_testing();
+        // No model set anywhere - should default to "haiku"
+
+        assert_eq!(cfg.model_for_phase(PhaseId::Requirements), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Design), "haiku");
+    }
+
+    #[test]
+    fn test_model_for_phase_with_overrides() {
+        use crate::types::PhaseId;
+
+        let mut cfg = Config::minimal_for_testing();
+        cfg.defaults.model = Some("haiku".to_string());
+
+        // Set per-phase overrides for design and tasks
+        cfg.phases.design = Some(PhaseConfig {
+            model: Some("sonnet".to_string()),
+            ..Default::default()
+        });
+        cfg.phases.tasks = Some(PhaseConfig {
+            model: Some("sonnet".to_string()),
+            ..Default::default()
+        });
+
+        // Requirements should use global default
+        assert_eq!(cfg.model_for_phase(PhaseId::Requirements), "haiku");
+        // Design and Tasks should use per-phase override
+        assert_eq!(cfg.model_for_phase(PhaseId::Design), "sonnet");
+        assert_eq!(cfg.model_for_phase(PhaseId::Tasks), "sonnet");
+        // Review should use global default
+        assert_eq!(cfg.model_for_phase(PhaseId::Review), "haiku");
+    }
+
+    #[test]
+    fn test_model_for_phase_override_without_global_default() {
+        use crate::types::PhaseId;
+
+        let mut cfg = Config::minimal_for_testing();
+        // No global model set
+
+        // Set per-phase override only for design
+        cfg.phases.design = Some(PhaseConfig {
+            model: Some("opus".to_string()),
+            ..Default::default()
+        });
+
+        // Design should use per-phase override
+        assert_eq!(cfg.model_for_phase(PhaseId::Design), "opus");
+        // Other phases should fall back to hard default "haiku"
+        assert_eq!(cfg.model_for_phase(PhaseId::Requirements), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Tasks), "haiku");
+    }
+
+    #[test]
+    fn test_model_for_phase_with_all_overrides() {
+        use crate::types::PhaseId;
+
+        let mut cfg = Config::minimal_for_testing();
+        cfg.defaults.model = Some("haiku".to_string());
+
+        // Set different models for each phase
+        cfg.phases.requirements = Some(PhaseConfig {
+            model: Some("haiku".to_string()),
+            ..Default::default()
+        });
+        cfg.phases.design = Some(PhaseConfig {
+            model: Some("sonnet".to_string()),
+            ..Default::default()
+        });
+        cfg.phases.tasks = Some(PhaseConfig {
+            model: Some("sonnet".to_string()),
+            ..Default::default()
+        });
+        cfg.phases.review = Some(PhaseConfig {
+            model: Some("opus".to_string()),
+            ..Default::default()
+        });
+        cfg.phases.fixup = Some(PhaseConfig {
+            model: Some("haiku".to_string()),
+            ..Default::default()
+        });
+        cfg.phases.final_ = Some(PhaseConfig {
+            model: Some("opus".to_string()),
+            ..Default::default()
+        });
+
+        assert_eq!(cfg.model_for_phase(PhaseId::Requirements), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Design), "sonnet");
+        assert_eq!(cfg.model_for_phase(PhaseId::Tasks), "sonnet");
+        assert_eq!(cfg.model_for_phase(PhaseId::Review), "opus");
+        assert_eq!(cfg.model_for_phase(PhaseId::Fixup), "haiku");
+        assert_eq!(cfg.model_for_phase(PhaseId::Final), "opus");
+    }
+
+    #[test]
+    fn test_phases_config_from_toml_file() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+model = "haiku"
+
+[phases.design]
+model = "sonnet"
+
+[phases.tasks]
+model = "sonnet"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+
+        use crate::types::PhaseId;
+
+        // Requirements should use global default
+        assert_eq!(config.model_for_phase(PhaseId::Requirements), "haiku");
+        // Design and Tasks should use per-phase override
+        assert_eq!(config.model_for_phase(PhaseId::Design), "sonnet");
+        assert_eq!(config.model_for_phase(PhaseId::Tasks), "sonnet");
+        // Review should use global default
+        assert_eq!(config.model_for_phase(PhaseId::Review), "haiku");
+    }
+
+    #[test]
+    fn test_phases_config_with_all_fields() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+model = "haiku"
+max_turns = 6
+
+[phases.review]
+model = "opus"
+max_turns = 10
+phase_timeout = 1200
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+
+        // Verify phases config was loaded
+        assert!(config.phases.review.is_some());
+        let review_config = config.phases.review.as_ref().unwrap();
+        assert_eq!(review_config.model, Some("opus".to_string()));
+        assert_eq!(review_config.max_turns, Some(10));
+        assert_eq!(review_config.phase_timeout, Some(1200));
+
+        // Verify model_for_phase works
+        use crate::types::PhaseId;
+        assert_eq!(config.model_for_phase(PhaseId::Review), "opus");
+    }
+
+    #[test]
+    fn test_phases_config_empty_section() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        // Empty phases section should not cause errors
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+model = "haiku"
+
+[phases]
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+
+        use crate::types::PhaseId;
+        // Should use global defaults since no per-phase overrides
+        assert_eq!(config.model_for_phase(PhaseId::Requirements), "haiku");
+        assert_eq!(config.model_for_phase(PhaseId::Design), "haiku");
+    }
+
+    #[test]
+    fn test_phases_final_uses_serde_rename() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        // "final" is a reserved keyword in Rust, so we use "final_" internally
+        // but TOML uses "final"
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+model = "haiku"
+
+[phases.final]
+model = "opus"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+
+        use crate::types::PhaseId;
+        assert_eq!(config.model_for_phase(PhaseId::Final), "opus");
+    }
+
+    // ===== Strict Validation Configuration Tests (P1 feature) =====
+
+    #[test]
+    fn test_strict_validation_defaults_to_false() {
+        let cfg = Config::minimal_for_testing();
+        // Default should be false (soft validation)
+        assert!(!cfg.strict_validation());
+    }
+
+    #[test]
+    fn test_strict_validation_when_set_true() {
+        let mut cfg = Config::minimal_for_testing();
+        cfg.defaults.strict_validation = Some(true);
+        assert!(cfg.strict_validation());
+    }
+
+    #[test]
+    fn test_strict_validation_when_set_false() {
+        let mut cfg = Config::minimal_for_testing();
+        cfg.defaults.strict_validation = Some(false);
+        assert!(!cfg.strict_validation());
+    }
+
+    #[test]
+    fn test_strict_validation_from_toml_file() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+strict_validation = true
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+        assert!(config.strict_validation());
+    }
+
+    #[test]
+    fn test_strict_validation_from_toml_file_false() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+strict_validation = false
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+        assert!(!config.strict_validation());
     }
 }

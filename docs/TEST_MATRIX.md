@@ -327,6 +327,46 @@ XCHECKER_ENABLE_REAL_CLAUDE=1 cargo test --tests -- --include-ignored
 
 ---
 
+## Requirements Traceability: FR-VLD (Validation)
+
+This section maps FR-VLD (validation requirements) to specific test coverage.
+
+### FR-VLD-001: Strict Validation Mode
+
+**Requirement**: Support `strict_validation` config flag that treats low-quality LLM output as hard errors.
+
+| Test Location | Test Name | Coverage |
+|--------------|-----------|----------|
+| `src/phases.rs` (unit) | `test_requirements_postprocess_strict_mode_rejects_meta_summary` | Strict mode rejects meta-summaries |
+| `src/phases.rs` (unit) | `test_design_postprocess_strict_mode_rejects_meta_summary` | Strict mode in Design phase |
+| `src/phases.rs` (unit) | `test_tasks_postprocess_strict_mode_rejects_meta_summary` | Strict mode in Tasks phase |
+| `src/phases.rs` (unit) | `test_requirements_postprocess_soft_mode_allows_invalid_output` | Soft mode logs warnings only |
+| `src/exit_codes.rs` (unit) | `test_validation_failed_mapping` | ValidationFailed → exit code 1 |
+
+### FR-VLD-002: Output Validation
+
+**Requirement**: Validate LLM output quality before accepting artifacts.
+
+| Test Location | Test Name | Coverage |
+|--------------|-----------|----------|
+| `src/validation.rs` (unit) | `test_validate_requirements_detects_meta_summary` | Detects "Since no specific..." |
+| `src/validation.rs` (unit) | `test_validate_requirements_accepts_valid_output` | Accepts properly structured output |
+| `src/validation.rs` (unit) | `test_validate_design_structure` | Validates design document structure |
+| `src/validation.rs` (unit) | `test_validate_tasks_structure` | Validates tasks document structure |
+
+### FR-VLD-003: Configuration Propagation
+
+**Requirement**: `strict_validation` flows from config → CLI → phases.
+
+| Test Location | Test Name | Coverage |
+|--------------|-----------|----------|
+| `src/config.rs` (unit) | `test_config_strict_validation_default` | Default is false |
+| `src/config.rs` (unit) | `test_config_strict_validation_from_toml` | Parses from config file |
+| `tests/test_cli_flags.rs` | `test_strict_validation_cli_flag` | `--strict-validation` flag |
+| `tests/test_cli_flags.rs` | `test_no_strict_validation_cli_flag` | `--no-strict-validation` flag |
+
+---
+
 ## Detailed Test Inventory
 
 ### Category 1: LOCAL-GREEN (Safe for CI)
