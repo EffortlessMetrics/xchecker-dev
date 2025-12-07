@@ -118,7 +118,8 @@ fn construct_backend_for_provider(
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```ignore
+/// // This function is crate-private; example shown for documentation
 /// use xchecker::config::Config;
 /// use xchecker::llm::from_config;
 ///

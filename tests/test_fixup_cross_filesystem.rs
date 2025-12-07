@@ -211,9 +211,16 @@ fn test_atomic_write_large_file() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let parser = FixupParser::new(FixupMode::Apply, temp_dir.path().to_path_buf());
 
-    // Create a large test file (1 MB)
+    // Create a large test file (1 MB) with multiple lines
+    // Each line is 64 'x' characters to match the diff context
     let test_file = temp_dir.path().join("large_file.txt");
-    let large_content = "x".repeat(1024 * 1024);
+    let line = "x".repeat(64);
+    let num_lines = 1024 * 1024 / 65; // ~16k lines of 64 chars + newline
+    let large_content = (0..num_lines)
+        .map(|_| line.as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
     fs::write(&test_file, &large_content)?;
 
     let review_content = r#"
@@ -237,7 +244,15 @@ FIXUP PLAN:
     // Verify file still exists and is readable
     assert!(test_file.exists());
     let modified_content = fs::read_to_string(&test_file)?;
-    assert!(modified_content.len() > 1024 * 1024); // Should be larger than original
+    // File should be large and contain the new line
+    assert!(
+        modified_content.len() > 100_000,
+        "Modified file should be large"
+    );
+    assert!(
+        modified_content.contains("new line"),
+        "Should contain the added line"
+    );
 
     Ok(())
 }

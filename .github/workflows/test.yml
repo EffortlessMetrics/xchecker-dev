@@ -149,9 +149,13 @@ jobs:
   # ============================================================================
   # STUB TESTS: Integration tests with claude-stub
   # ============================================================================
+  # NOTE: This job runs on PRs for visibility but is NOT required in branch protection.
+  # It provides early signal for stub-dependent issues without blocking merges.
+  # Plan: After 3 consecutive stable weeks, consider making this required.
   stub-tests:
-    name: Stub Integration Tests
+    name: Stub Integration Tests (non-blocking)
     if: |
+      github.event_name == 'pull_request' ||
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.test_lane == 'full')
@@ -177,6 +181,13 @@ jobs:
 
       - name: Build claude-stub
         run: cargo build --bin claude-stub
+
+      - name: Add claude-stub to PATH as claude
+        run: |
+          # Create a symlink so tests can find 'claude' in PATH
+          mkdir -p $HOME/.local/bin
+          ln -sf $PWD/target/debug/claude-stub $HOME/.local/bin/claude
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Run stub integration tests
         run: |

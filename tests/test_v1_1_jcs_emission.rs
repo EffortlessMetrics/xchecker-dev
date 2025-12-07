@@ -295,7 +295,7 @@ fn test_jcs_numeric_normalization() -> Result<()> {
 
     let json2 = serde_json::json!({
         "integer": 42.0,  // Will be normalized to 42
-        "float": 3.140,   // Will be normalized to 3.14
+        "float": 3.150,   // Will be normalized to 3.15
         "zero": 0.0,      // Will be normalized to 0
         "negative": -10.0, // Will be normalized to -10
         "large": 1e6,     // Will be normalized to 1000000

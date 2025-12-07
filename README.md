@@ -7,11 +7,13 @@ A Rust CLI tool for orchestrating spec generation workflows with Claude AI. Tran
 
 ## Features
 
-- **Multi-Phase Pipeline**: Requirements -> Design -> Tasks -> Review -> Fixup -> Final
+- **Multi-Phase Orchestration**: Requirements -> Design -> Tasks -> Review -> Fixup -> Final with configurable phase_timeout (default: 600s). Phase execution exceeded timeout results in exit code 10.
+- **Lockfile System**: Reproducibility tracking with `--create-lock` and `--strict-lock` flags. Detects lock_drift when model or CLI versions change between executions.
+- **Fixup System**: Secure diff application with Preview Mode (default) and Apply Mode (`--apply-fixups`). Path validation prevents directory traversal attacks.
+- **Standardized Exit Codes**: Process exit codes always match receipt exit_code field for reliable automation and monitoring.
 - **Versioned JSON Contracts**: Stable schemas for receipts, status, and health checks
 - **Security First**: Automatic secret detection and redaction
 - **Cross-Platform**: Linux, macOS, Windows with WSL support
-- **Reproducibility**: Lockfile system for version pinning and drift detection
 
 ## Installation
 
@@ -24,7 +26,7 @@ git clone https://github.com/EffortlessMetrics/xchecker.git
 cd xchecker && cargo install --path .
 ```
 
-**Requirements**: Rust 1.70+, [Claude CLI](https://claude.ai/download) installed and authenticated.
+**Requirements**: Rust 1.89+, [Claude CLI](https://claude.ai/download) installed and authenticated.
 
 ## Quick Start
 
@@ -83,6 +85,54 @@ exclude = ["target/**", ".git/**"]
 ```
 
 See [Configuration Guide](docs/CONFIGURATION.md) for all options.
+
+## State Directory
+
+xchecker stores all state in a directory determined by:
+
+1. **Thread-local override** (used internally for test isolation)
+2. **XCHECKER_HOME environment variable** (user/CI override)
+3. **Default: `./.xchecker`** (relative to current working directory)
+
+### Using XCHECKER_HOME
+
+Override the default state directory location using the `XCHECKER_HOME` environment variable:
+
+```bash
+# Set for your session
+export XCHECKER_HOME=/path/to/custom/state
+xchecker spec my-feature
+
+# Or inline for a single command
+XCHECKER_HOME=/tmp/xchecker-test xchecker status my-feature
+
+# Useful for CI/CD to isolate builds
+XCHECKER_HOME=/tmp/build-${BUILD_ID} xchecker spec feature
+```
+
+### Directory Structure
+
+The state directory contains specs/<spec-id>/ directories for each specification, with the following structure:
+
+```
+.xchecker/                    # State directory (XCHECKER_HOME)
+├── config.toml              # Configuration file (optional)
+└── specs/                   # All specs
+    └── <spec-id>/          # Individual spec directory
+        ├── artifacts/      # Generated artifacts (requirements, design, tasks)
+        │   ├── 00-requirements.md
+        │   ├── 10-design.md
+        │   └── 20-tasks.md
+        ├── receipts/       # Execution receipts with metadata
+        │   └── <phase>-<timestamp>.json
+        └── context/        # Context files sent to Claude
+            └── packet-<hash>.txt
+```
+
+**Directory purposes:**
+- **specs/<spec-id>/artifacts/**: Generated phase outputs (requirements, design, tasks, review, fixup)
+- **specs/<spec-id>/receipts/**: Execution audit trails with BLAKE3 hashes and metadata
+- **specs/<spec-id>/context/**: Packet previews for debugging (enabled with `--debug-packet`)
 
 ## Exit Codes
 

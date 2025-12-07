@@ -96,6 +96,7 @@ fn proptest_config(max_cases: Option<u32>) -> ProptestConfig {
 
 use xchecker::canonicalization::Canonicalizer;
 use xchecker::packet::{DEFAULT_PACKET_MAX_BYTES, DEFAULT_PACKET_MAX_LINES};
+use xchecker::phase::BudgetUsage;
 use xchecker::redaction::SecretRedactor;
 use xchecker::types::FileType;
 
@@ -235,39 +236,66 @@ fn prop_hash_consistency_multiple_runs() {
     });
 }
 
-/// Property test: Budget enforcement under various input conditions
+/// Property test: BudgetUsage correctly tracks and enforces limits
+///
+/// Tests that:
+/// 1. `would_exceed()` accurately predicts overflow
+/// 2. `add_content()` correctly accumulates usage
+/// 3. `is_exceeded()` correctly detects when budget is exceeded
 #[test]
-#[ignore = "requires_refactoring"]
 fn prop_budget_enforcement_various_inputs() {
-    proptest!(|(
+    let config = proptest_config(None);
+
+    proptest!(config, |(
         max_bytes in 100usize..10000,
         max_lines in 10usize..500,
-        file_count in 1usize..50,
-        content_size in 10usize..1000
+        additions in prop::collection::vec((1usize..500, 1usize..50), 1..20)
     )| {
-        // Generate files with varying sizes
-        let mut total_bytes = 0;
-        let mut total_lines = 0;
+        let mut budget = BudgetUsage::new(max_bytes, max_lines);
 
-        for _i in 0..file_count {
-            let content = "x".repeat(content_size);
-            let lines = content_size / 20 + 1; // Approximate line count
+        // Track expected state
+        let mut expected_bytes = 0usize;
+        let mut expected_lines = 0usize;
 
-            // Simulate adding content (this would normally be done through packet builder)
-            total_bytes += content.len();
-            total_lines += lines;
+        for (bytes, lines) in additions {
+            // Property 1: would_exceed predicts correctly
+            let predicted_exceed = budget.would_exceed(bytes, lines);
+            let will_exceed = expected_bytes + bytes > max_bytes
+                           || expected_lines + lines > max_lines;
 
-            // If we exceed limits, packet builder should enforce them
-            if total_bytes > max_bytes || total_lines > max_lines {
-                // In a real implementation, packet builder would stop adding files
-                // and return an overflow error or truncate content
-                break;
-            }
+            prop_assert_eq!(
+                predicted_exceed, will_exceed,
+                "would_exceed({}, {}) should be {} but was {} (current: {}/{} bytes, {}/{} lines)",
+                bytes, lines, will_exceed, predicted_exceed,
+                expected_bytes, max_bytes, expected_lines, max_lines
+            );
+
+            // Add content
+            budget.add_content(bytes, lines);
+            expected_bytes += bytes;
+            expected_lines += lines;
+
+            // Property 2: add_content accumulates correctly
+            prop_assert_eq!(
+                budget.bytes_used, expected_bytes,
+                "bytes_used should be {} but was {}",
+                expected_bytes, budget.bytes_used
+            );
+            prop_assert_eq!(
+                budget.lines_used, expected_lines,
+                "lines_used should be {} but was {}",
+                expected_lines, budget.lines_used
+            );
+
+            // Property 3: is_exceeded detects overflow correctly
+            let should_be_exceeded = expected_bytes > max_bytes || expected_lines > max_lines;
+            prop_assert_eq!(
+                budget.is_exceeded(), should_be_exceeded,
+                "is_exceeded should be {} but was {} (current: {}/{} bytes, {}/{} lines)",
+                should_be_exceeded, budget.is_exceeded(),
+                expected_bytes, max_bytes, expected_lines, max_lines
+            );
         }
-
-        // Verify that our simulation respects the budget constraints
-        prop_assert!(total_bytes <= max_bytes || total_lines <= max_lines,
-                    "Budget enforcement should prevent exceeding limits");
     });
 }
 

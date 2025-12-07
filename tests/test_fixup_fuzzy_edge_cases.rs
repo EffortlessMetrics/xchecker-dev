@@ -102,7 +102,8 @@ fn test_multi_hunk_simple_additions() {
     let (_temp_dir, base_dir) = setup_test_env();
 
     let test_file = base_dir.join("simple_multi.txt");
-    let original_content = "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n";
+    let original_content =
+        "line 1\nline 2\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\n";
     fs::write(&test_file, original_content).unwrap();
 
     let parser = FixupParser::new(FixupMode::Apply, base_dir.clone());
@@ -491,9 +492,7 @@ fn test_fuzzy_match_large_shift_within_window() {
 
     // Create file with specific content at line 90
     let test_file = base_dir.join("large_shift.txt");
-    let mut lines: Vec<String> = (1..=100)
-        .map(|i| format!("line {i}"))
-        .collect();
+    let mut lines: Vec<String> = (1..=100).map(|i| format!("line {i}")).collect();
     lines[89] = "target line to modify".to_string(); // Line 90 (0-indexed: 89)
 
     let original_content = lines.join("\n") + "\n";
@@ -576,9 +575,7 @@ fn test_fuzzy_match_exceeds_window() {
 
     // Create file with specific content at line 150
     let test_file = base_dir.join("exceeds_window.txt");
-    let mut lines: Vec<String> = (1..=200)
-        .map(|i| format!("line {i}"))
-        .collect();
+    let mut lines: Vec<String> = (1..=200).map(|i| format!("line {i}")).collect();
     lines[149] = "unique target content".to_string(); // Line 150
 
     let original_content = lines.join("\n") + "\n";
@@ -607,7 +604,11 @@ FIXUP PLAN:
 
     // Should fail because the shift exceeds the fuzzy window
     assert!(!result.failed_files.is_empty());
-    assert!(result.failed_files.contains(&"exceeds_window.txt".to_string()));
+    assert!(
+        result
+            .failed_files
+            .contains(&"exceeds_window.txt".to_string())
+    );
 }
 
 /// Test: Whitespace normalization in context matching

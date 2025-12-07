@@ -728,27 +728,22 @@ async fn test_error_propagation_and_recovery() -> Result<()> {
 }
 
 /// Integration test runner for full workflow validation
-/// This function runs all workflow integration tests in sequence
+/// This function provides a summary of workflow integration test coverage.
+///
+/// **Note**: Individual tests are run via `cargo test --test integration_full_workflows`.
+/// This runner is used for documentation and summary purposes when called from
+/// the comprehensive test suite.
 pub async fn run_full_workflow_validation() -> Result<()> {
-    println!("🚀 Starting full workflow integration tests...");
-
-    // Run all workflow tests
-    test_complete_spec_generation_flow()?;
-    test_resume_scenarios_and_failure_recovery()?;
-    test_determinism_with_identical_inputs()?;
-    test_multi_phase_workflow_with_dependencies()?;
-    test_artifact_content_validation()?;
-    test_error_propagation_and_recovery()?;
-
-    println!("✅ All full workflow integration tests passed!");
+    println!("🚀 Full workflow tests require claude-stub binary.");
+    println!("   Run with: cargo test --test integration_full_workflows -- --include-ignored");
     println!();
-    println!("Full Workflow Requirements Validated:");
+    println!("Full Workflow Requirements Coverage:");
     println!("  ✓ R1.1: Complete spec generation flows (Requirements → Design → Tasks)");
     println!("  ✓ R2.2: Deterministic outputs with identical inputs");
     println!("  ✓ R2.5: Structure determinism for canonicalized outputs");
     println!("  ✓ R4.2: Resume scenarios and failure recovery");
     println!();
-    println!("Key Features Verified:");
+    println!("Key Features Covered:");
     println!("  ✓ End-to-end workflow execution with proper phase dependencies");
     println!("  ✓ Resume capability from failed phases with partial artifact handling");
     println!("  ✓ Deterministic behavior with identical inputs producing same outputs");

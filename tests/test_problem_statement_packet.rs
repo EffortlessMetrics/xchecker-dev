@@ -69,7 +69,8 @@ fn test_problem_statement_in_packet_content() -> Result<()> {
     fs::create_dir_all(&source_dir)?;
     fs::create_dir_all(&context_dir)?;
 
-    let problem_text = "Build a REST API for user management with authentication and CRUD operations.";
+    let problem_text =
+        "Build a REST API for user management with authentication and CRUD operations.";
     fs::write(
         source_dir.join("00-problem-statement.md"),
         format!("# Problem Statement\n\n{problem_text}"),
@@ -172,10 +173,7 @@ fn test_problem_statement_naming_patterns() -> Result<()> {
             }
         }
 
-        fs::write(
-            base_path.join(pattern),
-            format!("# Problem: {pattern}"),
-        )?;
+        fs::write(base_path.join(pattern), format!("# Problem: {pattern}"))?;
 
         let selector = ContentSelector::new()?;
         let files = selector.select_files(&base_path)?;

@@ -1020,17 +1020,11 @@ async fn execute_spec_command(
     let problem_path = source_dir.join("00-problem-statement.md");
     std::fs::write(
         &problem_path,
-        format!(
-            "# Problem Statement\n\n{}\n",
-            problem_statement.trim()
-        ),
+        format!("# Problem Statement\n\n{}\n", problem_statement.trim()),
     )
     .with_context(|| format!("Failed to write problem statement: {}", problem_path))?;
 
-    logger.verbose(&format!(
-        "Problem statement written to: {}",
-        problem_path
-    ));
+    logger.verbose(&format!("Problem statement written to: {}", problem_path));
 
     // Check for lockfile drift (R10.2, R10.4)
     let model_full_name = config.defaults.model.as_deref().unwrap_or("haiku");

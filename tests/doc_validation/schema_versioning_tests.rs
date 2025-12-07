@@ -317,7 +317,9 @@ mod tests {
 
         for path in schemas {
             let schema = load_schema(path);
-            let props = schema.get("properties").expect("Schema should have properties");
+            let props = schema
+                .get("properties")
+                .expect("Schema should have properties");
             let version_field = props.get("schema_version");
 
             assert!(

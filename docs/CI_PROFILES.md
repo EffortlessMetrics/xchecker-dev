@@ -631,6 +631,42 @@ XCHECKER_ENABLE_REAL_CLAUDE=1 cargo test --tests --include-ignored
 
 ---
 
+## CI Jobs Reference
+
+This table describes the current GitHub Actions jobs and their required/optional status:
+
+| Job | Workflow | When it runs | Required for PRs? | Description |
+|-----|----------|--------------|-------------------|-------------|
+| `lint` | ci.yml | PRs, main | ✅ Yes | Format + clippy checks |
+| `test-serial` | ci.yml | PRs, main | ✅ Yes | Serial tests on all 3 OS |
+| `test-parallel` | ci.yml | PRs, main | ❌ No | Parallel tests (non-blocking, validating stability) |
+| `schema-validation` | ci.yml | PRs, main | ✅ Yes | JSON schema compliance |
+| `secret-scanning` | ci.yml | PRs, main | ✅ Yes | Secret detection tests |
+| `docs-conformance` | ci.yml | PRs, main | ✅ Yes | Documentation validation |
+| `gate-validation` | ci.yml | PRs, main | ✅ Yes | Gate command tests |
+| `test-real` | ci.yml | main only | ❌ No | Real Claude API (requires secret) |
+| `test-fast` | test.yml | PRs only | ✅ Yes | Quick unit tests (~30s) |
+| `test-full` | test.yml | main, nightly | ❌ No | Comprehensive tests |
+| `property-tests` | test.yml | main, nightly | ❌ No | Property-based tests with high case count |
+| `stub-tests` | test.yml | PRs, main, nightly | ❌ No | Integration tests with claude-stub (non-blocking) |
+| `example-validation` | test.yml | All events | ✅ Yes | Validate showcase examples |
+| `walkthrough-validation` | test.yml | All events | ✅ Yes | Validate walkthrough snippets |
+
+### Stub Integration Stance
+
+The `stub-tests` job currently runs on PRs but is **not required** in branch protection. This provides:
+
+- **Visibility**: PR authors see stub-dependent test results before merge
+- **Non-blocking**: Failures don't block merges while we validate stability
+- **Path to required**: After 3 consecutive stable weeks, consider making this required
+
+To promote stub-tests to required:
+1. Monitor stability in PR feedback for 3+ weeks
+2. If consistently green, add to branch protection required checks
+3. Update this documentation when promoting
+
+---
+
 ## Troubleshooting
 
 ### Firehose Failures
@@ -839,6 +875,11 @@ jobs:
 ---
 
 ## Changelog
+
+**2025-12-06** - CI Jobs Reference and stub stance
+- Added CI Jobs Reference table documenting all workflow jobs
+- Documented stub-tests as non-blocking on PRs with path to required
+- Updated test.yml to run stub-tests on PRs for visibility
 
 **2025-12-02** - Initial comprehensive CI profiles documentation
 - Documented Local-Green profile (existing)

@@ -92,8 +92,7 @@ impl BudgetedBackend {
     /// # Examples
     ///
     /// ```no_run
-    /// use xchecker::llm::BudgetedBackend;
-    /// # use xchecker::llm::types::LlmBackend;
+    /// use xchecker::llm::{BudgetedBackend, LlmBackend};
     /// # fn example(backend: Box<dyn LlmBackend>) {
     /// // With config budget of 50
     /// let budgeted = BudgetedBackend::with_limit_from_config(backend, Some(50));

@@ -61,9 +61,10 @@ First stable release of xchecker with complete spec generation workflow support.
   - Drift tracking for reproducibility
 
 - **JSON Contracts (v1)**: Versioned schemas
-  - Receipt, Status, Doctor schemas
-  - JCS (RFC 8785) canonical emission
-  - BLAKE3 hashing
+  - Receipt, Status, Doctor schemas with `schema_version` field
+  - JCS (RFC 8785) canonical emission with `emitted_at` timestamps
+  - BLAKE3 hashing for artifact verification
+  - `error_kind` and `error_reason` fields for structured error reporting in receipts
 
 ### CLI
 
@@ -81,15 +82,17 @@ All commands support `--json` output and `--verbose` logging.
 
 ### Exit Codes
 
+xchecker uses standardized exit codes for different failure modes:
+
 | Code | Name | Description |
 |------|------|-------------|
-| 0 | SUCCESS | Completed successfully |
-| 2 | CLI_ARGS | Invalid arguments |
-| 7 | PACKET_OVERFLOW | Packet size exceeded |
-| 8 | SECRET_DETECTED | Secret found |
-| 9 | LOCK_HELD | Lock conflict |
-| 10 | PHASE_TIMEOUT | Timeout exceeded |
-| 70 | CLAUDE_FAILURE | Claude CLI failed |
+| `0` | SUCCESS | Operation completed successfully |
+| `2` | CLI_ARGS | Invalid or missing command-line arguments |
+| `7` | PACKET_OVERFLOW | Input packet exceeded size limits (default: 64KB, 1200 lines) |
+| `8` | SECRET_DETECTED | Redaction system detected potential secrets in packet |
+| `9` | LOCK_HELD | Another process is already working on the same spec |
+| `10` | PHASE_TIMEOUT | Phase execution exceeded configured timeout (default: 600s) |
+| `70` | CLAUDE_FAILURE | Underlying Claude CLI invocation failed |
 
 ### Configuration
 

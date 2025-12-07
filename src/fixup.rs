@@ -60,7 +60,9 @@ pub enum FixupError {
     #[error("Hardlink not allowed (use --allow-links to permit): {0}")]
     HardlinkNotAllowed(PathBuf),
 
-    #[error("Could not find matching context for hunk at line {expected_line} in {file} (searched ±{search_window} lines)")]
+    #[error(
+        "Could not find matching context for hunk at line {expected_line} in {file} (searched ±{search_window} lines)"
+    )]
     FuzzyMatchFailed {
         file: String,
         expected_line: usize,
@@ -272,7 +274,10 @@ impl UserFriendlyError for FixupError {
                 "Hardlinks are blocked by default for security".to_string(),
             ],
             Self::FuzzyMatchFailed { file, .. } => vec![
-                format!("The file '{}' may have changed since the review phase", file),
+                format!(
+                    "The file '{}' may have changed since the review phase",
+                    file
+                ),
                 "Run the review phase again to generate fresh diffs".to_string(),
                 "Check if the file has been modified by another process".to_string(),
                 "Use 'xchecker resume <id> --phase review' to regenerate fixups".to_string(),
@@ -855,17 +860,27 @@ impl FixupParser {
             let (old_start, _old_count) = hunk.old_range;
             let hunk_lines: Vec<&str> = hunk.content.lines().collect();
 
-            // Extract context lines from hunk (lines starting with ' ' or no prefix)
+            // Extract OLD lines from hunk (context lines + removed lines, NOT added lines)
+            // These represent what exists in the original file and should be used for matching
             let context_lines: Vec<&str> = hunk_lines
                 .iter()
                 .skip(1) // Skip @@ header
                 .filter(|line| {
+                    // Include context lines (starting with ' ') and removed lines (starting with '-')
+                    // but NOT added lines (starting with '+') as those don't exist in the original file
                     line.starts_with(' ')
-                        || (!line.starts_with('+')
-                            && !line.starts_with('-')
-                            && !line.starts_with("@@"))
+                        || line.starts_with('-')
+                        || (!line.starts_with('+') && !line.starts_with("@@"))
                 })
-                .map(|line| line.strip_prefix(' ').unwrap_or(line))
+                .filter(|line| !line.starts_with("---")) // Exclude --- header
+                .map(|line| {
+                    // Strip the prefix character (' ' or '-')
+                    if line.starts_with(' ') || line.starts_with('-') {
+                        &line[1..]
+                    } else {
+                        *line
+                    }
+                })
                 .collect();
 
             // Calculate expected position with cumulative offset
@@ -994,9 +1009,7 @@ impl FixupParser {
 
         for candidate in start..end {
             let score = self.context_match_score(lines, candidate, context);
-            if score >= min_ratio
-                && best_match.is_none_or(|(_, best_score)| score > best_score)
-            {
+            if score >= min_ratio && best_match.is_none_or(|(_, best_score)| score > best_score) {
                 best_match = Some((candidate, score));
             }
         }
@@ -1032,9 +1045,7 @@ impl FixupParser {
         }
 
         // Whitespace-normalized match (collapse multiple spaces, trim)
-        let normalize = |s: &str| -> String {
-            s.split_whitespace().collect::<Vec<_>>().join(" ")
-        };
+        let normalize = |s: &str| -> String { s.split_whitespace().collect::<Vec<_>>().join(" ") };
 
         normalize(file_line) == normalize(context_line)
     }
