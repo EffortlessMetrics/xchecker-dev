@@ -5,6 +5,8 @@
 
 #[cfg(test)]
 mod wsl_runner_tests {
+    #[cfg(target_os = "windows")]
+    use serial_test::serial;
     #[allow(unused_imports)]
     use std::time::Duration;
     use xchecker::runner::{Runner, RunnerMode, WslOptions};
@@ -12,6 +14,56 @@ mod wsl_runner_tests {
     use xchecker::wsl::{
         is_wsl_available, translate_env_for_wsl, translate_win_to_wsl, validate_claude_in_wsl,
     };
+
+    /// Restores an env var on drop to keep tests isolated when mutating process env.
+    #[cfg(target_os = "windows")]
+    struct EnvVarGuard {
+        key: String,
+        original: Option<String>,
+    }
+
+    #[cfg(target_os = "windows")]
+    impl EnvVarGuard {
+        fn set(key: &str, value: &str) -> Self {
+            let original = std::env::var(key).ok();
+            // SAFETY: Tests serialize access and restore the prior value.
+            unsafe {
+                std::env::set_var(key, value);
+            }
+
+            Self {
+                key: key.to_string(),
+                original,
+            }
+        }
+
+        fn cleared(key: &str) -> Self {
+            let original = std::env::var(key).ok();
+            // SAFETY: Tests serialize access and restore the prior value.
+            unsafe {
+                std::env::remove_var(key);
+            }
+
+            Self {
+                key: key.to_string(),
+                original,
+            }
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(value) => unsafe {
+                    std::env::set_var(&self.key, value)
+                },
+                None => unsafe {
+                    std::env::remove_var(&self.key)
+                },
+            }
+        }
+    }
 
     /// Test that WSL runner can be created with default options
     #[test]
@@ -100,32 +152,22 @@ mod wsl_runner_tests {
     /// Test that `get_wsl_distro_name` falls back to environment variable
     #[test]
     #[cfg(target_os = "windows")]
+    #[serial]
     fn test_get_wsl_distro_name_from_env() {
-        // Set WSL_DISTRO_NAME environment variable
-        unsafe {
-            std::env::set_var("WSL_DISTRO_NAME", "TestDistro");
-        }
+        let _env_guard = EnvVarGuard::set("WSL_DISTRO_NAME", "TestDistro");
 
         let runner = Runner::new(RunnerMode::Wsl, WslOptions::default());
         let distro = runner.get_wsl_distro_name();
 
-        // Should get the distro from environment or from wsl -l -q
-        assert!(distro.is_some());
-
-        // Clean up
-        unsafe {
-            std::env::remove_var("WSL_DISTRO_NAME");
-        }
+        assert_eq!(distro.as_deref(), Some("TestDistro"));
     }
 
     /// Test that `get_wsl_distro_name` falls back to wsl -l -q
     #[test]
     #[cfg(target_os = "windows")]
+    #[serial]
     fn test_get_wsl_distro_name_from_wsl_list() {
-        // Clear environment variable
-        unsafe {
-            std::env::remove_var("WSL_DISTRO_NAME");
-        }
+        let _env_guard = EnvVarGuard::cleared("WSL_DISTRO_NAME");
 
         let runner = Runner::new(RunnerMode::Wsl, WslOptions::default());
         let distro = runner.get_wsl_distro_name();
