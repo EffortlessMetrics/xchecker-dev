@@ -14,7 +14,6 @@ use crate::fixup::FixupMode;
 use crate::packet::PacketBuilder;
 use crate::phase::{Phase, PhaseContext};
 use crate::phases::{DesignPhase, FixupPhase, RequirementsPhase, ReviewPhase, TasksPhase};
-use crate::redaction::SecretRedactor;
 use crate::types::{ErrorKind, FileType, PacketEvidence, PhaseId, PipelineInfo};
 
 use super::llm::ClaudeExecutionMetadata;
@@ -317,7 +316,8 @@ impl PhaseOrchestrator {
                 timeout_seconds,
             })) => {
                 // Handle timeout: write partial artifact and receipt with warning
-                self.handle_phase_timeout(phase_id, timeout_seconds).await
+                self.handle_phase_timeout(phase_id, timeout_seconds, config)
+                    .await
             }
             Err(e) => Err(e.into()),
         }
@@ -328,6 +328,7 @@ impl PhaseOrchestrator {
         &self,
         phase_id: PhaseId,
         timeout_seconds: u64,
+        config: &OrchestratorConfig,
     ) -> Result<ExecutionResult> {
         // Create minimal partial artifact
         let partial_content = format!(
@@ -367,7 +368,8 @@ impl PhaseOrchestrator {
 
         let warnings = vec![format!("phase_timeout:{}", timeout_seconds)];
 
-        let receipt = self.receipt_manager().create_receipt(
+        let receipt = self.receipt_manager().create_receipt_with_redactor(
+            config.redactor.as_ref(),
             self.spec_id(),
             phase_id,
             exit_codes::codes::PHASE_TIMEOUT, // Exit code 10
@@ -511,12 +513,7 @@ impl PhaseOrchestrator {
         let packet_evidence = packet.evidence.clone();
 
         // Step 3: Scan for secrets (FR-ORC-003, FR-SEC)
-        let redactor = SecretRedactor::new().map_err(|e| {
-            XCheckerError::Phase(PhaseError::PacketCreationFailed {
-                phase: phase_id.as_str().to_string(),
-                reason: format!("Failed to create secret redactor: {e}"),
-            })
-        })?;
+        let redactor = config.redactor.as_ref();
 
         // Check for secrets in the packet content - return error immediately if found
         if redactor.has_secrets(&packet.content, "packet")? {
@@ -680,12 +677,7 @@ impl PhaseOrchestrator {
         );
 
         // Step 4: Scan for secrets (FR-ORC-003, FR-SEC)
-        let redactor = SecretRedactor::new().map_err(|e| {
-            XCheckerError::Phase(PhaseError::PacketCreationFailed {
-                phase: phase_id.as_str().to_string(),
-                reason: format!("Failed to create secret redactor: {e}"),
-            })
-        })?;
+        let redactor = config.redactor.as_ref();
 
         // Check for secrets in the packet content
         if redactor.has_secrets(&packet.content, "packet")? {
@@ -703,7 +695,8 @@ impl PhaseOrchestrator {
                 secret_patterns.join(", ")
             );
 
-            let receipt = self.receipt_manager().create_receipt(
+            let receipt = self.receipt_manager().create_receipt_with_redactor(
+                config.redactor.as_ref(),
                 self.spec_id(),
                 phase_id,
                 exit_codes::codes::SECRET_DETECTED, // Exit code 8
@@ -804,7 +797,8 @@ impl PhaseOrchestrator {
                         let mut flags = HashMap::new();
                         flags.insert("phase".to_string(), phase_id.as_str().to_string());
 
-                        let mut receipt = self.receipt_manager().create_receipt(
+                        let mut receipt = self.receipt_manager().create_receipt_with_redactor(
+                            config.redactor.as_ref(),
                             self.spec_id(),
                             phase_id,
                             exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
@@ -882,7 +876,8 @@ impl PhaseOrchestrator {
                 (None, "haiku".to_string())
             };
 
-            let receipt = self.receipt_manager().create_receipt(
+            let receipt = self.receipt_manager().create_receipt_with_redactor(
+                config.redactor.as_ref(),
                 self.spec_id(),
                 phase_id,
                 claude_exit_code,
@@ -1028,7 +1023,8 @@ impl PhaseOrchestrator {
             (None, "haiku".to_string())
         };
 
-        let mut receipt = self.receipt_manager().create_receipt(
+        let mut receipt = self.receipt_manager().create_receipt_with_redactor(
+            config.redactor.as_ref(),
             self.spec_id(),
             phase_id,
             0, // Success exit code
@@ -1101,6 +1097,7 @@ impl PhaseOrchestrator {
             artifacts,
             selectors: config.selectors.clone(),
             strict_validation: config.strict_validation,
+            redactor: config.redactor.clone(),
         })
     }
 

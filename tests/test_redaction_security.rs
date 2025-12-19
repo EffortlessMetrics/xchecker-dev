@@ -1,5 +1,10 @@
 //! Security validation tests for redaction system
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`packet::PacketBuilder`,
+//! `receipt::ReceiptManager`, `redaction::SecretRedactor`, `types::{...}`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates that:
 //! - Packet previews are properly redacted (no default secret patterns present)
 //! - Receipts don't embed raw packet content
@@ -377,7 +382,7 @@ fn test_redactor_detects_all_default_patterns() -> Result<()> {
     );
 
     // Test AWS secret key
-    let aws_secret_content = "AWS_SECRET_ACCESS_KEY=secret_value_here";
+    let aws_secret_content = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
     assert!(
         redactor.has_secrets(aws_secret_content, "test.txt")?,
         "Should detect AWS secret key"

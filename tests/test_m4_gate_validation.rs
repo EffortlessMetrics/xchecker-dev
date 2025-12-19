@@ -369,6 +369,7 @@ fn test_phase_timeout_configuration() {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -381,6 +382,7 @@ fn test_phase_timeout_configuration() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), 300);
@@ -393,6 +395,7 @@ fn test_phase_timeout_configuration() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::MIN_SECS);

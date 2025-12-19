@@ -155,6 +155,7 @@ Please analyze the problem statement above and create structured requirements fo
 
         // Create PacketBuilder with selectors from context (if configured)
         let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
+        *builder.redactor_mut() = (*ctx.redactor).clone();
 
         // Build packet from base path
         // PacketBuilder will:
@@ -175,9 +176,13 @@ Please analyze the problem statement above and create structured requirements fo
         // Validate the response content
         if let Err(errors) = OutputValidator::validate(&requirements_content, PhaseId::Requirements)
         {
-            // Always log validation issues
+            // Always log validation issues (with redaction for FR-SEC-19)
             for err in &errors {
-                eprintln!("[WARN] Validation issue in requirements output: {}", err);
+                let redacted_err = ctx.redactor.redact_string(&err.to_string());
+                eprintln!(
+                    "[WARN] Validation issue in requirements output: {}",
+                    redacted_err
+                );
             }
 
             // In strict mode, fail the phase
@@ -375,6 +380,7 @@ Please analyze the requirements and create a comprehensive design document follo
 
         // Create PacketBuilder with selectors from context (if configured)
         let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
+        *builder.redactor_mut() = (*ctx.redactor).clone();
 
         // Build packet from base path
         // PacketBuilder will:
@@ -395,9 +401,10 @@ Please analyze the requirements and create a comprehensive design document follo
 
         // Validate the response content
         if let Err(errors) = OutputValidator::validate(&design_content, PhaseId::Design) {
-            // Always log validation issues
+            // Always log validation issues (with redaction for FR-SEC-19)
             for err in &errors {
-                eprintln!("[WARN] Validation issue in design output: {}", err);
+                let redacted_err = ctx.redactor.redact_string(&err.to_string());
+                eprintln!("[WARN] Validation issue in design output: {}", redacted_err);
             }
 
             // In strict mode, fail the phase
@@ -603,6 +610,7 @@ Please analyze the design and requirements to create a comprehensive implementat
 
         // Create PacketBuilder with selectors from context (if configured)
         let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
+        *builder.redactor_mut() = (*ctx.redactor).clone();
 
         // Build packet from base path
         // PacketBuilder will:
@@ -623,9 +631,10 @@ Please analyze the design and requirements to create a comprehensive implementat
 
         // Validate the response content
         if let Err(errors) = OutputValidator::validate(&tasks_content, PhaseId::Tasks) {
-            // Always log validation issues
+            // Always log validation issues (with redaction for FR-SEC-19)
             for err in &errors {
-                eprintln!("[WARN] Validation issue in tasks output: {}", err);
+                let redacted_err = ctx.redactor.redact_string(&err.to_string());
+                eprintln!("[WARN] Validation issue in tasks output: {}", redacted_err);
             }
 
             // In strict mode, fail the phase
@@ -738,6 +747,7 @@ mod tests {
             artifacts: Vec::new(),
             selectors: None,
             strict_validation: false,
+            redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
         }
     }
 
@@ -890,6 +900,7 @@ This is a test requirements document.
             artifacts: Vec::new(),
             selectors: None,
             strict_validation: true,
+            redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
         }
     }
 

@@ -1,5 +1,10 @@
 //! M3 Gate: Contracts Validation Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`receipt::ReceiptManager`,
+//! `status::StatusManager`, `types::{...}`) and may break with internal refactors. These tests
+//! are intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! This module validates the M3 Gate contract requirements:
 //! - Verify receipts and status emitted via JCS (RFC 8785) for canonical JSON
 //! - Confirm arrays are sorted before emission (outputs by path, artifacts by path, checks by name)

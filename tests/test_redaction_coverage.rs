@@ -1,12 +1,16 @@
-/// Integration tests for comprehensive redaction coverage
-///
-/// These tests verify that secrets are redacted in all user-facing output:
-/// - Error messages
-/// - Context strings
-/// - Preview text
-/// - Receipts (`stderr_tail`, warnings, `error_reason`)
-/// - Status output
-/// - Logs
+//! Integration tests for comprehensive redaction coverage
+//!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`redaction::{...}`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
+//! These tests verify that secrets are redacted in all user-facing output:
+//! - Error messages
+//! - Context strings
+//! - Preview text
+//! - Receipts (`stderr_tail`, warnings, `error_reason`)
+//! - Status output
+//! - Logs
 use xchecker::redaction::{
     SecretRedactor, redact_user_optional, redact_user_string, redact_user_strings,
 };
@@ -115,7 +119,7 @@ fn test_all_default_patterns_redacted() {
         ("AWS Access Key", "key: AKIA1234567890123456", "AKIA"),
         (
             "AWS Secret Key",
-            "AWS_SECRET_ACCESS_KEY=mysecret",
+            "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
             "AWS_SECRET_ACCESS_KEY",
         ),
         (

@@ -1,5 +1,10 @@
 //! Integration tests for --debug-packet flag behavior (FR-PKT-006, FR-PKT-007)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`, `paths`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! This test suite verifies that:
 //! - Debug packet is written when --debug-packet flag is set and secret scan passes
 //! - Debug packet is NOT written if secrets are detected
@@ -39,6 +44,7 @@ async fn test_debug_packet_written_with_flag() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute requirements phase
@@ -86,6 +92,7 @@ async fn test_debug_packet_not_written_without_flag() -> Result<()> {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute requirements phase
@@ -135,6 +142,7 @@ async fn test_debug_packet_not_written_on_secret_detection() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute requirements phase (will fail due to secret detection)
@@ -189,6 +197,7 @@ async fn test_debug_packet_not_in_receipts() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute requirements phase
@@ -237,6 +246,7 @@ async fn test_packet_preview_always_written() -> Result<()> {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute requirements phase

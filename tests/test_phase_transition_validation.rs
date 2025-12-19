@@ -1,11 +1,12 @@
 //! Unit tests for phase transition validation (FR-ORC-001, FR-ORC-002)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`, `types::PhaseId`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal phase orchestration behavior. Production code
+//! should use `OrchestratorHandle`. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests that the orchestrator properly validates phase transitions and provides
 //! actionable guidance for illegal transitions.
-//!
-//! **White-box testing approach**: These tests directly use `PhaseOrchestrator`
-//! to validate internal phase orchestration behavior. This is intentional and
-//! appropriate for testing internal logic. Production code should use `OrchestratorHandle`.
 
 use anyhow::Result;
 use tempfile::TempDir;

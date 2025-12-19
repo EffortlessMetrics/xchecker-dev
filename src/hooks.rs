@@ -570,6 +570,27 @@ pub fn process_hook_result(
     hook_type: HookType,
     phase: PhaseId,
 ) -> HookOutcome {
+    process_hook_result_with_redactor(
+        result,
+        config,
+        hook_type,
+        phase,
+        crate::redaction::default_redactor(),
+    )
+}
+
+/// Process a hook result using a caller-provided redactor for any user-facing output (FR-SEC-19).
+///
+/// Reserved for hooks integration; not wired in v1.0
+#[must_use]
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn process_hook_result_with_redactor(
+    result: HookResult,
+    config: &HookConfig,
+    hook_type: HookType,
+    phase: PhaseId,
+    redactor: &crate::redaction::SecretRedactor,
+) -> HookOutcome {
     if result.success {
         return HookOutcome::Success(result);
     }
@@ -579,11 +600,16 @@ pub fn process_hook_result(
 
     match config.on_fail {
         OnFail::Warn => {
-            // Log warning and continue
+            // Log warning and continue (with redaction for FR-SEC-19)
+            let redacted_command = redactor.redact_string(&config.command);
+            let redacted_stdout = redactor.redact_string(&result.stdout);
+            let redacted_stderr = redactor.redact_string(&result.stderr);
             tracing::warn!(
                 hook_type = %hook_type,
                 phase = %phase.as_str(),
-                command = %config.command,
+                command = %redacted_command,
+                stdout = %redacted_stdout,
+                stderr = %redacted_stderr,
                 exit_code = result.exit_code,
                 timed_out = result.timed_out,
                 "Hook failed but on_fail=warn, continuing with warning"
@@ -605,10 +631,16 @@ pub fn process_hook_result(
                 }
             };
 
+            // Log error with redaction for FR-SEC-19
+            let redacted_command = redactor.redact_string(&config.command);
+            let redacted_stdout = redactor.redact_string(&result.stdout);
+            let redacted_stderr = redactor.redact_string(&result.stderr);
             tracing::error!(
                 hook_type = %hook_type,
                 phase = %phase.as_str(),
-                command = %config.command,
+                command = %redacted_command,
+                stdout = %redacted_stdout,
+                stderr = %redacted_stderr,
                 exit_code = result.exit_code,
                 timed_out = result.timed_out,
                 "Hook failed with on_fail=fail, failing phase"

@@ -1,5 +1,9 @@
 //! Comprehensive tests for Runner execution (FR-RUN)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::{...}`, `types::RunnerMode`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests cover:
 //! - FR-RUN-001: Native mode spawns claude directly
 //! - FR-RUN-002: WSL mode uses `wsl.exe --exec` with discrete argv

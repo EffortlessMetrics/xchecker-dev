@@ -4,9 +4,11 @@
 //! the structured execution of spec generation phases with separated concerns.
 
 use crate::config::Selectors;
+use crate::redaction::SecretRedactor;
 use crate::types::PhaseId;
 use anyhow::Result;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Represents the next step to take after a phase completes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +45,11 @@ pub struct PhaseContext {
     /// missing required sections) become hard errors that fail the phase.
     /// When `false`, validation issues are logged as warnings only.
     pub strict_validation: bool,
+    /// Secret redactor for any user-facing output emitted during phase execution.
+    ///
+    /// This is built once from the effective configuration and threaded through to ensure
+    /// configured extra/ignore patterns are applied consistently (FR-SEC-19).
+    pub redactor: Arc<SecretRedactor>,
 }
 
 /// A packet of content prepared for Claude CLI consumption

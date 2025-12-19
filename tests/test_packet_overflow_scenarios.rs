@@ -1,5 +1,9 @@
 //! Comprehensive packet overflow scenario tests (FR-PKT-002, FR-PKT-003, FR-PKT-004, FR-PKT-005)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`packet::PacketBuilder`,
+//! `exit_codes::codes`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite verifies:
 //! - Upstream file budget checking
 //! - Failure before Claude invocation on overflow

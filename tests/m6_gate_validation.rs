@@ -1,5 +1,10 @@
 //! M6 Gate Validation Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`canonicalization::Canonicalizer`,
+//! `packet::ContentSelector`, `types::FileType`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! **LOCAL-GREEN COMPATIBLE: This test module does NOT call real Claude API.**
 //! All tests use pure library functions (Canonicalizer, ContentSelector, etc.)
 //! and require no network access or API keys.

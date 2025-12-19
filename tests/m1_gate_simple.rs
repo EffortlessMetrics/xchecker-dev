@@ -1,7 +1,10 @@
 //! Simple M1 Gate Integration Test
 //!
-//! **White-box test**: Uses `PhaseOrchestrator` directly to probe internal behavior
-//! and validate Claude stub integration. Prefer `OrchestratorHandle` for new tests.
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::Runner`,
+//! `claude::ClaudeWrapper`, `orchestrator::{OrchestratorConfig, PhaseOrchestrator}`,
+//! `types::PhaseId`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate Claude stub integration. Prefer `OrchestratorHandle` for new tests.
+//! See FR-TEST-4 for white-box test policy.
 //!
 //! This test validates the M1 Gate requirements by running a complete
 //! Requirements phase with the Claude stub and verifying the results.
@@ -41,6 +44,7 @@ async fn test_m1_gate_requirements_phase_integration() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute Requirements phase

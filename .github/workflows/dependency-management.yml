@@ -1,0 +1,447 @@
+# Dependency Management Guardrails
+#
+# This workflow implements CI guardrails to maintain the hybrid dependency policy.
+# It ensures security-critical dependencies remain at exact patch versions while
+# allowing controlled updates for other dependencies.
+#
+# Features:
+# - Dual testing strategy (locked vs fresh resolve)
+# - Dependency duplication monitoring
+# - Security scanning for critical dependencies
+# - MSRV enforcement with Rust 1.89
+# - Dependency drift detection
+
+name: Dependency Management
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run nightly at 3:00 AM UTC for dependency monitoring
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      scan_mode:
+        description: 'Scan mode to run'
+        required: true
+        default: 'full'
+        type: choice
+        options:
+          - full
+          - security-only
+          - duplicates-only
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ============================================================================
+  # LOCKED TESTING: Maintainer reproducibility
+  # ============================================================================
+  test-locked:
+    name: Test Locked (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-locked-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-locked-
+            ${{ runner.os }}-cargo-
+
+      - name: Run tests with locked dependencies
+        run: cargo test --all-features --locked
+
+  # ============================================================================
+  # FRESH RESOLVE TESTING: User reality
+  # ============================================================================
+  test-fresh:
+    name: Test Fresh Resolve (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-fresh-${{ hashFiles('**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-fresh-
+            ${{ runner.os }}-cargo-
+
+      - name: Update dependencies and test
+        run: |
+          cargo update
+          cargo test --all-features
+
+  # ============================================================================
+  # DEPENDENCY DUPLICATION CHECKS
+  # ============================================================================
+  check-duplicates:
+    name: Dependency Duplication Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check for duplicate dependencies
+        run: |
+          echo "=== Checking for duplicate dependencies ==="
+          cargo tree -d > dependency-tree.txt
+          cat dependency-tree.txt
+          
+          # Count duplicates and fail if concerning patterns found
+          DUPLICATE_COUNT=$(grep -c "^[a-zA-Z]" dependency-tree.txt || echo "0")
+          echo "Found $DUPLICATE_COUNT duplicate dependency groups"
+          
+          # Check for Windows ecosystem duplicates (common source of bloat)
+          WINDOWS_DUPES=$(grep -i "winapi\|windows\|kernel32\|user32" dependency-tree.txt | wc -l || echo "0")
+          if [ "$WINDOWS_DUPES" -gt 3 ]; then
+            echo "❌ WARNING: High Windows ecosystem duplication detected ($WINDOWS_DUPES instances)"
+            echo "Consider consolidating Windows dependencies"
+            exit 1
+          fi
+          
+          # Check for serde ecosystem duplicates
+          SERDE_DUPES=$(grep -i "serde" dependency-tree.txt | wc -l || echo "0")
+          if [ "$SERDE_DUPES" -gt 5 ]; then
+            echo "❌ WARNING: High serde ecosystem duplication detected ($SERDE_DUPES instances)"
+            echo "Consider consolidating serde-related dependencies"
+            exit 1
+          fi
+          
+          echo "✅ Dependency duplication check passed"
+
+      - name: Upload dependency tree
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-tree
+          path: dependency-tree.txt
+
+  # ============================================================================
+  # SECURITY SCANNING FOR CRITICAL DEPENDENCIES
+  # ============================================================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run security audit
+        run: |
+          echo "=== Running security audit on all dependencies ==="
+          cargo audit --json > audit-results.json || true
+          
+          # Check for vulnerabilities in security-critical dependencies
+          echo "=== Checking security-critical dependencies ==="
+          CRITICAL_DEPS="reqwest tokio serde serde_json blake3"
+          
+          for dep in $CRITICAL_DEPS; do
+            echo "Checking $dep..."
+            if grep -q "\"$dep\"" audit-results.json; then
+              echo "❌ VULNERABILITY FOUND in security-critical dependency: $dep"
+              grep -A 5 -B 5 "\"$dep\"" audit-results.json
+              exit 1
+            else
+              echo "✅ $dep - no vulnerabilities found"
+            fi
+          done
+          
+          # Display summary
+          echo "=== Security Audit Summary ==="
+          if [ -f audit-results.json ]; then
+            VULN_COUNT=$(jq '.vulnerabilities.list | length' audit-results.json 2>/dev/null || echo "0")
+            echo "Total vulnerabilities found: $VULN_COUNT"
+            
+            if [ "$VULN_COUNT" -gt 0 ]; then
+              echo "⚠️  Vulnerabilities found in non-critical dependencies"
+              echo "Review audit-results.json for details"
+            fi
+          fi
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo-deny check
+        run: |
+          echo "=== Running cargo-deny for comprehensive security checks ==="
+          # Create a minimal deny.toml for our checks
+          cat > deny.toml << 'EOF'
+          [licenses]
+          allow = [
+              "MIT",
+              "Apache-2.0",
+              "Apache-2.0 WITH LLVM-exception",
+              "BSD-2-Clause",
+              "BSD-3-Clause",
+              "ISC",
+              "Unicode-DFS-2016",
+          ]
+          copyleft = "warn"
+          confidence-threshold = 0.8
+          
+          [bans]
+          multiple-versions = "warn"
+          wildcards = "allow"
+          highlight = "all"
+          skip-tree = [
+              { name = "windows-sys", version = "*" }, # Windows ecosystem complexity
+          ]
+          
+          [sources]
+          unknown-registry = "warn"
+          unknown-git = "warn"
+          allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+          EOF
+          
+          cargo deny check
+        continue-on-error: true
+
+      - name: Upload security scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-scan-results
+          path: |
+            audit-results.json
+            deny.toml
+
+  # ============================================================================
+  # MSRV ENFORCEMENT
+  # ============================================================================
+  msrv-check:
+    name: MSRV Check (Rust 1.89)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.89 toolchain
+        uses: dtolnay/rust-toolchain@1.89.0
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ubuntu-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ubuntu-cargo-msrv-
+            ubuntu-cargo-
+
+      - name: Check MSRV compliance
+        run: |
+          echo "=== Testing with Rust 1.89 (MSRV) ==="
+          rustc --version
+          
+          # Try to build with MSRV
+          if cargo check --all-features; then
+            echo "✅ MSRV check passed - project builds with Rust 1.89"
+          else
+            echo "❌ MSRV check failed - project does not build with Rust 1.89"
+            echo "This indicates a dependency has increased its minimum Rust version"
+            echo "Review dependency versions and consider downgrading or updating MSRV"
+            exit 1
+          fi
+          
+          # Run a subset of tests with MSRV to ensure functionality
+          echo "=== Running subset of tests with MSRV ==="
+          cargo test --lib --bins
+
+  # ============================================================================
+  # DEPENDENCY DRIFT MONITORING
+  # ============================================================================
+  monitor-drift:
+    name: Dependency Drift Monitor
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check for available updates
+        run: |
+          echo "=== Checking for dependency updates ==="
+          
+          # Get current security-critical versions
+          echo "=== Security-Critical Dependencies ==="
+          cargo tree -f "{p}" | grep -E "^(reqwest|tokio|serde|serde_json|blake3)" | sort | uniq
+          
+          echo ""
+          echo "=== Checking for available updates ==="
+          cargo update --dry-run > update-dry-run.txt 2>&1
+          cat update-dry-run.txt
+          
+          # Check if any security-critical deps have updates
+          if grep -q "Updating" update-dry-run.txt; then
+            echo "⚠️  Updates available for dependencies"
+            echo "Review update-dry-run.txt for details"
+          else
+            echo "✅ All dependencies are up to date"
+          fi
+
+      - name: Check Cargo.lock freshness
+        run: |
+          echo "=== Checking Cargo.lock freshness ==="
+          if [ -n "$(git status --porcelain Cargo.lock)" ]; then
+            echo "⚠️  Cargo.lock is out of sync with Cargo.toml"
+            echo "Run 'cargo generate-lockfile' to update"
+          else
+            echo "✅ Cargo.lock is in sync"
+          fi
+
+      - name: Upload drift monitoring results
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-drift-results
+          path: update-dry-run.txt
+
+  # ============================================================================
+  # POLICY VALIDATION
+  # ============================================================================
+  validate-policy:
+    name: Validate Hybrid Policy
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate dependency policy compliance
+        run: |
+          echo "=== Validating Hybrid Dependency Policy ==="
+          
+          # Check that security-critical deps have exact versions
+          echo "Checking security-critical dependency versions..."
+          SECURITY_CRITICAL=(
+            "reqwest = \"0.12.26\""
+            "tokio = \"1.48.0\""
+            "serde = \"1.0.228\""
+            "serde_json = \"1.0.145\""
+            "blake3 = \"1.8.2\""
+          )
+          
+          for dep_spec in "${SECURITY_CRITICAL[@]}"; do
+            dep_name=$(echo "$dep_spec" | cut -d' ' -f1)
+            dep_version=$(echo "$dep_spec" | cut -d'"' -f2)
+            
+            if grep -q "^$dep_name = \"$dep_version\"" Cargo.toml; then
+              echo "✅ $dep_name: exact version $dep_version"
+            else
+              echo "❌ $dep_name: expected exact version $dep_version"
+              echo "Found in Cargo.toml:"
+              grep "^$dep_name " Cargo.toml || echo "  Not found"
+              exit 1
+            fi
+          done
+          
+          # Check that core deps have coarse minima
+          echo ""
+          echo "Checking core dependency coarse minima..."
+          CORE_DEPS=(
+            "clap = \"4.5\""
+            "anyhow = \"1.0\""
+            "thiserror = \"2.0\""
+            "tracing = \"0.1\""
+          )
+          
+          for dep_spec in "${CORE_DEPS[@]}"; do
+            dep_name=$(echo "$dep_spec" | cut -d' ' -f1)
+            dep_version=$(echo "$dep_spec" | cut -d'"' -f2)
+            
+            if grep -q "^$dep_name = \"$dep_version\"" Cargo.toml; then
+              echo "✅ $dep_name: coarse minimum $dep_version"
+            else
+              echo "❌ $dep_name: expected coarse minimum $dep_version"
+              echo "Found in Cargo.toml:"
+              grep "^$dep_name " Cargo.toml || echo "  Not found"
+              exit 1
+            fi
+          done
+          
+          echo ""
+          echo "✅ Hybrid dependency policy validation passed"
+
+  # ============================================================================
+  # SUMMARY JOB
+  # ============================================================================
+  dependency-summary:
+    name: Dependency Management Summary
+    runs-on: ubuntu-latest
+    needs: [test-locked, test-fresh, check-duplicates, security-scan, msrv-check, validate-policy]
+    if: always()
+    
+    steps:
+      - name: Dependency Management Summary
+        run: |
+          echo "=== Dependency Management Guardrails Summary ==="
+          echo ""
+          echo "Locked Testing: ${{ needs.test-locked.result }}"
+          echo "Fresh Resolve Testing: ${{ needs.test-fresh.result }}"
+          echo "Duplicate Check: ${{ needs.check-duplicates.result }}"
+          echo "Security Scan: ${{ needs.security-scan.result }}"
+          echo "MSRV Check: ${{ needs.msrv-check.result }}"
+          echo "Policy Validation: ${{ needs.validate-policy.result }}"
+          echo ""
+          
+          # Determine overall status
+          if [[ "${{ needs.test-locked.result }}" == "success" && 
+                "${{ needs.test-fresh.result }}" == "success" && 
+                "${{ needs.check-duplicates.result }}" == "success" && 
+                "${{ needs.msrv-check.result }}" == "success" && 
+                "${{ needs.validate-policy.result }}" == "success" ]]; then
+            echo "✅ All critical dependency guardrails passed"
+          else
+            echo "❌ Some dependency guardrails failed - review above jobs"
+            exit 1
+          fi

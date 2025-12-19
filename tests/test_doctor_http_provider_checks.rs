@@ -1,5 +1,10 @@
 //! Property-based tests for doctor HTTP provider checks
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`config::{CliArgs, Config}`,
+//! `doctor::{CheckStatus, DoctorCommand}`) and may break with internal refactors. These tests
+//! are intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! Validates that `xchecker doctor` correctly:
 //! - Checks HTTP provider configuration (openrouter, anthropic)
 //! - Validates API key environment variables are present

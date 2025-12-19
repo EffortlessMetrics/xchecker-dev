@@ -1,5 +1,9 @@
 //! Integration tests for concurrent execution prevention with actual multi-process scenarios
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`lock::{FileLock, LockError}`) and
+//! may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates FR-LOCK-001, FR-LOCK-002, and FR-LOCK-005 by spawning
 //! actual child processes to test real concurrent execution scenarios.
 

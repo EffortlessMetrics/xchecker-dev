@@ -1,5 +1,9 @@
 //! Integration tests for lockfile system (FR-LOCK-006, FR-LOCK-007, FR-LOCK-008)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`lock::{RunContext, XCheckerLock}`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This module tests:
 //! - Lockfile creation with --create-lock flag
 //! - Drift detection for each field (model, CLI version, schema)

@@ -1,5 +1,10 @@
 //! M5 Gate Validation Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`config::{CliArgs, Config,
+//! ConfigSource}`, `lock::{FileLock, LockError}`, `orchestrator::PhaseOrchestrator`,
+//! `runner::{...}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! **LOCAL-GREEN COMPATIBLE: This test module does NOT call real Claude API.**
 //! Tests that attempt to create ClaudeWrapper handle failures gracefully and skip
 //! Claude-dependent validations when the CLI is not available. All core functionality

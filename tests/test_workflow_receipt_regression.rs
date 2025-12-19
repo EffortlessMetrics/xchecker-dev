@@ -1,5 +1,9 @@
 //! Regression test for workflow receipt consistency
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Validates that:
 //! 1. All workflow phases generate receipts with consistent metadata
 //! 2. LLM info is properly populated (provider, model)
@@ -24,6 +28,7 @@ fn dry_run_config() -> OrchestratorConfig {
         config: Default::default(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 
@@ -163,14 +168,16 @@ async fn test_single_phase_vs_workflow_receipt_parity() -> Result<()> {
     // Run Requirements via OrchestratorHandle (workflow path)
     let _temp_workflow = xchecker::paths::with_isolated_home();
     let spec_id = format!("test-workflow-parity-{}", std::process::id());
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(
+    let mut handle = xchecker::orchestrator::OrchestratorHandle::with_config_and_force(
         &spec_id,
         xchecker::orchestrator::OrchestratorConfig {
             dry_run: true,
             config: Default::default(),
             selectors: None,
             strict_validation: false,
+            redactor: Default::default(),
         },
+        false,
     )?;
 
     let workflow_result = handle

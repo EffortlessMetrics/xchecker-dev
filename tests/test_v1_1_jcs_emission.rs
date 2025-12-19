@@ -1,5 +1,9 @@
 //! V1.1: Verify and test JCS emission (FR-JCS)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`receipt::ReceiptManager`,
+//! `types::{...}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test module comprehensively validates JCS (JSON Canonicalization Scheme)
 //! emission according to RFC 8785 requirements.
 //!

@@ -12,9 +12,10 @@ cargo run --bin claude-stub -- [OPTIONS]
 
 - `--output-format <FORMAT>`: Output format (stream-json or text) [default: text]
 - `--include-partial-messages`: Include partial messages in stream-json output
-- `--model <MODEL>`: Model to use [default: sonnet]
+- `--model <MODEL>`: Model to use [default: haiku]
 - `--max-turns <N>`: Maximum number of turns [default: 10]
 - `--scenario <SCENARIO>`: Test scenario to simulate [default: success]
+- `--no-sleep`: Disable artificial delays (for fast CI tests)
 
 ## Test Scenarios
 
@@ -83,7 +84,11 @@ The stub generates a realistic requirements document with:
 Run the test suite with:
 
 ```bash
-cargo test --bin claude-stub
+# Run claude-stub CLI integration tests (requires dev-tools feature)
+cargo test --features dev-tools --test claude_stub_cli
+
+# Or run the full test suite
+cargo test --all-features
 ```
 
 The tests validate:
@@ -92,3 +97,5 @@ The tests validate:
 - Error scenarios
 - Malformed JSON handling
 - Partial response handling
+
+Note: Tests use `--no-sleep` for fast execution in CI.

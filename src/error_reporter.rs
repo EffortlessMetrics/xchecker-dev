@@ -51,6 +51,16 @@ impl<'a> ErrorReport<'a> {
     /// Format the error for display
     #[must_use]
     pub fn format(&self) -> String {
+        crate::redaction::default_redactor().redact_string(&self.format_inner())
+    }
+
+    /// Format the error for display using a caller-provided redactor (FR-SEC-19).
+    #[must_use]
+    pub fn format_with_redactor(&self, redactor: &crate::redaction::SecretRedactor) -> String {
+        redactor.redact_string(&self.format_inner())
+    }
+
+    fn format_inner(&self) -> String {
         let mut output = String::new();
 
         // Error header with category
@@ -163,6 +173,7 @@ impl ErrorReporter {
 pub mod utils {
     use super::{ErrorCategory, ErrorReport, UserFriendlyError};
     use crate::error::XCheckerError;
+    use crate::redaction::SecretRedactor;
 
     /// Report an error and exit with appropriate code
     #[allow(dead_code)] // Alternative error reporting utility
@@ -677,7 +688,8 @@ pub mod utils {
                     pattern, location
                 ),
                 "Remove or redact the sensitive data from the file".to_string(),
-                "Use --ignore-secret-pattern <regex> to suppress this specific pattern".to_string(),
+                "Use --ignore-secret-pattern <pattern-id> to suppress this specific pattern"
+                    .to_string(),
                 "Add the file to .gitignore if it contains test data".to_string(),
                 "Consider using environment variables for secrets instead".to_string(),
             ],
@@ -739,12 +751,12 @@ pub mod utils {
 
     /// Create a comprehensive error report with enhanced context (R1.3, R6.4)
     #[must_use]
-    pub fn create_comprehensive_report(error: &XCheckerError) -> String {
+    fn create_comprehensive_report_inner(error: &XCheckerError) -> String {
         let mut output = String::new();
 
         // Main error report
         let report = ErrorReport::new(error);
-        output.push_str(&report.format());
+        output.push_str(&report.format_inner());
 
         // Enhanced context
         let enhanced_context = enhance_error_context(error);
@@ -814,6 +826,23 @@ pub mod utils {
         }
 
         output
+    }
+
+    /// Create a comprehensive error report with enhanced context (R1.3, R6.4)
+    #[must_use]
+    pub fn create_comprehensive_report(error: &XCheckerError) -> String {
+        crate::redaction::default_redactor()
+            .redact_string(&create_comprehensive_report_inner(error))
+    }
+
+    /// Create a comprehensive error report with enhanced context, applying a caller-provided redactor
+    /// as a final safety net (FR-SEC-19).
+    #[must_use]
+    pub fn create_comprehensive_report_with_redactor(
+        error: &XCheckerError,
+        redactor: &SecretRedactor,
+    ) -> String {
+        redactor.redact_string(&create_comprehensive_report_inner(error))
     }
 
     /// Provide contextual help and suggestions based on the current operation (R1.3, R6.4)
@@ -906,8 +935,8 @@ pub mod utils {
 
     /// Create an error report with operation-specific context (R1.3, R6.4)
     #[must_use]
-    pub fn create_contextual_report(error: &XCheckerError, operation: &str) -> String {
-        let mut output = create_comprehensive_report(error);
+    fn create_contextual_report_inner(error: &XCheckerError, operation: &str) -> String {
+        let mut output = create_comprehensive_report_inner(error);
 
         let contextual_help = provide_contextual_help(operation, error);
         if !contextual_help.is_empty() {
@@ -922,6 +951,24 @@ pub mod utils {
         }
 
         output
+    }
+
+    /// Create an error report with operation-specific context (R1.3, R6.4)
+    #[must_use]
+    pub fn create_contextual_report(error: &XCheckerError, operation: &str) -> String {
+        crate::redaction::default_redactor()
+            .redact_string(&create_contextual_report_inner(error, operation))
+    }
+
+    /// Create an error report with operation-specific context (R1.3, R6.4), applying a caller-provided
+    /// redactor as a final safety net (FR-SEC-19).
+    #[must_use]
+    pub fn create_contextual_report_with_redactor(
+        error: &XCheckerError,
+        operation: &str,
+        redactor: &SecretRedactor,
+    ) -> String {
+        redactor.redact_string(&create_contextual_report_inner(error, operation))
     }
 }
 

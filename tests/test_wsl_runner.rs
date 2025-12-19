@@ -55,12 +55,8 @@ mod wsl_runner_tests {
     impl Drop for EnvVarGuard {
         fn drop(&mut self) {
             match &self.original {
-                Some(value) => unsafe {
-                    std::env::set_var(&self.key, value)
-                },
-                None => unsafe {
-                    std::env::remove_var(&self.key)
-                },
+                Some(value) => unsafe { std::env::set_var(&self.key, value) },
+                None => unsafe { std::env::remove_var(&self.key) },
             }
         }
     }

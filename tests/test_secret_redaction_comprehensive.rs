@@ -1,5 +1,9 @@
 //! Comprehensive secret redaction tests (FR-SEC)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`redaction::{...}`,
+//! `exit_codes::codes`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates all aspects of secret redaction:
 //! - All default patterns (GitHub PAT, AWS keys, Slack, Bearer)
 //! - --extra-secret-pattern adds custom patterns
@@ -44,14 +48,29 @@ fn test_all_default_patterns_detected() -> Result<()> {
     assert_eq!(matches[0].pattern_id, "aws_access_key");
 
     // Test AWS secret key: AWS_SECRET_ACCESS_KEY=
-    let aws_secret_content = "AWS_SECRET_ACCESS_KEY=secret_value_here";
+    let aws_secret_content = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
     assert!(
         redactor.has_secrets(aws_secret_content, "test.txt")?,
         "Should detect AWS secret key"
     );
     let matches = redactor.scan_for_secrets(aws_secret_content, "test.txt")?;
-    assert_eq!(matches.len(), 1);
-    assert_eq!(matches[0].pattern_id, "aws_secret_key");
+    assert!(
+        !matches.is_empty(),
+        "Should return at least one match for AWS secret key"
+    );
+    assert!(
+        matches.iter().any(|m| m.pattern_id == "aws_secret_key"),
+        "Should include aws_secret_key match: {matches:?}"
+    );
+    assert!(
+        matches.iter().all(|m| {
+            matches!(
+                m.pattern_id.as_str(),
+                "aws_secret_key" | "aws_secret_key_value"
+            )
+        }),
+        "Should not match unrelated patterns: {matches:?}"
+    );
 
     // Test Slack token: xox[baprs]-
     let slack_content = "slack_token = xoxb-1234567890-abcdefghijklmnop";

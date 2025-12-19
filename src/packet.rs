@@ -803,7 +803,7 @@ impl PacketBuilder {
     }
 
     /// Write packet preview to context directory
-    /// Always writes context/<phase>-packet.txt for auditability
+    /// Always writes `context/<phase>-packet.txt` for auditability
     fn write_packet_preview(
         &self,
         content: &str,

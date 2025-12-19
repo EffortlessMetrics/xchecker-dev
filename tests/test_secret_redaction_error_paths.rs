@@ -1,15 +1,21 @@
+//! Integration tests for secret redaction in error paths (AT-SEC-003)
+//!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`receipt::ReceiptManager`,
+//! `redaction::{...}`, `types::{...}`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
+//! These tests verify that secrets are redacted in all error-related fields
+//! before they are persisted to receipts:
+//! - error_reason
+//! - stderr_tail
+//! - context lines
+//! - warning messages
+//!
+//! This ensures FR-SEC-005 and FR-SEC-006 compliance.
+
 use std::collections::HashMap;
 use xchecker::error::XCheckerError;
-/// Integration tests for secret redaction in error paths (AT-SEC-003)
-///
-/// These tests verify that secrets are redacted in all error-related fields
-/// before they are persisted to receipts:
-/// - error_reason
-/// - stderr_tail
-/// - context lines
-/// - warning messages
-///
-/// This ensures FR-SEC-005 and FR-SEC-006 compliance.
 use xchecker::receipt::ReceiptManager;
 use xchecker::redaction::{redact_user_optional, redact_user_string, redact_user_strings};
 use xchecker::types::{ErrorKind, PacketEvidence, PhaseId};
@@ -361,7 +367,7 @@ fn test_aws_secret_key_in_stderr() {
 
     let manager = ReceiptManager::new(&spec_base_path);
 
-    let stderr = "Configuration error\nAWS_SECRET_ACCESS_KEY=my_secret_key_value\nPlease check your environment";
+    let stderr = "Configuration error\nAWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\nPlease check your environment";
 
     let packet = PacketEvidence {
         files: vec![],

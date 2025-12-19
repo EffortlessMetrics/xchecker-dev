@@ -1,5 +1,10 @@
 //! Comprehensive Error Receipt Generation Tests (Task 7.1 - FR-EXIT)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`error::{...}`, `exit_codes::codes`,
+//! `lock::LockError`, `receipt::ReceiptManager`, `types::{...}`) and may break with internal
+//! refactors. These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates that:
 //! 1. error_to_exit_code_and_kind() mapping function works correctly
 //! 2. write_error_receipt_and_exit() function creates receipts with matching exit codes

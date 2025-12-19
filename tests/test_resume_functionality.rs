@@ -1,14 +1,15 @@
 //! Integration tests for resume functionality (FR-ORC-002, FR-ORC-003)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`, `types::{...}`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal phase orchestration behavior. Production code
+//! should use `OrchestratorHandle`. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests that the orchestrator properly handles resume operations including:
 //! - Current state detection from last receipt
 //! - Partial artifact detection and handling
 //! - Dependency validation
 //! - Failed dependency detection
-//!
-//! **White-box testing approach**: These tests directly use `PhaseOrchestrator`
-//! to validate internal phase orchestration behavior. This is intentional and
-//! appropriate for testing internal logic. Production code should use `OrchestratorHandle`.
 
 use anyhow::Result;
 use std::collections::HashMap;

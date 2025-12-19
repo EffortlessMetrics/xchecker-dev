@@ -1,7 +1,10 @@
 //! M4 Gate Validation Tests
 //!
-//! **White-box test**: Uses `PhaseOrchestrator` directly to probe internal behavior.
-//! Prefer `OrchestratorHandle` for new tests.
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`fixup::{FixupMode, FixupParser}`,
+//! `orchestrator::{OrchestratorConfig, PhaseOrchestrator}`, `types::PhaseId`) and may break with
+//! internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. Prefer `OrchestratorHandle` for new tests. See FR-TEST-4 for
+//! white-box test policy.
 //!
 //! This module validates the M4 Gate requirements:
 //! - Test review detects FIXUP PLAN: and surfaces at least one validated unified diff block
@@ -279,6 +282,7 @@ async fn test_status_command_shows_complete_phase_information() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute Requirements and Design phases to create artifacts and receipts
@@ -417,6 +421,7 @@ async fn test_verbose_logging_provides_debugging_information() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Capture logging output during phase execution
@@ -624,6 +629,7 @@ async fn test_review_phase_integration_with_fixup_detection() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute Requirements, Design, and Tasks phases first

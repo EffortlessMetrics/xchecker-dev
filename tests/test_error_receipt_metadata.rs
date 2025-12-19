@@ -22,6 +22,7 @@ fn dry_run_config() -> xchecker::orchestrator::OrchestratorConfig {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 
@@ -44,7 +45,8 @@ async fn test_error_receipt_invalid_phase_transition() -> Result<()> {
     let spec_id = unique_spec_id("invalid-transition");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Attempt to run Design phase without running Requirements first
     // This should fail with InvalidTransition error

@@ -1,5 +1,9 @@
 //! Integration tests for fixup cross-filesystem fallback (AT-FS-004)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`fixup::{FixupMode, FixupParser}`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! **Feature: xchecker-runtime-implementation, Property AT-FS-004**
 //!
 //! This test validates that fixup apply mode:

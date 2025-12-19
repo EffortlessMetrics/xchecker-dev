@@ -1,5 +1,9 @@
 //! JCS emission performance benchmarks (NFR1)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`doctor::{...}`, `types::{...}`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests that JCS canonicalization meets the ≤ 50ms target for typical payloads
 
 use anyhow::Result;

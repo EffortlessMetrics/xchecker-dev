@@ -1,8 +1,39 @@
 use anyhow::{Context, Result};
 use blake3::Hasher;
+use serde::Serialize;
 
 use crate::error::XCheckerError;
 use crate::types::FileType;
+
+/// Emit a value as JCS-canonical JSON (RFC 8785).
+///
+/// This is the standard way to emit JSON for receipts, status, doctor outputs,
+/// and any other JSON contracts. JCS ensures deterministic output regardless
+/// of field ordering in the source struct.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use xchecker::emit_jcs;
+/// use serde::Serialize;
+///
+/// #[derive(Serialize)]
+/// struct MyOutput {
+///     name: String,
+///     value: i32,
+/// }
+///
+/// let output = MyOutput { name: "test".into(), value: 42 };
+/// let json = emit_jcs(&output).expect("serialization should succeed");
+/// println!("{}", json);
+/// ```
+pub fn emit_jcs<T: Serialize>(value: &T) -> Result<String> {
+    let json_value =
+        serde_json::to_value(value).with_context(|| "Failed to serialize value to JSON")?;
+    let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
+        .with_context(|| "Failed to canonicalize JSON using JCS")?;
+    String::from_utf8(json_bytes).with_context(|| "JCS output contained invalid UTF-8")
+}
 
 // Canonicalization version constants
 #[allow(dead_code)] // Reserved for future content-addressed storage

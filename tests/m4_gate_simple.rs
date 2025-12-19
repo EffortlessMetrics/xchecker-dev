@@ -1,5 +1,9 @@
 //! M4 Gate Simple Validation Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`fixup::{FixupMode, FixupParser}`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This module validates the core M4 Gate requirements with simplified tests:
 //! - Test review detects FIXUP PLAN: and surfaces at least one validated unified diff block
 //! - Verify status command shows complete phase information

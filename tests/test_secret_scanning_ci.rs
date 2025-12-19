@@ -1,5 +1,9 @@
 //! CI Secret Scanning Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`redaction::SecretRedactor`) and may
+//! break with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates secret scanning with positive and negative controls:
 //! - Positive control: known-bad file with fake tokens MUST cause scanner to fail
 //! - Negative control: clean file MUST pass scanner

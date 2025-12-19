@@ -1,5 +1,9 @@
 //! M2 Gate Canonicalization Testing Utilities
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`canonicalization::Canonicalizer`,
+//! `types::FileType`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This module contains comprehensive tests for the canonicalization system
 //! to validate deterministic behavior and structure preservation.
 //! Requirements: R12.1, R12.3, R2.4, R2.5

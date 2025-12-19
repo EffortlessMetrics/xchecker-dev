@@ -1,5 +1,10 @@
 //! M1 Gate Unit Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`claude::ClaudeWrapper`,
+//! `runner::{Runner, RunnerMode, WslOptions}`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This module contains unit tests for M1 Gate validation that don't require
 //! external dependencies like Claude CLI installation.
 

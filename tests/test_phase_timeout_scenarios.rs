@@ -1,5 +1,10 @@
 //! Integration tests for phase timeout scenarios (Task 7.4: FR-RUN-004, FR-RUN-007, FR-ORC-005)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator, PhaseTimeout}`, `types::{...}`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates that:
 //! 1. Timeouts are detected at different stages (packet building, Claude execution, artifact writing)
 //! 2. Partial artifacts are saved on timeout with .partial.md extension
@@ -35,6 +40,7 @@ fn create_config_with_timeout(timeout_secs: u64, dry_run: bool) -> OrchestratorC
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 
@@ -336,6 +342,7 @@ fn test_timeout_invalid_config_uses_default() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let timeout = PhaseTimeout::from_config(&config);
@@ -357,6 +364,7 @@ fn test_timeout_negative_config_uses_default() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let timeout = PhaseTimeout::from_config(&config);

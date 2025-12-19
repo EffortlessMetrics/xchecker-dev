@@ -7,16 +7,21 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::io::Write;
+use std::path::PathBuf;
+use std::sync::Arc;
 
-use crate::config::{CliArgs, Config};
-use crate::error::{ConfigError, PhaseError, XCheckerError};
+// Stable public API imports from crate root
+// _Requirements: FR-CLI-2_
+use crate::{CliArgs, Config, ExitCode, OrchestratorHandle, PhaseId, XCheckerError, emit_jcs};
+
+// Internal module imports (not part of stable public API)
+use crate::error::{ConfigError, PhaseError};
 use crate::error_reporter::{ErrorReport, utils as error_utils};
 use crate::logging::Logger;
-use crate::orchestrator::{OrchestratorConfig, OrchestratorHandle};
+use crate::orchestrator::OrchestratorConfig;
+use crate::redaction::SecretRedactor;
 use crate::source::SourceResolver;
 use crate::spec_id::sanitize_spec_id;
-use crate::types::PhaseId;
-use std::path::PathBuf;
 
 /// xchecker - Claude orchestration tool for spec generation
 #[derive(Parser)]
@@ -120,7 +125,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub dangerously_skip_permissions: bool,
 
-    /// Ignore specific secret patterns (regex)
+    /// Ignore specific secret patterns by pattern ID (e.g. github_pat, aws_access_key)
     #[arg(long, global = true)]
     pub ignore_secret_pattern: Vec<String>,
 
@@ -144,7 +149,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub lock_ttl_seconds: Option<u64>,
 
-    /// Write full packet to context/<phase>-packet.txt after secret scan passes
+    /// Write full packet to `context/<phase>-packet.txt` after secret scan passes
     #[arg(long, global = true)]
     pub debug_packet: bool,
 
@@ -621,8 +626,16 @@ pub fn build_cli() -> clap::Command {
     <Cli as clap::CommandFactory>::command()
 }
 
-/// Main CLI execution function
-pub fn run() -> Result<(), XCheckerError> {
+/// Main CLI execution function.
+///
+/// This function handles ALL output including errors. It returns `Result<(), ExitCode>`:
+/// - On success: returns `Ok(())` after printing any output
+/// - On error: prints error message via contextual reporting, returns `Err(ExitCode)`
+///
+/// main.rs only calls `std::process::exit(code.as_i32())` on error - it does NOT print.
+///
+/// _Requirements: FR-CLI-3, FR-CLI-4_
+pub fn run() -> Result<(), ExitCode> {
     let cli = Cli::parse();
 
     // Build CLI args for configuration system (wired through build_cli)
@@ -662,14 +675,41 @@ pub fn run() -> Result<(), XCheckerError> {
     };
 
     // Discover and load configuration
-    let config = Config::discover(&cli_args).map_err(|e| {
-        XCheckerError::Config(ConfigError::DiscoveryFailed {
-            reason: e.to_string(),
-        })
-    })?;
+    let config = match Config::discover(&cli_args) {
+        Ok(config) => config,
+        Err(e) => {
+            let err = XCheckerError::Config(ConfigError::DiscoveryFailed {
+                reason: e.to_string(),
+            });
+            let contextual_report = error_utils::create_contextual_report(&err, "config");
+            eprintln!("{contextual_report}");
+            return Err(err.to_exit_code());
+        }
+    };
+
+    // Build a configured redactor once from the effective config so all output surfaces
+    // respect extra/ignore patterns (FR-SEC-19).
+    let redactor = match SecretRedactor::from_config(&config) {
+        Ok(redactor) => Arc::new(redactor),
+        Err(e) => {
+            let err = XCheckerError::Config(ConfigError::InvalidValue {
+                key: "security".to_string(),
+                value: e.to_string(),
+            });
+            let contextual_report = error_utils::create_contextual_report(&err, "config");
+            eprintln!("{contextual_report}");
+            return Err(err.to_exit_code());
+        }
+    };
 
     // Create tokio runtime for async operations
-    let rt = tokio::runtime::Runtime::new()?;
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("✗ Failed to create async runtime: {e}");
+            return Err(ExitCode::INTERNAL);
+        }
+    };
 
     // Determine operation context for better error reporting before moving cli.command
     let operation = match &cli.command {
@@ -724,6 +764,7 @@ pub fn run() -> Result<(), XCheckerError> {
                     strict_lock,
                     &config,
                     &cli_args,
+                    &redactor,
                 )
                 .await
             }
@@ -769,6 +810,7 @@ pub fn run() -> Result<(), XCheckerError> {
                     strict_lock,
                     &config,
                     &cli_args,
+                    &redactor,
                 )
                 .await
             }
@@ -846,24 +888,27 @@ pub fn run() -> Result<(), XCheckerError> {
     });
 
     // Handle errors with structured reporting (R1.3, R6.4, R6.8, R6.9)
+    // cli::run() handles ALL output including errors (FR-CLI-3, FR-CLI-6)
+    // Error messages are displayed via contextual reporting which extends display_for_user()
+    // with operation-specific context for better user experience
     if let Err(error) = result {
         // Try to downcast to XCheckerError for better reporting
         if let Some(xchecker_error) = error.downcast_ref::<XCheckerError>() {
-            // Use contextual error reporting for better user experience (R1.3, R6.4)
-            let contextual_report =
-                error_utils::create_contextual_report(xchecker_error, operation);
+            // Use contextual error reporting which builds on display_for_user() (FR-CLI-3)
+            // This provides user_message(), context(), suggestions() plus operation-specific help
+            let contextual_report = error_utils::create_contextual_report_with_redactor(
+                xchecker_error,
+                operation,
+                redactor.as_ref(),
+            );
             eprintln!("{contextual_report}");
 
-            // Use standardized exit codes from exit_codes module (R6.1-R6.7)
-            // This ensures receipt exit_code matches process exit code (R6.8, R6.9)
-            // The From<&XCheckerError> for (i32, ErrorKind) trait is implemented in exit_codes module
-            let (exit_code, _error_kind): (i32, crate::types::ErrorKind) =
-                From::from(xchecker_error);
-
-            std::process::exit(exit_code);
+            // Return the appropriate exit code - main.rs will call std::process::exit()
+            return Err(xchecker_error.to_exit_code());
         } else {
             // Fallback for other error types with enhanced context
-            eprintln!("✗ Unexpected error: {error}");
+            let redacted_error = redactor.redact_string(&error.to_string());
+            eprintln!("✗ Unexpected error: {redacted_error}");
 
             // Provide enhanced context and suggestions for common anyhow errors
             if let Some(suggestions) = enhance_error_context(&error) {
@@ -879,7 +924,7 @@ pub fn run() -> Result<(), XCheckerError> {
             eprintln!("    - Check the xchecker documentation for common issues");
             eprintln!("    - Ensure all dependencies are properly installed");
 
-            std::process::exit(1);
+            return Err(ExitCode::INTERNAL);
         }
     }
 
@@ -900,6 +945,7 @@ async fn execute_spec_command(
     strict_lock: bool,
     config: &Config,
     cli_args: &CliArgs,
+    redactor: &Arc<SecretRedactor>,
 ) -> Result<()> {
     // Create logger for verbose output and timing (R7.5, NFR5)
     let mut logger = Logger::new(verbose);
@@ -1040,11 +1086,12 @@ async fn execute_spec_command(
         config,
         cli_args,
         Some(&problem_statement),
+        redactor.clone(),
     );
 
     // Create orchestrator handle (this will acquire the file lock)
     logger.start_timing("orchestrator_setup");
-    let handle = OrchestratorHandle::with_config_and_force(spec_id, orchestrator_config, force)
+    let mut handle = OrchestratorHandle::with_config_and_force(spec_id, orchestrator_config, force)
         .with_context(|| format!("Failed to create orchestrator for spec: {spec_id}"))?;
     logger.end_timing("orchestrator_setup");
 
@@ -1097,11 +1144,12 @@ async fn execute_spec_command(
 
         // Report with full context and suggestions
         let report = ErrorReport::new(&xchecker_error);
-        report.print_to_stderr();
+        eprintln!("{}", report.format_with_redactor(redactor.as_ref()));
 
         // Enhanced error reporting for phase failures (R1.3, R4.3)
         if let Some(error_msg) = &result.error {
-            eprintln!("\n  Phase failure details: {error_msg}");
+            let redacted_error_msg = redactor.redact_string(error_msg);
+            eprintln!("\n  Phase failure details: {redacted_error_msg}");
 
             // Try to parse the error for enhanced reporting
             if error_msg.contains("ExecutionFailedWithStderr") {
@@ -1240,35 +1288,15 @@ fn execute_spec_json_command(spec_id: &str, config: &Config) -> Result<()> {
 
 /// Emit spec output as canonical JSON using JCS (RFC 8785)
 fn emit_spec_json(output: &crate::types::SpecOutput) -> Result<String> {
-    // Serialize to JSON value
-    let json_value =
-        serde_json::to_value(output).context("Failed to serialize spec output to JSON value")?;
-
-    // Apply JCS canonicalization for stable output
-    let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
-        .context("Failed to canonicalize spec JSON")?;
-
-    let json_string = String::from_utf8(json_bytes)
-        .context("Failed to convert canonical JSON to UTF-8 string")?;
-
-    Ok(json_string)
+    // Use emit_jcs from crate root for JCS canonicalization
+    emit_jcs(output).context("Failed to emit spec JSON")
 }
 
 /// Emit status output as canonical JSON using JCS (RFC 8785)
 /// Per FR-Claude Code-CLI (Requirements 4.1.2): Returns compact status summary
 fn emit_status_json(output: &crate::types::StatusJsonOutput) -> Result<String> {
-    // Serialize to JSON value
-    let json_value =
-        serde_json::to_value(output).context("Failed to serialize status output to JSON value")?;
-
-    // Apply JCS canonicalization for stable output
-    let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
-        .context("Failed to canonicalize status JSON")?;
-
-    let json_string = String::from_utf8(json_bytes)
-        .context("Failed to convert canonical JSON to UTF-8 string")?;
-
-    Ok(json_string)
+    // Use emit_jcs from crate root for JCS canonicalization
+    emit_jcs(output).context("Failed to emit status JSON")
 }
 
 /// Execute the resume --json command (FR-Claude Code-CLI: Claude Code CLI Surfaces)
@@ -1430,18 +1458,8 @@ fn generate_next_steps_hint(
 /// Emit resume output as canonical JSON using JCS (RFC 8785)
 /// Per FR-Claude Code-CLI (Requirements 4.1.3): Returns resume context without full packet/artifacts
 fn emit_resume_json(output: &crate::types::ResumeJsonOutput) -> Result<String> {
-    // Serialize to JSON value
-    let json_value =
-        serde_json::to_value(output).context("Failed to serialize resume output to JSON value")?;
-
-    // Apply JCS canonicalization for stable output
-    let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
-        .context("Failed to canonicalize resume JSON")?;
-
-    let json_string = String::from_utf8(json_bytes)
-        .context("Failed to convert canonical JSON to UTF-8 string")?;
-
-    Ok(json_string)
+    // Use emit_jcs from crate root for JCS canonicalization
+    emit_jcs(output).context("Failed to emit resume JSON")
 }
 
 /// Count pending fixups for a spec
@@ -2020,6 +2038,7 @@ async fn execute_resume_command(
     strict_lock: bool,
     config: &Config,
     cli_args: &CliArgs,
+    redactor: &Arc<SecretRedactor>,
 ) -> Result<()> {
     // Create logger for verbose output and timing (R7.5, NFR5)
     let mut logger = Logger::new(verbose);
@@ -2058,12 +2077,19 @@ async fn execute_resume_command(
 
     // Configure execution using shared helper
     // Note: Problem statement is not passed for resume - it's already persisted in spec dir
-    let orchestrator_config =
-        build_orchestrator_config(dry_run, verbose, apply_fixups, config, cli_args, None);
+    let orchestrator_config = build_orchestrator_config(
+        dry_run,
+        verbose,
+        apply_fixups,
+        config,
+        cli_args,
+        None,
+        redactor.clone(),
+    );
 
     // Create orchestrator handle (this will acquire the file lock)
     logger.start_timing("orchestrator_setup");
-    let handle = OrchestratorHandle::with_config_and_force(spec_id, orchestrator_config, force)
+    let mut handle = OrchestratorHandle::with_config_and_force(spec_id, orchestrator_config, force)
         .with_context(|| format!("Failed to create orchestrator for spec: {spec_id}"))?;
     logger.end_timing("orchestrator_setup");
 
@@ -2144,11 +2170,12 @@ async fn execute_resume_command(
 
         // Report with full context and suggestions
         let report = ErrorReport::new(&xchecker_error);
-        report.print_to_stderr();
+        eprintln!("{}", report.format_with_redactor(redactor.as_ref()));
 
         // Enhanced error reporting for phase failures (R1.3, R4.3)
         if let Some(error_msg) = &result.error {
-            eprintln!("\n  Phase failure details: {error_msg}");
+            let redacted_error_msg = redactor.redact_string(error_msg);
+            eprintln!("\n  Phase failure details: {redacted_error_msg}");
         }
 
         // Show partial artifacts location (R4.3)
@@ -2427,6 +2454,7 @@ fn build_orchestrator_config(
     config: &Config,
     cli_args: &CliArgs,
     problem_statement: Option<&str>,
+    redactor: Arc<SecretRedactor>,
 ) -> OrchestratorConfig {
     let mut config_map = create_default_config(verbose, config, cli_args);
     config_map.insert("logger_enabled".to_string(), verbose.to_string());
@@ -2442,6 +2470,7 @@ fn build_orchestrator_config(
         config: config_map,
         selectors: Some(config.selectors.clone()),
         strict_validation: config.strict_validation(),
+        redactor,
     }
 }
 
@@ -2579,6 +2608,7 @@ fn execute_benchmark_command(
     // Output results
     if json {
         // Emit structured JSON output (FR-BENCH-004)
+        // Use JCS canonicalization for consistent JSON output (FR-CLI-6)
         use serde_json::json;
 
         let json_output = json!({
@@ -2600,7 +2630,8 @@ fn execute_benchmark_command(
             }
         });
 
-        println!("{}", serde_json::to_string_pretty(&json_output)?);
+        let canonical_json = emit_jcs(&json_output).context("Failed to emit benchmark JSON")?;
+        println!("{canonical_json}");
     } else {
         // Print human-readable results
         runner.print_summary(&results);
@@ -2631,9 +2662,9 @@ fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Res
         .context("Failed to run doctor checks")?;
 
     if json {
-        // Emit as canonical JSON (JCS) for stable diffs
-        let json_output =
-            serde_json::to_string_pretty(&output).context("Failed to serialize doctor output")?;
+        // Emit as canonical JSON (JCS) for stable diffs (FR-CLI-6)
+        // Use emit_jcs for consistent canonicalization with receipts/status
+        let json_output = emit_jcs(&output).context("Failed to emit doctor JSON")?;
         println!("{json_output}");
     } else {
         // Use log_doctor_report for human-readable output (wired into logging)
@@ -3063,6 +3094,7 @@ packet_max_lines = 5000
         let cli_args = CliArgs::default();
 
         let config = Config::discover(&cli_args)?;
+        let redactor = Arc::new(SecretRedactor::from_config(&config)?);
 
         // Create a minimal input file for the spec
         std::fs::write(root.join("input.txt"), "Test requirement")?;
@@ -3081,6 +3113,7 @@ packet_max_lines = 5000
             false,
             &config,
             &cli_args,
+            &redactor,
         )
         .await;
 
@@ -5183,18 +5216,8 @@ fn count_pending_fixups_for_spec(spec_id: &str) -> u32 {
 
 /// Emit workspace status output as canonical JSON using JCS (RFC 8785)
 fn emit_workspace_status_json(output: &crate::types::WorkspaceStatusJsonOutput) -> Result<String> {
-    // Serialize to JSON value
-    let json_value = serde_json::to_value(output)
-        .context("Failed to serialize workspace status output to JSON value")?;
-
-    // Apply JCS canonicalization for stable output
-    let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
-        .context("Failed to canonicalize workspace status JSON")?;
-
-    let json_string = String::from_utf8(json_bytes)
-        .context("Failed to convert canonical JSON to UTF-8 string")?;
-
-    Ok(json_string)
+    // Use emit_jcs from crate root for JCS canonicalization
+    emit_jcs(output).context("Failed to emit workspace status JSON")
 }
 
 /// Execute the project history command
@@ -5397,18 +5420,8 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
 fn emit_workspace_history_json(
     output: &crate::types::WorkspaceHistoryJsonOutput,
 ) -> Result<String> {
-    // Serialize to JSON value
-    let json_value = serde_json::to_value(output)
-        .context("Failed to serialize workspace history output to JSON value")?;
-
-    // Apply JCS canonicalization for stable output
-    let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
-        .context("Failed to canonicalize workspace history JSON")?;
-
-    let json_string = String::from_utf8(json_bytes)
-        .context("Failed to convert canonical JSON to UTF-8 string")?;
-
-    Ok(json_string)
+    // Use emit_jcs from crate root for JCS canonicalization
+    emit_jcs(output).context("Failed to emit workspace history JSON")
 }
 
 /// Execute the project TUI command

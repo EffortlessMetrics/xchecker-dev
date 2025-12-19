@@ -5,7 +5,7 @@
 - **Language**: Rust (Edition 2024)
 - **Build System**: Cargo
 - **Task Runner**: just (justfile)
-- **Min Rust Version**: 1.91+
+- **Min Rust Version**: 1.89+
 
 ## Key Dependencies
 

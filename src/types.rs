@@ -2,19 +2,75 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Identifies the different phases in the spec generation workflow
+/// Phase identifiers for the spec generation workflow.
+///
+/// `PhaseId` represents the different phases in xchecker's spec generation pipeline.
+/// Phases execute in a defined order with dependencies between them.
+///
+/// # Phase Order
+///
+/// The standard workflow progresses through phases in this order:
+///
+/// ```text
+/// Requirements → Design → Tasks → Review → Fixup → Final
+/// ```
+///
+/// # Dependencies
+///
+/// - `Requirements`: No dependencies (starting phase)
+/// - `Design`: Requires `Requirements` to complete successfully
+/// - `Tasks`: Requires `Design` to complete successfully
+/// - `Review`: Requires `Tasks` to complete successfully
+/// - `Fixup`: Requires `Review` to complete successfully
+/// - `Final`: Requires `Fixup` to complete successfully
+///
+/// # Example
+///
+/// ```rust
+/// use xchecker::PhaseId;
+///
+/// let phase = PhaseId::Requirements;
+/// assert_eq!(phase.as_str(), "requirements");
+///
+/// // PhaseId is Copy, so it can be used multiple times
+/// let phase2 = phase;
+/// assert_eq!(phase, phase2);
+/// ```
+///
+/// # Serialization
+///
+/// `PhaseId` serializes to its string representation (e.g., `"requirements"`, `"design"`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PhaseId {
+    /// Requirements phase: transforms rough ideas into structured EARS requirements.
     Requirements,
+    /// Design phase: creates architecture and component design from requirements.
     Design,
+    /// Tasks phase: generates actionable implementation tasks from design.
     Tasks,
+    /// Review phase: validates and refines the generated artifacts.
     Review,
+    /// Fixup phase: applies code changes proposed by the LLM.
     Fixup,
+    /// Final phase: completes the workflow and generates final artifacts.
     Final,
 }
 
 impl PhaseId {
-    /// Returns the string representation of the phase
+    /// Returns the string representation of the phase.
+    ///
+    /// This is the canonical lowercase name used in receipts, status output,
+    /// and CLI commands.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use xchecker::PhaseId;
+    ///
+    /// assert_eq!(PhaseId::Requirements.as_str(), "requirements");
+    /// assert_eq!(PhaseId::Design.as_str(), "design");
+    /// assert_eq!(PhaseId::Tasks.as_str(), "tasks");
+    /// ```
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
@@ -230,61 +286,147 @@ pub struct FileHash {
     pub blake3_canonicalized: String,
 }
 
-/// Status output structure for JSON emission (schema v1)
+/// Status output for a spec, matching `schemas/status.v1.json`.
+///
+/// `StatusOutput` provides comprehensive status information about a spec's current state,
+/// including artifacts, configuration, and any detected drift from locked values.
+///
+/// This is a stable public type. Changes in 1.x releases are additive only.
+///
+/// # Schema
+///
+/// This type conforms to `schemas/status.v1.json` and is emitted using JCS (RFC 8785)
+/// canonicalization for stable, deterministic JSON output.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use xchecker::OrchestratorHandle;
+///
+/// let handle = OrchestratorHandle::new("my-spec")?;
+/// let status = handle.status()?;
+///
+/// println!("Schema version: {}", status.schema_version);
+/// println!("Artifacts: {}", status.artifacts.len());
+///
+/// for artifact in &status.artifacts {
+///     println!("  {} ({})", artifact.path, artifact.blake3_first8);
+/// }
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Fields
+///
+/// - `schema_version`: Always `"1"` for this schema version
+/// - `emitted_at`: RFC3339 UTC timestamp when status was generated
+/// - `runner`: Execution mode (`"native"` or `"wsl"`)
+/// - `artifacts`: List of artifacts with BLAKE3 hashes (first 8 chars)
+/// - `effective_config`: Configuration values with source attribution
+/// - `lock_drift`: Detected differences from locked values (if any)
+/// - `pending_fixups`: Summary of pending code changes (if any)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatusOutput {
-    /// Schema version for this status format
+    /// Schema version for this status format (always `"1"` for v1).
     pub schema_version: String,
-    /// RFC3339 UTC timestamp when the status was emitted
+    /// RFC3339 UTC timestamp when the status was emitted.
     pub emitted_at: DateTime<Utc>,
-    /// Runner mode used for Claude CLI execution ("native" | "wsl")
+    /// Runner mode used for Claude CLI execution (`"native"` or `"wsl"`).
     pub runner: String,
-    /// WSL distribution name if runner is "wsl"
+    /// WSL distribution name if runner is `"wsl"`.
     pub runner_distro: Option<String>,
-    /// Whether fallback to text format was used
+    /// Whether fallback to text format was used during LLM invocation.
     pub fallback_used: bool,
-    /// Version of the canonicalization algorithm used
+    /// Version of the canonicalization algorithm used (e.g., `"yaml-v1,md-v1"`).
     pub canonicalization_version: String,
-    /// Backend used for canonicalization (e.g., "jcs-rfc8785")
+    /// Backend used for canonicalization (e.g., `"jcs-rfc8785"`).
     pub canonicalization_backend: String,
-    /// Artifacts with path and `blake3_first8` (sorted by path before emission)
+    /// Artifacts with path and `blake3_first8` hash (sorted by path).
     pub artifacts: Vec<ArtifactInfo>,
-    /// Path to the last receipt file
+    /// Path to the most recent receipt file.
     pub last_receipt_path: String,
-    /// Effective configuration with source attribution
+    /// Effective configuration with source attribution (`cli`, `config`, or `default`).
     pub effective_config: std::collections::BTreeMap<String, ConfigValue>,
-    /// Lock drift information if lockfile exists
+    /// Lock drift information if lockfile exists and drift is detected.
     pub lock_drift: Option<LockDrift>,
-    /// Pending fixup summary (counts only) - optional field
+    /// Pending fixup summary (counts only, no file contents).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pending_fixups: Option<PendingFixupsSummary>,
 }
 
-/// Artifact information for status output
+/// Artifact information for status output.
+///
+/// Represents a single artifact file with its path and truncated BLAKE3 hash.
+/// Used in [`StatusOutput`] to list all artifacts for a spec.
+///
+/// # Example
+///
+/// ```rust
+/// use xchecker::types::ArtifactInfo;
+///
+/// let artifact = ArtifactInfo {
+///     path: "artifacts/00-requirements.md".to_string(),
+///     blake3_first8: "a1b2c3d4".to_string(),
+/// };
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtifactInfo {
-    /// Path to the artifact
+    /// Path to the artifact relative to the spec directory.
     pub path: String,
-    /// First 8 characters of BLAKE3 hash
+    /// First 8 characters of the BLAKE3 hash of the canonicalized content.
     pub blake3_first8: String,
 }
 
-/// Configuration value with source attribution
+/// Configuration value with source attribution.
+///
+/// Tracks both the value and where it came from (CLI, config file, or defaults).
+/// Used in [`StatusOutput`] to show effective configuration.
+///
+/// # Example
+///
+/// ```rust
+/// use xchecker::types::{ConfigValue, ConfigSource};
+/// use serde_json::json;
+///
+/// let config_value = ConfigValue {
+///     value: json!("haiku"),
+///     source: ConfigSource::Config,
+/// };
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigValue {
-    /// The configuration value (arbitrary JSON)
+    /// The configuration value as arbitrary JSON.
     pub value: serde_json::Value,
-    /// Source of this configuration value
+    /// Source of this configuration value.
     pub source: ConfigSource,
 }
 
-/// Source of a configuration value
+/// Source of a configuration value.
+///
+/// Indicates where a configuration value originated from in the precedence chain:
+/// CLI arguments > config file > built-in defaults.
+///
+/// # Serialization
+///
+/// Serializes to lowercase strings: `"cli"`, `"config"`, `"default"`.
+///
+/// # Example
+///
+/// ```rust
+/// use xchecker::types::ConfigSource;
+///
+/// let source = ConfigSource::Cli;
+/// let json = serde_json::to_string(&source).unwrap();
+/// assert_eq!(json, r#""cli""#);
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(any(test, feature = "test-utils"), derive(strum::VariantNames))]
 pub enum ConfigSource {
+    /// Value provided via CLI argument (highest precedence).
     Cli,
+    /// Value loaded from configuration file.
     Config,
+    /// Built-in default value (lowest precedence).
     Default,
 }
 

@@ -145,7 +145,7 @@ pub fn write_error_receipt_and_exit(
         outputs: vec![],
         exit_code,
         error_kind: Some(error_kind),
-        error_reason: Some(redacted_error_reason),
+        error_reason: Some(redacted_error_reason.clone()),
         stderr_tail: None,
         stderr_redacted: None,
         warnings: vec![],
@@ -159,7 +159,7 @@ pub fn write_error_receipt_and_exit(
     // (the error might be related to filesystem issues)
     if let Err(write_err) = receipt_manager.write_receipt(&receipt) {
         eprintln!("Warning: Failed to write error receipt: {write_err}");
-        eprintln!("Original error: {error_reason}");
+        eprintln!("Original error: {redacted_error_reason}");
     }
 
     // Exit with the appropriate code
@@ -208,28 +208,71 @@ impl ReceiptManager {
         diff_context: Option<u32>,
         pipeline: Option<crate::types::PipelineInfo>,
     ) -> Receipt {
+        self.create_receipt_with_redactor(
+            crate::redaction::default_redactor(),
+            spec_id,
+            phase,
+            exit_code,
+            outputs,
+            xchecker_version,
+            claude_cli_version,
+            model_full_name,
+            model_alias,
+            flags,
+            packet,
+            stderr_tail,
+            stderr_redacted,
+            warnings,
+            fallback_used,
+            runner,
+            runner_distro,
+            error_kind,
+            error_reason,
+            diff_context,
+            pipeline,
+        )
+    }
+
+    /// Create an enhanced receipt for a completed phase, applying a caller-provided redactor (FR-SEC-19).
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_receipt_with_redactor(
+        &self,
+        redactor: &crate::redaction::SecretRedactor,
+        spec_id: &str,
+        phase: PhaseId,
+        exit_code: i32,
+        outputs: Vec<FileHash>,
+        xchecker_version: &str,
+        claude_cli_version: &str,
+        model_full_name: &str,
+        model_alias: Option<String>,
+        flags: std::collections::HashMap<String, String>,
+        packet: PacketEvidence,
+        stderr_tail: Option<String>,
+        stderr_redacted: Option<String>,
+        warnings: Vec<String>,
+        fallback_used: Option<bool>,
+        runner: &str,
+        runner_distro: Option<String>,
+        error_kind: Option<ErrorKind>,
+        error_reason: Option<String>,
+        diff_context: Option<u32>,
+        pipeline: Option<crate::types::PipelineInfo>,
+    ) -> Receipt {
         // Sort outputs by path for stable diffs
         let mut sorted_outputs = outputs;
         sorted_outputs.sort_by(|a, b| a.path.cmp(&b.path));
 
         // Apply redaction to all user-facing strings before persisting
         // This ensures no secrets leak into receipts
-        let redacted_stderr_tail = stderr_tail
-            .as_ref()
-            .map(|s| crate::redaction::redact_user_string(s));
+        let redacted_stderr_tail = stderr_tail.as_ref().map(|s| redactor.redact_string(s));
 
-        let redacted_stderr_redacted = stderr_redacted
-            .as_ref()
-            .map(|s| crate::redaction::redact_user_string(s));
+        let redacted_stderr_redacted = stderr_redacted.as_ref().map(|s| redactor.redact_string(s));
 
-        let redacted_warnings = warnings
-            .iter()
-            .map(|w| crate::redaction::redact_user_string(w))
-            .collect();
+        let redacted_warnings = warnings.iter().map(|w| redactor.redact_string(w)).collect();
 
-        let redacted_error_reason = error_reason
-            .as_ref()
-            .map(|r| crate::redaction::redact_user_string(r));
+        let redacted_error_reason = error_reason.as_ref().map(|r| redactor.redact_string(r));
 
         Receipt {
             schema_version: "1".to_string(),

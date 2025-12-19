@@ -1,5 +1,9 @@
 //! Comprehensive tests for the Phase trait system (FR-PHASE)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`phase::{...}`, `phases::{...}`,
+//! `types::{...}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests the Phase trait methods, PhaseContext, Packet assembly, BudgetUsage tracking,
 //! PhaseResult, and concrete phase implementations (Requirements, Design, Tasks).
 //!
@@ -27,6 +31,7 @@ fn create_test_context(spec_id: &str, spec_dir: PathBuf) -> PhaseContext {
         artifacts: vec![],
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 
@@ -46,6 +51,7 @@ fn create_test_context_with_artifacts(
         artifacts,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 

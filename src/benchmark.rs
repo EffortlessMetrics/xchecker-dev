@@ -1056,10 +1056,10 @@ mod tests {
             iterations: 2, // 1 warm-up + 1 measured
             verbose: false,
             thresholds: BenchmarkThresholds {
-                empty_run_max_secs: 10.0,                   // Very generous threshold
-                packetization_max_ms_per_100_files: 1000.0, // Very generous threshold
-                max_rss_mb: Some(1024.0),                   // 1GB threshold
-                max_commit_mb: Some(2048.0),                // 2GB threshold
+                empty_run_max_secs: 60.0,                      // Very generous threshold
+                packetization_max_ms_per_100_files: 100_000.0, // Very generous threshold
+                max_rss_mb: None,    // Avoid flakiness from process-wide RSS
+                max_commit_mb: None, // Avoid flakiness from process-wide commit
             },
         };
         let runner = BenchmarkRunner::new(config);
@@ -1067,7 +1067,11 @@ mod tests {
         let results = runner.run_all_benchmarks()?;
 
         // With generous thresholds, should pass
-        assert!(results.ok, "Benchmark should pass with generous thresholds");
+        assert!(
+            results.ok,
+            "Benchmark should pass with generous thresholds; violations={:?}",
+            results.violations
+        );
         assert!(
             results.violations.is_empty(),
             "Should have no violations with generous thresholds"

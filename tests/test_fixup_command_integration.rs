@@ -1,5 +1,10 @@
 //! Integration tests for fixup command wiring (Task 4.7)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`fixup::{FixupMode, FixupParser}`,
+//! `orchestrator::{OrchestratorConfig, PhaseOrchestrator}`, `types::PhaseId`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test validates that the fixup command is properly wired:
 //! - resume --phase fixup command parsing works
 //! - --apply-fixups flag handling works
@@ -47,6 +52,7 @@ async fn test_fixup_command_parsing() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Create dummy artifacts for dependencies

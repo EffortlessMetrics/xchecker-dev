@@ -1,5 +1,10 @@
 //! M1 Gate Final Validation
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`claude::ClaudeWrapper`,
+//! `runner::{Runner, WslOptions}`, `types::{...}`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This test validates the M1 Gate requirements by running a comprehensive
 //! validation of the key functionality that has been implemented.
 

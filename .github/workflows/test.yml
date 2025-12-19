@@ -62,7 +62,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run test-fast (lib + bins)
-        run: cargo test --lib --bins
+        run: cargo test --lib --bins --locked
 
   # ============================================================================
   # TEST-FULL: Comprehensive testing (nightly + main branch)
@@ -97,8 +97,16 @@ jobs:
             ${{ runner.os }}-cargo-full-
             ${{ runner.os }}-cargo-
 
-      - name: Run test-full (all tests)
-        run: cargo test --all-features
+      - name: Run test-full (all tests) - Locked
+        run: cargo test --all-features --locked
+        env:
+          # Increase property test cases for nightly runs
+          PROPTEST_CASES: 128
+
+      - name: Run test-full (all tests) - Fresh Resolve
+        run: |
+          cargo update
+          cargo test --all-features
         env:
           # Increase property test cases for nightly runs
           PROPTEST_CASES: 128

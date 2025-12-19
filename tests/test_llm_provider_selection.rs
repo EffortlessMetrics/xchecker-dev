@@ -1,5 +1,10 @@
 //! Tests for LLM provider configuration and validation
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`config::{CliArgs, Config}`,
+//! `error::{ConfigError, XCheckerError}`) and may break with internal refactors. These tests
+//! are intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! Validates that the configuration system correctly:
 //! - Accepts supported providers (claude-cli, gemini-cli, openrouter, anthropic)
 //! - Rejects unsupported providers during config validation with ConfigError::InvalidValue

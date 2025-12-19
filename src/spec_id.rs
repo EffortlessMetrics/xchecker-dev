@@ -122,7 +122,11 @@ pub fn sanitize_spec_id(id: &str) -> Result<String, SpecIdError> {
 
     // Step 5: Warn user if sanitization occurred
     if sanitized != id {
-        eprintln!("Warning: spec ID sanitized from '{id}' to '{sanitized}'");
+        let redacted_original = crate::redaction::redact_user_string(id);
+        let redacted_sanitized = crate::redaction::redact_user_string(&sanitized);
+        eprintln!(
+            "Warning: spec ID sanitized from '{redacted_original}' to '{redacted_sanitized}'"
+        );
     }
 
     Ok(sanitized)

@@ -1,3 +1,9 @@
+//! Tests for Receipt schema v1 structure
+//!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`types::{...}`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+
 use chrono::Utc;
 use std::collections::HashMap;
 use xchecker::types::{ErrorKind, FileHash, PacketEvidence, Receipt};

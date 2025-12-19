@@ -1,5 +1,10 @@
 //! Integration tests for problem statement handling in packets and prompts
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`packet::{...}`, `phase::{...}`,
+//! `phases::RequirementsPhase`, `types::Priority`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! Verifies that:
 //! 1. Problem statement files (source/00-problem-statement.md) are included in packets
 //! 2. Problem statement content is prioritized in packet selection
@@ -107,6 +112,7 @@ fn test_prompt_includes_problem_statement() {
         artifacts: vec![],
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let phase = RequirementsPhase::new();
@@ -139,6 +145,7 @@ fn test_prompt_fallback_without_problem_statement() {
         artifacts: vec![],
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let phase = RequirementsPhase::new();
@@ -204,6 +211,7 @@ fn test_prompt_includes_spec_id() {
         artifacts: vec![],
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let phase = RequirementsPhase::new();

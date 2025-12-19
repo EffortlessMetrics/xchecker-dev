@@ -1,4 +1,4 @@
-//! Orchestrator façade for external consumers
+//! Orchestrator façade for external consumers.
 //!
 //! This module provides a clean, stable API for external consumers (CLI, Kiro, MCP tools)
 //! to interact with the phase orchestrator without needing to know internal details.
@@ -6,74 +6,229 @@
 //! **Integration rule**: Outside `src/orchestrator/`, use `OrchestratorHandle`.
 //! Direct `PhaseOrchestrator` usage is reserved for tests and orchestrator internals.
 //!
-//! **v1.0 Status**: Most methods in this module are reserved for future IDE/TUI integration.
-//! The CLI currently uses `PhaseOrchestrator` directly via internal commands. These methods
-//! will be wired into external tooling in a future release.
+//! # Quick Start
+//!
+//! ```rust,no_run
+//! use xchecker::{OrchestratorHandle, PhaseId};
+//!
+//! #[tokio::main]
+//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     // Using environment-based config discovery
+//!     let mut handle = OrchestratorHandle::new("my-spec")?;
+//!     handle.run_phase(PhaseId::Requirements).await?;
+//!     Ok(())
+//! }
+//! ```
+
+use std::path::PathBuf;
 
 use anyhow::Result;
 
 use crate::artifact::ArtifactManager;
+use crate::config::{CliArgs, Config};
+use crate::error::{ConfigError, XCheckerError};
 use crate::receipt::ReceiptManager;
-use crate::types::PhaseId;
+use crate::status::StatusManager;
+use crate::types::{PhaseId, StatusOutput};
 
 use super::{ExecutionResult, OrchestratorConfig, PhaseOrchestrator};
 
-/// Kiro-friendly orchestrator handle
+/// The primary public API for embedding xchecker.
 ///
-/// Provides a simplified interface for running phases programmatically.
-/// Use this when integrating xchecker with external tools or agents.
+/// `OrchestratorHandle` provides a stable interface for creating specs and running
+/// phases programmatically. It is the canonical way to use xchecker outside of the CLI.
 ///
-/// **v1.0 Status**: Reserved for future IDE/TUI integration. The CLI currently
-/// uses `PhaseOrchestrator` directly. These methods will be wired into external
-/// tooling in a future release.
+/// # Overview
+///
+/// Use `OrchestratorHandle` to:
+/// - Create and manage specs programmatically
+/// - Execute individual phases or the full workflow
+/// - Query spec status and artifacts
+/// - Configure execution options
+///
+/// # Construction
+///
+/// There are two ways to create an `OrchestratorHandle`:
+///
+/// - [`OrchestratorHandle::new`]: Uses environment-based config discovery (same as CLI)
+/// - [`OrchestratorHandle::from_config`]: Uses explicit configuration (deterministic)
+///
+/// # Threading
+///
+/// `OrchestratorHandle` is **NOT** guaranteed `Send` or `Sync` in 1.x.
+/// Treat as single-threaded; concurrent use is undefined behavior.
+/// This may be relaxed in future versions.
+///
+/// # Mutability
+///
+/// Methods that execute phases take `&mut self` to encode "sequential use only"
+/// semantics. This prevents accidental concurrent use at compile time.
+///
+/// # Sync vs Async
+///
+/// Public APIs are synchronous and manage their own async runtime internally.
+/// Tokio is an implementation detail not exposed to library consumers.
 ///
 /// # Example
-/// ```ignore
-/// let handle = OrchestratorHandle::new("my-spec")?;
-/// let result = handle.run_phase(PhaseId::Requirements).await?;
-/// println!("Success: {}", result.success);
+///
+/// ```rust,no_run
+/// use xchecker::{OrchestratorHandle, PhaseId};
+///
+/// #[tokio::main]
+/// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Using environment-based config discovery
+///     let mut handle = OrchestratorHandle::new("my-spec")?;
+///     
+///     // Run a single phase
+///     handle.run_phase(PhaseId::Requirements).await?;
+///
+///     // Check status
+///     let status = handle.status()?;
+///     println!("Artifacts: {}", status.artifacts.len());
+///     
+///     // Get the spec ID
+///     println!("Spec: {}", handle.spec_id());
+///     Ok(())
+/// }
 /// ```
-#[allow(dead_code)] // Reserved for future IDE/TUI integration
+///
+/// # Using Explicit Configuration
+///
+/// ```rust,no_run
+/// use xchecker::{OrchestratorHandle, Config};
+///
+/// // Create explicit config programmatically
+/// let config = Config::discover(&Default::default())?;
+/// let handle = OrchestratorHandle::from_config("my-spec", config)?;
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Error Handling
+///
+/// All methods return `Result` types. Errors are returned as [`XCheckerError`](crate::XCheckerError)
+/// which provides:
+/// - Rich context about what went wrong
+/// - Actionable suggestions for resolution
+/// - Mapping to CLI exit codes via [`to_exit_code()`](crate::XCheckerError::to_exit_code)
 pub struct OrchestratorHandle {
     orchestrator: PhaseOrchestrator,
     config: OrchestratorConfig,
+    spec_id: String,
 }
 
 impl OrchestratorHandle {
-    /// Create a new handle for the given spec.
+    /// Create a handle using environment-based config discovery.
     ///
-    /// Acquires an exclusive lock on the spec directory and creates a handle
-    /// with default configuration.
+    /// This uses the same discovery logic as the CLI:
+    /// - `XCHECKER_HOME` environment variable
+    /// - Upward search for `.xchecker/config.toml`
+    /// - Built-in defaults
     ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
+    /// Acquires an exclusive lock on the spec directory.
     ///
     /// # Errors
-    /// Returns error if orchestrator creation fails or lock cannot be acquired.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub fn new(spec_id: &str) -> Result<Self> {
-        let orchestrator = PhaseOrchestrator::new(spec_id)?;
-        let config = OrchestratorConfig::default();
-        Ok(Self {
-            orchestrator,
-            config,
-        })
+    ///
+    /// Returns error if:
+    /// - Configuration discovery fails
+    /// - Orchestrator creation fails
+    /// - Lock cannot be acquired
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::OrchestratorHandle;
+    ///
+    /// let handle = OrchestratorHandle::new("my-spec")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn new(spec_id: &str) -> Result<Self, XCheckerError> {
+        // Use environment-based config discovery (same as CLI)
+        let config = Config::discover(&CliArgs::default()).map_err(|e| {
+            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
+                reason: e.to_string(),
+            })
+        })?;
+
+        Self::from_config_internal(spec_id, config, false)
     }
 
-    /// Create a handle with custom configuration.
+    /// Create a handle using explicit configuration.
     ///
-    /// Allows setting custom config parameters like model, timeout, etc.
-    /// before executing phases.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
+    /// This does NOT probe the global environment or filesystem for config.
+    /// Use this when you need deterministic behavior independent of the
+    /// user's environment.
     ///
     /// # Errors
-    /// Returns error if orchestrator creation fails or lock cannot be acquired.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub fn with_config(spec_id: &str, config: OrchestratorConfig) -> Result<Self> {
-        let orchestrator = PhaseOrchestrator::new(spec_id)?;
+    ///
+    /// Returns error if:
+    /// - Orchestrator creation fails
+    /// - Lock cannot be acquired
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::{OrchestratorHandle, Config};
+    ///
+    /// // Create explicit config programmatically
+    /// let config = Config::discover(&Default::default())?;
+    /// let handle = OrchestratorHandle::from_config("my-spec", config)?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn from_config(spec_id: &str, config: Config) -> Result<Self, XCheckerError> {
+        Self::from_config_internal(spec_id, config, false)
+    }
+
+    /// Internal constructor that converts Config to OrchestratorConfig
+    fn from_config_internal(
+        spec_id: &str,
+        config: Config,
+        force: bool,
+    ) -> Result<Self, XCheckerError> {
+        let redactor = crate::redaction::SecretRedactor::from_config(&config).map_err(|e| {
+            XCheckerError::Config(ConfigError::InvalidValue {
+                key: "security".to_string(),
+                value: e.to_string(),
+            })
+        })?;
+
+        let orchestrator = if force {
+            PhaseOrchestrator::new_with_force(spec_id, true)
+        } else {
+            PhaseOrchestrator::new(spec_id)
+        }
+        .map_err(|e| {
+            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
+                reason: e.to_string(),
+            })
+        })?;
+
+        // Convert Config to OrchestratorConfig
+        let mut orch_config = OrchestratorConfig::default();
+
+        orch_config.redactor = std::sync::Arc::new(redactor);
+
+        // Apply config values to orchestrator config
+        if let Some(model) = &config.defaults.model {
+            orch_config
+                .config
+                .insert("model".to_string(), model.clone());
+        }
+        if let Some(timeout) = config.defaults.phase_timeout {
+            orch_config
+                .config
+                .insert("phase_timeout".to_string(), timeout.to_string());
+        }
+        if let Some(strict) = config.defaults.strict_validation {
+            orch_config.strict_validation = strict;
+        }
+
+        // Copy selectors
+        orch_config.selectors = Some(config.selectors.clone());
+
         Ok(Self {
             orchestrator,
-            config,
+            config: orch_config,
+            spec_id: spec_id.to_string(),
         })
     }
 
@@ -82,42 +237,47 @@ impl OrchestratorHandle {
     /// Use with caution: forcing lock override can lead to race conditions if another
     /// process is actively working on the spec.
     ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    ///
-    /// # Arguments
-    /// * `spec_id` - The spec identifier
-    /// * `force` - Whether to override existing locks
-    ///
     /// # Errors
+    ///
     /// Returns error if orchestrator creation fails.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub fn with_force(spec_id: &str, force: bool) -> Result<Self> {
-        let orchestrator = PhaseOrchestrator::new_with_force(spec_id, force)?;
-        let config = OrchestratorConfig::default();
-        Ok(Self {
-            orchestrator,
-            config,
-        })
+    pub fn with_force(spec_id: &str, force: bool) -> Result<Self, XCheckerError> {
+        let config = Config::discover(&CliArgs::default()).map_err(|e| {
+            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
+                reason: e.to_string(),
+            })
+        })?;
+
+        Self::from_config_internal(spec_id, config, force)
     }
 
-    /// Create a handle with custom configuration and force flag.
+    /// Create a handle with custom OrchestratorConfig and force flag.
     ///
-    /// Combines custom config with lock override capability.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
+    /// This is used by the CLI when it needs to pass specific orchestrator
+    /// configuration options.
     ///
     /// # Errors
+    ///
     /// Returns error if orchestrator creation fails.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
     pub fn with_config_and_force(
         spec_id: &str,
         config: OrchestratorConfig,
         force: bool,
-    ) -> Result<Self> {
-        let orchestrator = PhaseOrchestrator::new_with_force(spec_id, force)?;
+    ) -> Result<Self, XCheckerError> {
+        let orchestrator = if force {
+            PhaseOrchestrator::new_with_force(spec_id, true)
+        } else {
+            PhaseOrchestrator::new(spec_id)
+        }
+        .map_err(|e| {
+            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
+                reason: e.to_string(),
+            })
+        })?;
+
         Ok(Self {
             orchestrator,
             config,
+            spec_id: spec_id.to_string(),
         })
     }
 
@@ -126,45 +286,183 @@ impl OrchestratorHandle {
     /// Does not acquire locks, allowing inspection while another process
     /// is actively working on the spec.
     ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    ///
     /// # Errors
+    ///
     /// Returns error if orchestrator creation fails.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub fn readonly(spec_id: &str) -> Result<Self> {
-        let orchestrator = PhaseOrchestrator::new_readonly(spec_id)?;
+    pub fn readonly(spec_id: &str) -> Result<Self, XCheckerError> {
+        let orchestrator = PhaseOrchestrator::new_readonly(spec_id).map_err(|e| {
+            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
+                reason: e.to_string(),
+            })
+        })?;
+
         let config = OrchestratorConfig::default();
+
         Ok(Self {
             orchestrator,
             config,
+            spec_id: spec_id.to_string(),
         })
     }
 
-    /// Run a specific phase.
+    /// Execute a single phase.
     ///
-    /// Validates phase transition rules and executes the phase end-to-end,
-    /// generating artifacts and receipts.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
+    /// Behavior matches the CLI `xchecker resume --phase <phase>` command.
+    /// Takes `&mut self` to enforce sequential use.
     ///
     /// # Errors
+    ///
     /// Returns error if transition is invalid or execution fails.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub async fn run_phase(&self, phase: PhaseId) -> Result<ExecutionResult> {
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::{OrchestratorHandle, PhaseId};
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut handle = OrchestratorHandle::new("my-spec")?;
+    /// handle.run_phase(PhaseId::Requirements).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn run_phase(&mut self, phase: PhaseId) -> Result<ExecutionResult> {
         self.orchestrator
             .resume_from_phase(phase, &self.config)
             .await
+    }
+
+    /// Execute all phases in sequence.
+    ///
+    /// Stops on first failure. Behavior matches the CLI `xchecker spec` command.
+    /// Takes `&mut self` to enforce sequential use.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if any phase fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::OrchestratorHandle;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut handle = OrchestratorHandle::new("my-spec")?;
+    /// handle.run_all().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn run_all(&mut self) -> Result<ExecutionResult> {
+        // Execute phases in sequence: Requirements -> Design -> Tasks
+        // (Review, Fixup, Final are optional/advanced phases)
+        let phases = [PhaseId::Requirements, PhaseId::Design, PhaseId::Tasks];
+
+        let mut last_result = None;
+        for phase in phases {
+            let result = self
+                .orchestrator
+                .resume_from_phase(phase, &self.config)
+                .await?;
+
+            if !result.success {
+                return Ok(result);
+            }
+            last_result = Some(result);
+        }
+
+        // Return the last successful result
+        last_result.ok_or_else(|| anyhow::anyhow!("No phases executed"))
+    }
+
+    /// Get the current spec status.
+    ///
+    /// Returns `StatusOutput` which is part of the stable public API.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if status generation fails.
+    pub fn status(&self) -> Result<StatusOutput, XCheckerError> {
+        use std::collections::BTreeMap;
+
+        // Build effective config from orchestrator config
+        let mut effective_config: BTreeMap<String, (String, String)> = BTreeMap::new();
+        for (key, value) in &self.config.config {
+            effective_config.insert(key.clone(), (value.clone(), "programmatic".to_string()));
+        }
+
+        StatusManager::generate_status_from_orchestrator(
+            &self.orchestrator,
+            effective_config,
+            None, // lock_drift - not tracked in handle
+            None, // pending_fixups - not tracked in handle
+        )
+        .map_err(|e| {
+            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
+                reason: format!("Failed to generate status: {}", e),
+            })
+        })
+    }
+
+    /// Get the path to the most recent receipt.
+    ///
+    /// Returns `None` if no receipts have been written.
+    #[must_use]
+    pub fn last_receipt_path(&self) -> Option<PathBuf> {
+        // Check each phase in reverse order to find the most recent receipt
+        let phases = [
+            PhaseId::Final,
+            PhaseId::Fixup,
+            PhaseId::Review,
+            PhaseId::Tasks,
+            PhaseId::Design,
+            PhaseId::Requirements,
+        ];
+
+        for phase in &phases {
+            if let Ok(Some(_receipt)) = self
+                .orchestrator
+                .receipt_manager()
+                .read_latest_receipt(*phase)
+            {
+                // Construct the receipt path from the receipt manager's base path
+                let base_path = self.orchestrator.artifact_manager().base_path();
+                let receipts_dir = base_path.join("receipts");
+
+                // Find the most recent receipt file for this phase
+                if let Ok(entries) = std::fs::read_dir(&receipts_dir) {
+                    let phase_prefix = format!("{}-", phase.as_str());
+                    let mut receipt_files: Vec<_> = entries
+                        .filter_map(|e| e.ok())
+                        .filter(|e| e.file_name().to_string_lossy().starts_with(&phase_prefix))
+                        .collect();
+
+                    // Sort by name (timestamp-based) to get the most recent
+                    receipt_files.sort_by_key(|b| std::cmp::Reverse(b.file_name()));
+
+                    if let Some(entry) = receipt_files.first() {
+                        return Some(entry.path());
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Get the spec ID this handle operates on.
+    #[must_use]
+    pub fn spec_id(&self) -> &str {
+        &self.spec_id
     }
 
     /// Check if a phase can be run.
     ///
     /// Validates that all dependencies are satisfied and have successful receipts.
     ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    ///
     /// # Returns
+    ///
     /// `true` if the phase can be executed, `false` otherwise.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
     pub fn can_run_phase(&self, phase: PhaseId) -> Result<bool> {
         self.orchestrator.can_resume_from_phase_public(phase)
     }
@@ -173,9 +471,6 @@ impl OrchestratorHandle {
     ///
     /// Returns the last successfully completed phase, or `None` if no phases
     /// have been completed.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
     pub fn current_phase(&self) -> Result<Option<PhaseId>> {
         self.orchestrator.get_current_phase_state()
     }
@@ -184,9 +479,6 @@ impl OrchestratorHandle {
     ///
     /// Returns the list of phases that can be validly executed based on
     /// the current workflow state.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
     pub fn legal_next_phases(&self) -> Result<Vec<PhaseId>> {
         let current = self.current_phase()?;
         Ok(match current {
@@ -206,9 +498,6 @@ impl OrchestratorHandle {
     /// - `model`: LLM model to use
     /// - `phase_timeout`: Timeout in seconds
     /// - `apply_fixups`: Whether to apply fixups or preview
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
     pub fn set_config(&mut self, key: &str, value: &str) {
         self.config
             .config
@@ -218,9 +507,7 @@ impl OrchestratorHandle {
     /// Get a configuration option.
     ///
     /// Returns `None` if the key is not set.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
+    #[must_use]
     pub fn get_config(&self, key: &str) -> Option<&String> {
         self.config.config.get(key)
     }
@@ -228,32 +515,15 @@ impl OrchestratorHandle {
     /// Enable or disable dry-run mode.
     ///
     /// In dry-run mode, phases are simulated without calling the LLM.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
     pub fn set_dry_run(&mut self, dry_run: bool) {
         self.config.dry_run = dry_run;
-    }
-
-    /// Get the spec ID.
-    ///
-    /// Returns the identifier for the spec managed by this handle.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
-    #[must_use]
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub fn spec_id(&self) -> &str {
-        self.orchestrator.spec_id()
     }
 
     /// Get the current orchestrator configuration.
     ///
     /// Returns a reference to the configuration used for phase execution.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
     #[must_use]
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
-    pub fn config(&self) -> &OrchestratorConfig {
+    pub fn orchestrator_config(&self) -> &OrchestratorConfig {
         &self.config
     }
 
@@ -261,10 +531,8 @@ impl OrchestratorHandle {
     ///
     /// Use this for read-only operations like checking phase completion,
     /// listing artifacts, or getting the base path.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
     #[must_use]
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
+    #[doc(hidden)]
     pub fn artifact_manager(&self) -> &ArtifactManager {
         self.orchestrator.artifact_manager()
     }
@@ -273,10 +541,8 @@ impl OrchestratorHandle {
     ///
     /// Use this for read-only operations like listing receipts or
     /// getting receipt metadata.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
     #[must_use]
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
+    #[doc(hidden)]
     pub fn receipt_manager(&self) -> &ReceiptManager {
         self.orchestrator.receipt_manager()
     }
@@ -287,10 +553,8 @@ impl OrchestratorHandle {
     /// such as `StatusManager::generate_status_from_orchestrator`.
     ///
     /// Prefer using the high-level methods on `OrchestratorHandle` when possible.
-    ///
-    /// Not currently used by CLI; reserved for IDE/TUI integration.
     #[must_use]
-    #[allow(dead_code)] // Reserved for future IDE/TUI integration
+    #[doc(hidden)]
     pub fn as_orchestrator(&self) -> &PhaseOrchestrator {
         &self.orchestrator
     }

@@ -62,8 +62,8 @@ This spec covers the work to turn xchecker into a crates.io-native CLI that can 
 
 1. WHEN `xchecker` is invoked THEN the system SHALL support all existing subcommands: spec, resume, status, clean, doctor, init, benchmark, gate
 2. WHEN CLI arguments are parsed THEN the system SHALL use clap for argument parsing in `cli.rs`, not in `main.rs`
-3. WHEN the CLI encounters an error THEN the system SHALL map `XcError` to the appropriate `ExitCode` and display user-friendly messages
-4. WHEN `main.rs` executes THEN the system SHALL only invoke `cli::run()`, map `XcError` to `ExitCode`, and call `std::process::exit` with that code
+3. WHEN the CLI encounters an error THEN `cli::run()` SHALL map the underlying `XcError` to the appropriate `ExitCode`, display a user-friendly message via `display_for_user()`, and return `Err(ExitCode)`
+4. WHEN `main.rs` executes THEN the system SHALL only invoke `cli::run()`, and on `Err(code)` SHALL call `std::process::exit(code.as_i32())` without printing any additional output
 5. WHEN CLI flags are provided THEN the system SHALL support all existing flags including `--verbose`, `--json`, `--force`, `--apply-fixups`, etc.
 6. WHEN JSON output is requested THEN the system SHALL emit JCS-canonical JSON matching existing v1 schemas (see FR-CONTRACT)
 
@@ -79,7 +79,7 @@ This spec covers the work to turn xchecker into a crates.io-native CLI that can 
 4. WHEN `cargo publish --dry-run` is executed THEN the system SHALL succeed with no blocking errors
 5. WHEN the crate is installed THEN the binary SHALL work on Linux, macOS, and Windows given Rust toolchain and Claude CLI configured
 6. WHEN the crate is published THEN Cargo.toml SHALL declare `rust-version` (MSRV) and the project SHALL support that version for all 1.x releases
-7. WHEN the crate is installed THEN only the `xchecker` binary SHALL be installed; `claude-stub` is a dev/test utility and SHALL NOT be published
+7. WHEN the crate is installed via `cargo install xchecker` THEN only the `xchecker` binary SHALL be installed; `claude-stub` is a dev/test utility and SHALL NOT be installed unless the `dev-tools` feature is explicitly enabled
 
 ### Requirement 4 (FR-API)
 

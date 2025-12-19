@@ -1,5 +1,9 @@
 //! Comprehensive tests for SourceResolver implementation (FR-SOURCE)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`source::{...}`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite verifies:
 //! - GitHub source resolution (FR-SOURCE-001)
 //! - GitHub validation (owner, repo, issue_id) (FR-SOURCE-002)
