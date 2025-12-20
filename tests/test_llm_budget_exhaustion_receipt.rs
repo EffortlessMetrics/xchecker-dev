@@ -1,5 +1,10 @@
 //! Test for LLM budget exhaustion receipt generation
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`llm::{...}`,
+//! `paths::with_isolated_home`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! This test validates that when an LLM backend fails with BudgetExceeded error,
 //! the orchestrator creates a receipt with:
 //! - `llm.budget_exhausted: true`

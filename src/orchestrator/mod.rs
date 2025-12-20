@@ -27,7 +27,9 @@ use crate::artifact::ArtifactManager;
 use crate::config::Selectors;
 use crate::error::{PhaseError, XCheckerError};
 use crate::receipt::ReceiptManager;
+use crate::redaction::SecretRedactor;
 use crate::types::PhaseId;
+use std::sync::Arc;
 
 /// Orchestrates the execution of spec generation phases.
 ///
@@ -97,6 +99,10 @@ pub struct OrchestratorConfig {
     /// missing required sections) become hard errors that fail the phase.
     /// When `false`, validation issues are logged as warnings only.
     pub strict_validation: bool,
+    /// Secret redactor built from the effective configuration.
+    ///
+    /// Used for both secret scanning and final-pass redaction of user-facing output (FR-SEC-19).
+    pub redactor: Arc<SecretRedactor>,
 }
 
 /// Phase timeout configuration with sensible defaults.
@@ -554,6 +560,7 @@ mod tests {
             config: HashMap::new(),
             selectors: None,
             strict_validation: false,
+            redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
         };
 
         let result = orchestrator.execute_requirements_phase(&config).await;
@@ -583,6 +590,7 @@ mod tests {
             artifacts: vec!["test-artifact.md".to_string()],
             selectors: None,
             strict_validation: false,
+            redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
         };
 
         assert_eq!(context.spec_id, "test-spec");
@@ -837,6 +845,7 @@ This is a generated requirements document for spec {}. The system will provide c
             config: HashMap::new(),
             selectors: None,
             strict_validation: false,
+            redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
         };
 
         // Execute the phase

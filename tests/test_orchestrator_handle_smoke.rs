@@ -1,5 +1,10 @@
 //! Black-box sentinel test for `OrchestratorHandle` facade
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! OrchestratorHandle}`, `paths::with_isolated_home`, `types::PhaseId`) and may break with
+//! internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! ┌─────────────────────────────────────────────────────────────────────────────┐
 //! │ CANARY TEST: This is the sentinel for the OrchestratorHandle contract.      │
 //! │                                                                             │
@@ -32,6 +37,7 @@ fn dry_run_config() -> OrchestratorConfig {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 
@@ -53,7 +59,7 @@ async fn handle_runs_requirements_in_dry_run() -> Result<()> {
     let spec_id = unique_spec_id("requirements");
     let config = dry_run_config();
 
-    let handle = OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle = OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
     let result = handle.run_phase(PhaseId::Requirements).await?;
 
     // Verify ExecutionResult invariants
@@ -88,7 +94,7 @@ async fn handle_receipt_has_pipeline_metadata() -> Result<()> {
     let spec_id = unique_spec_id("pipeline-meta");
     let config = dry_run_config();
 
-    let handle = OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle = OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
     let result = handle.run_phase(PhaseId::Requirements).await?;
 
     // Read and parse receipt
@@ -120,7 +126,7 @@ async fn handle_phase_state_tracking() -> Result<()> {
     let spec_id = unique_spec_id("phase-state");
     let config = dry_run_config();
 
-    let handle = OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle = OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Before execution, no current phase
     let current = handle.current_phase()?;
@@ -168,7 +174,7 @@ async fn handle_can_run_phase_validates_dependencies() -> Result<()> {
     let spec_id = unique_spec_id("can-run");
     let config = dry_run_config();
 
-    let handle = OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle = OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Requirements should be runnable initially
     assert!(
@@ -233,7 +239,7 @@ async fn handle_config_accessors() -> Result<()> {
     let spec_id = unique_spec_id("config-access");
     let config = dry_run_config();
 
-    let mut handle = OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle = OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Test spec_id
     assert_eq!(handle.spec_id(), spec_id);
@@ -244,9 +250,15 @@ async fn handle_config_accessors() -> Result<()> {
     assert_eq!(handle.get_config("model"), Some(&"test-model".to_string()));
 
     // Test dry_run accessor
-    assert!(handle.config().dry_run, "Should start in dry-run mode");
+    assert!(
+        handle.orchestrator_config().dry_run,
+        "Should start in dry-run mode"
+    );
     handle.set_dry_run(false);
-    assert!(!handle.config().dry_run, "Should be changed to non-dry-run");
+    assert!(
+        !handle.orchestrator_config().dry_run,
+        "Should be changed to non-dry-run"
+    );
 
     Ok(())
 }
@@ -263,7 +275,7 @@ async fn handle_sequential_phase_execution() -> Result<()> {
     let spec_id = unique_spec_id("sequential");
     let config = dry_run_config();
 
-    let handle = OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle = OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Execute Requirements
     let req_result = handle.run_phase(PhaseId::Requirements).await?;

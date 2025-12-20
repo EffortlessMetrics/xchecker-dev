@@ -1,5 +1,9 @@
 //! Performance tests for packet assembly optimization (Task 9.4)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`packet::{ContentSelector,
+//! PacketBuilder}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite profiles packet assembly to identify bottlenecks and verify
 //! that the ≤ 200ms target for 100 files is met (NFR1).
 

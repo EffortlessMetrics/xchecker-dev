@@ -1,5 +1,10 @@
 //! Comprehensive tests for status reporting (FR-STA)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`artifact::ArtifactManager`,
+//! `receipt::ReceiptManager`, `status::StatusManager`, `types::{...}`) and may break with
+//! internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This module tests all aspects of status generation and reporting:
 //! - FR-STA-001: Status generation with effective_config
 //! - FR-STA-002: Source attribution (cli/config/default)

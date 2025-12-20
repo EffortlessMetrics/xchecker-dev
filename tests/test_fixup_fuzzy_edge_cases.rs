@@ -1,5 +1,9 @@
 //! Edge case tests for fixup fuzzy matching
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`fixup::{FixupMode, FixupParser}`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests for scenarios identified as gaps in the fixup test coverage:
 //! - Multi-hunk with heavy edits between hunks
 //! - Hunks that shift backwards due to earlier deletions

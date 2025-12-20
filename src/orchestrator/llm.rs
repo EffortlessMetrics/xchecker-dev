@@ -8,7 +8,8 @@ use std::time::Duration;
 use anyhow::Result;
 
 use crate::config::{
-    ClaudeConfig, Config, Defaults, LlmConfig, PhaseConfig, PhasesConfig, RunnerConfig, Selectors,
+    ClaudeConfig, Config, Defaults, LlmConfig, PhaseConfig, PhasesConfig, RunnerConfig,
+    SecurityConfig, Selectors,
 };
 use crate::error::XCheckerError;
 use crate::hooks::HooksConfig;
@@ -118,6 +119,7 @@ impl PhaseOrchestrator {
             },
             phases,
             hooks: HooksConfig::default(),
+            security: SecurityConfig::default(),
             source_attribution: HashMap::new(),
         }
     }

@@ -21,13 +21,13 @@ pub fn xchecker_home() -> Utf8PathBuf {
     Utf8PathBuf::from(".xchecker")
 }
 
-/// <home>/specs/<`spec_id`>
+/// Returns `<XCHECKER_HOME>/specs/<spec_id>`
 #[must_use]
 pub fn spec_root(spec_id: &str) -> Utf8PathBuf {
     xchecker_home().join("specs").join(spec_id)
 }
 
-/// <home>/cache
+/// Returns `<XCHECKER_HOME>/cache`
 #[must_use]
 pub fn cache_dir() -> Utf8PathBuf {
     xchecker_home().join("cache")

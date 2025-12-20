@@ -1,5 +1,10 @@
 //! V1.2: Verify and test BLAKE3 hashing (FR-JCS)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`canonicalization::Canonicalizer`,
+//! `receipt::ReceiptManager`, `types::{...}`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This test module comprehensively validates BLAKE3 hashing for content integrity.
 //!
 //! Requirements tested:

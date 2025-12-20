@@ -1,5 +1,10 @@
 //! Integration tests for PacketBuilder and Phase system wiring (Task 9.2)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`, `types::PhaseId`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! Tests the complete integration of PacketBuilder, Phase trait system,
 //! and orchestrator with proper packet evidence tracking.
 

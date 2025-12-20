@@ -1,5 +1,10 @@
 //! Tests for phase timeout system (Task 7)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator, PhaseTimeout}`, `types::PhaseId`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This test validates that:
 //! 1. Phase timeouts are enforced
 //! 2. Partial artifacts are written on timeout
@@ -58,6 +63,7 @@ fn test_phase_timeout_from_config() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), 300);
@@ -70,6 +76,7 @@ fn test_phase_timeout_from_config() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::MIN_SECS);
@@ -80,6 +87,7 @@ fn test_phase_timeout_from_config() {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -92,6 +100,7 @@ fn test_phase_timeout_from_config() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -113,6 +122,7 @@ async fn test_timeout_creates_partial_and_receipt() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Note: This test would need a way to simulate a slow Claude response

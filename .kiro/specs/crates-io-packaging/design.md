@@ -66,7 +66,7 @@ The architecture follows a layered approach where the kernel contains all domain
 //! use xchecker::{OrchestratorHandle, PhaseId};
 //!
 //! fn main() -> Result<(), xchecker::XcError> {
-//!     let handle = OrchestratorHandle::new("my-spec")?;
+//!     let mut handle = OrchestratorHandle::new("my-spec")?;
 //!     handle.run_phase(PhaseId::Requirements)?;
 //!     Ok(())
 //! }
@@ -79,6 +79,7 @@ pub use config::Config;
 pub use error::XcError;
 pub use exit_codes::ExitCode;
 pub use status::StatusOutput;
+pub use canonicalization::emit_jcs;  // JCS emission for JSON contracts
 
 // Internal modules - accessible but not stable
 // NOTE: cli module is NOT exported here - it's only used by main.rs via `mod cli;`
@@ -94,6 +95,8 @@ pub mod error;
 pub mod exit_codes;
 #[doc(hidden)]
 pub mod status;
+#[doc(hidden)]
+pub mod canonicalization;  // emit_jcs is re-exported at root
 // ... other internal modules (but NOT cli)
 ```
 
@@ -290,6 +293,10 @@ impl RedactionConfig {
     pub fn from_config(config: &Config) -> Self;
 }
 
+/// Lifecycle: `OrchestratorHandle` SHALL construct a `RedactionConfig` from `Config`
+/// at creation time and reuse it for all operations. `RedactionConfig` SHALL NOT be
+/// rebuilt per logging/emit call (pattern compilation is expensive).
+
 /// Single entry point for all redaction.
 /// 
 /// All logging, JSON emission, and external invocation surfaces
@@ -339,6 +346,12 @@ impl SandboxRoot {
     pub fn join(&self, rel: impl AsRef<Path>) -> Result<SandboxPath, XcError>;
 }
 
+/// **Sandbox Roots**: xchecker uses two sandbox roots:
+/// - **WorkspaceRoot**: Encloses the user's repository. Used by fixup and artifact modules.
+/// - **StateRoot**: Encloses the xchecker state directory (`.xchecker/`). Used by receipts, status, and locks.
+/// 
+/// All file I/O for user content SHALL use WorkspaceRoot; all state I/O SHALL use StateRoot.
+
 impl SandboxPath {
     /// Get the full path for I/O operations.
     pub fn as_path(&self) -> &Path;
@@ -380,6 +393,10 @@ pub trait ProcessRunner {
 }
 
 /// Native process runner using std::process::Command.
+/// 
+/// `ProcessRunner` is a synchronous interface; implementations MAY internally
+/// drive an async runtime (e.g., Tokio for timeouts) but MUST NOT expose async
+/// in the public API in 1.x. This aligns with NFR-ASYNC.
 pub struct NativeRunner;
 
 impl ProcessRunner for NativeRunner {
@@ -453,7 +470,7 @@ impl ExitCode {
 }
 ```
 
-### 5. CLI Layer (`src/main.rs`)
+### 7. CLI Layer (`src/main.rs`)
 
 ```rust
 // NOTE: cli module is NOT part of the public API
@@ -461,22 +478,20 @@ impl ExitCode {
 mod cli;
 
 fn main() {
-    // cli::run() handles all output (including --json mode)
-    // Only errors bubble up for exit code mapping
-    if let Err(err) = cli::run() {
-        let code = err.to_exit_code();
-        eprintln!("{}", err.display_for_user());
+    // cli::run() handles ALL output including errors
+    // Returns Result<(), ExitCode> - main only maps to process exit
+    if let Err(code) = cli::run() {
         std::process::exit(code.as_i32());
     }
 }
 ```
 
-### 6. CLI Module (`src/cli.rs`)
+### 8. CLI Module (`src/cli.rs`)
 
 ```rust
 use clap::{Parser, Subcommand};
 // Import from crate root (public API) - NOT from internal modules
-use crate::{OrchestratorHandle, Config, XcError, PhaseId, StatusOutput};
+use crate::{OrchestratorHandle, Config, XcError, PhaseId, StatusOutput, ExitCode, emit_jcs};
 
 #[derive(Parser)]
 #[command(name = "xchecker")]
@@ -507,22 +522,37 @@ enum Commands {
 /// Entry point for CLI execution.
 ///
 /// Parses arguments, creates appropriate Config, invokes OrchestratorHandle,
-/// handles all output (including --json mode), and returns Result for main.rs.
+/// handles ALL output (including --json mode AND error messages).
 /// 
-/// On success, this function handles all output internally.
-/// On error, returns XcError for main.rs to map to exit code.
-pub fn run() -> Result<(), XcError> {
+/// Returns `Result<(), ExitCode>`:
+/// - On success: returns `Ok(())` after printing any output
+/// - On error: prints error message via `display_for_user()`, returns `Err(ExitCode)`
+/// 
+/// main.rs only calls `std::process::exit(code)` - it does NOT print anything.
+pub fn run() -> Result<(), ExitCode> {
     let cli = Cli::parse();
     
     // Set up tracing subscriber based on --verbose
     // This is the CLI's responsibility, not the library's
     setup_logging(cli.verbose);
     
-    match cli.command {
+    let result = run_inner(&cli);
+    
+    // CLI handles ALL error output
+    if let Err(ref err) = result {
+        eprintln!("{}", err.display_for_user());
+        return Err(err.to_exit_code());
+    }
+    
+    Ok(())
+}
+
+fn run_inner(cli: &Cli) -> Result<(), XcError> {
+    match &cli.command {
         Commands::Spec { spec_id, dry_run, .. } => {
             let config = Config::discover_from_env_and_fs()?;
             let mut handle = OrchestratorHandle::from_config(&spec_id, config)?;
-            if dry_run {
+            if *dry_run {
                 // Handle dry-run (print what would happen)
                 println!("Would run all phases for spec: {}", spec_id);
             } else {
@@ -536,7 +566,8 @@ pub fn run() -> Result<(), XcError> {
             
             if cli.json {
                 // Use same canonicalization as receipts/status/doctor
-                let json = crate::canonicalization::emit_jcs(&status)?;
+                // emit_jcs is re-exported at crate root as part of stable API
+                let json = crate::emit_jcs(&status)?;
                 println!("{}", json);
             } else {
                 // Human-readable output
@@ -609,9 +640,14 @@ dev-tools = []  # Enables claude-stub binary (for testing only)
 *For any* environment variables or config files present, calling `OrchestratorHandle::from_config()` with an explicit `Config` SHALL NOT be affected by those environment variables or files.
 **Validates: Requirements 1.4, 6.3**
 
-### Property 3: Library behavior matches CLI
-*For any* spec and phase, calling `handle.run_phase(phase)` SHALL produce the same artifacts, receipts, and state changes as invoking `xchecker resume --phase <phase>` via CLI.
-**Validates: Requirements 1.7**
+### Property 3: Library behavior matches CLI (narrowly)
+*For any* spec and phase, calling `handle.run_phase(phase)` SHALL:
+- Execute the same phase sequence as `xchecker resume --phase <phase>`
+- Produce the same `ExitCode` that the CLI would
+- Emit JSON artifacts (receipts, status, doctor) that validate against their v1 schemas
+
+Byte-identical receipts or identical internal state are NOT required.
+**Validates: Requirements 1.7, FR-CONTRACT-1, FR-CONTRACT-2, FR-CONTRACT-3**
 
 ### Property 4: Errors return XcError, not panic/exit
 *For any* error condition in library code, the system SHALL return `Result::Err(XcError)` and SHALL NOT call `std::process::exit()` or panic (except for documented internal invariant violations).
@@ -643,15 +679,15 @@ dev-tools = []  # Enables claude-stub binary (for testing only)
 
 ### Property 11: Secret redaction coverage
 *For any* content containing patterns matching the documented secret categories (AWS keys, GCP keys, Azure keys, generic API tokens, database URLs, SSH keys), the system SHALL redact those patterns before including the content in receipts, status, doctor outputs, or logs.
-**Validates: Requirements FR-SEC-1, FR-SEC-2, FR-SEC-3, FR-SEC-4**
+**Validates: Requirements FR-SEC-1, FR-SEC-5**
 
 ### Property 12: Redaction pipeline completeness
 *For any* string that passes through LLM invocation, logging, or JSON emission, the string SHALL have been processed by `redact_all()` with the effective `RedactionConfig`.
-**Validates: Requirements FR-SEC-1, FR-SEC-19**
+**Validates: Requirements FR-SEC-1, FR-SEC-5**
 
 ### Property 13: Atomic writes for state files
 *For any* write to spec artifacts, receipts, status files, or lock files, the write SHALL go through the `atomic_write` module (temp → fsync → rename) and SHALL NOT use direct `fs::write`.
-**Validates: Requirements FR-SEC-5, FR-SEC-6, FR-SEC-7, FR-SEC-8, FR-SEC-9**
+**Validates: Requirements FR-SEC-2**
 
 ### Property 14: Path sandbox enforcement
 *For any* user-provided path in fixup or artifact operations, the system SHALL:
@@ -659,23 +695,23 @@ dev-tools = []  # Enables claude-stub binary (for testing only)
 2. Verify it is within the configured root
 3. Reject paths containing `..` traversal
 4. Reject absolute paths outside the root
-**Validates: Requirements FR-SEC-10, FR-SEC-11, FR-SEC-12, FR-SEC-13**
+**Validates: Requirements FR-SEC-3**
 
 ### Property 15: Symlink rejection
 *For any* path that resolves to a symlink or hardlink, the system SHALL reject it unless symlinks are explicitly enabled in configuration.
-**Validates: Requirements FR-SEC-14**
+**Validates: Requirements FR-SEC-3**
 
 ### Property 16: Argv-style execution
 *For any* process execution in the library, arguments SHALL be passed as discrete argv elements via `CommandSpec`, and the system SHALL NOT use shell string evaluation (`sh -c`, `cmd /C`).
-**Validates: Requirements FR-SEC-15, FR-SEC-16**
+**Validates: Requirements FR-SEC-4**
 
 ### Property 17: WSL runner safety
 *For any* WSL command execution, the runner SHALL construct the command line via argv APIs with no string concatenation of unvalidated input.
-**Validates: Requirements FR-SEC-17**
+**Validates: Requirements FR-SEC-4**
 
 ### Property 18: Argument validation at trust boundaries
 *For any* argument that crosses a trust boundary (e.g., user-provided subcommands), the system SHALL validate or normalize the argument before execution.
-**Validates: Requirements FR-SEC-18**
+**Validates: Requirements FR-SEC-4**
 
 ### Property 19: JSON schema validation
 *For any* emitted JSON (receipts, status, doctor), the output SHALL validate against the corresponding v1 schema.
@@ -816,14 +852,14 @@ use xchecker::{OrchestratorHandle, PhaseId, Config};
 
 fn main() -> Result<(), xchecker::XcError> {
     // Option 1: Use environment-based discovery (like CLI)
-    let handle = OrchestratorHandle::new("my-feature")?;
+    let mut handle = OrchestratorHandle::new("my-feature")?;
     
     // Option 2: Use explicit configuration
     let config = Config::builder()
         .state_dir(".xchecker")
         .phase_timeout(std::time::Duration::from_secs(300))
         .build()?;
-    let handle = OrchestratorHandle::from_config("my-feature", config)?;
+    let mut handle = OrchestratorHandle::from_config("my-feature", config)?;
     
     // Run a single phase
     handle.run_phase(PhaseId::Requirements)?;

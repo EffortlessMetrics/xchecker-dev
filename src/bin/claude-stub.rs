@@ -48,35 +48,48 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .help("Test scenario to simulate")
                 .default_value("success"),
         )
+        .arg(
+            Arg::new("no-sleep")
+                .long("no-sleep")
+                .help("Disable artificial delays (for fast CI tests)")
+                .action(clap::ArgAction::SetTrue),
+        )
         .get_matches();
 
     let output_format = matches.get_one::<String>("output-format").unwrap();
     let scenario = matches.get_one::<String>("scenario").unwrap();
+    let no_sleep = matches.get_flag("no-sleep");
 
     match scenario.as_str() {
-        "success" => handle_success_scenario(output_format)?,
-        "partial" => handle_partial_scenario(output_format)?,
+        "success" => handle_success_scenario(output_format, no_sleep)?,
+        "partial" => handle_partial_scenario(output_format, no_sleep)?,
         "malformed" => handle_malformed_scenario(output_format)?,
-        "text-fallback" => handle_text_fallback_scenario(output_format)?,
+        "text-fallback" => handle_text_fallback_scenario()?,
         "error" => handle_error_scenario()?,
-        _ => handle_success_scenario(output_format)?,
+        _ => handle_success_scenario(output_format, no_sleep)?,
     }
 
     Ok(())
 }
 
-fn handle_success_scenario(output_format: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_success_scenario(
+    output_format: &str,
+    no_sleep: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     if output_format == "stream-json" {
-        emit_stream_json_success()?;
+        emit_stream_json_success(no_sleep)?;
     } else {
         emit_text_success()?;
     }
     Ok(())
 }
 
-fn handle_partial_scenario(output_format: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_partial_scenario(
+    output_format: &str,
+    no_sleep: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     if output_format == "stream-json" {
-        emit_stream_json_partial()?;
+        emit_stream_json_partial(no_sleep)?;
     } else {
         emit_text_partial()?;
     }
@@ -87,12 +100,14 @@ fn handle_malformed_scenario(output_format: &str) -> Result<(), Box<dyn std::err
     if output_format == "stream-json" {
         emit_malformed_json()?;
     } else {
+        // Malformed in text mode should also exit 1 per docs
         emit_text_success()?;
+        std::process::exit(1);
     }
     Ok(())
 }
 
-fn handle_text_fallback_scenario(_output_format: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_text_fallback_scenario() -> Result<(), Box<dyn std::error::Error>> {
     // Always emit malformed JSON first to trigger fallback
     emit_malformed_json()?;
     std::process::exit(1);
@@ -104,7 +119,7 @@ fn handle_error_scenario() -> Result<(), Box<dyn std::error::Error>> {
     std::process::exit(1);
 }
 
-fn emit_stream_json_success() -> Result<(), Box<dyn std::error::Error>> {
+fn emit_stream_json_success(no_sleep: bool) -> Result<(), Box<dyn std::error::Error>> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
 
@@ -118,7 +133,9 @@ fn emit_stream_json_success() -> Result<(), Box<dyn std::error::Error>> {
     });
     writeln!(handle, "{start_event}")?;
     handle.flush()?;
-    thread::sleep(Duration::from_millis(100));
+    if !no_sleep {
+        thread::sleep(Duration::from_millis(100));
+    }
 
     // Emit message start event
     let message_start = json!({
@@ -139,7 +156,9 @@ fn emit_stream_json_success() -> Result<(), Box<dyn std::error::Error>> {
     });
     writeln!(handle, "{message_start}")?;
     handle.flush()?;
-    thread::sleep(Duration::from_millis(50));
+    if !no_sleep {
+        thread::sleep(Duration::from_millis(50));
+    }
 
     // Emit content block start
     let content_start = json!({
@@ -168,7 +187,9 @@ fn emit_stream_json_success() -> Result<(), Box<dyn std::error::Error>> {
         });
         writeln!(handle, "{delta}")?;
         handle.flush()?;
-        thread::sleep(Duration::from_millis(10));
+        if !no_sleep {
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 
     // Emit content block stop
@@ -207,7 +228,7 @@ fn emit_stream_json_success() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn emit_stream_json_partial() -> Result<(), Box<dyn std::error::Error>> {
+fn emit_stream_json_partial(no_sleep: bool) -> Result<(), Box<dyn std::error::Error>> {
     let stdout = io::stdout();
     let mut handle = stdout.lock();
 
@@ -221,6 +242,9 @@ fn emit_stream_json_partial() -> Result<(), Box<dyn std::error::Error>> {
     });
     writeln!(handle, "{start_event}")?;
     handle.flush()?;
+    if !no_sleep {
+        thread::sleep(Duration::from_millis(50));
+    }
 
     let message_start = json!({
         "type": "message_start",
@@ -349,131 +373,4 @@ This document outlines the requirements for a user authentication system that pr
 2. WHEN a session expires THEN the system SHALL require re-authentication
 3. WHEN a user logs out THEN the system SHALL immediately invalidate the session
 4. WHEN a user closes the browser THEN the system SHALL maintain the session if "remember me" was selected"#.to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use std::process::Command;
-
-    #[test]
-    fn test_version_output() {
-        let output = Command::new("cargo")
-            .args(["run", "--bin", "claude-stub", "--", "--version"])
-            .output()
-            .expect("Failed to execute command");
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("0.8.1"));
-    }
-
-    #[test]
-    fn test_success_scenario_text() {
-        let output = Command::new("cargo")
-            .args([
-                "run",
-                "--bin",
-                "claude-stub",
-                "--",
-                "--output-format",
-                "text",
-                "--scenario",
-                "success",
-            ])
-            .output()
-            .expect("Failed to execute command");
-
-        assert_eq!(output.status.code(), Some(0));
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("# Requirements Document"));
-        assert!(stdout.contains("## Introduction"));
-        assert!(stdout.contains("**User Story:**"));
-        assert!(stdout.contains("#### Acceptance Criteria"));
-    }
-
-    #[test]
-    fn test_success_scenario_stream_json() {
-        let output = Command::new("cargo")
-            .args([
-                "run",
-                "--bin",
-                "claude-stub",
-                "--",
-                "--output-format",
-                "stream-json",
-                "--scenario",
-                "success",
-            ])
-            .output()
-            .expect("Failed to execute command");
-
-        assert_eq!(output.status.code(), Some(0));
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("conversation_start"));
-        assert!(stdout.contains("message_start"));
-        assert!(stdout.contains("content_block_start"));
-        assert!(stdout.contains("content_block_delta"));
-        assert!(stdout.contains("message_stop"));
-    }
-
-    #[test]
-    fn test_error_scenario() {
-        let output = Command::new("cargo")
-            .args(["run", "--bin", "claude-stub", "--", "--scenario", "error"])
-            .output()
-            .expect("Failed to execute command");
-
-        assert_eq!(output.status.code(), Some(1));
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains("Authentication failed"));
-    }
-
-    #[test]
-    fn test_malformed_scenario() {
-        let output = Command::new("cargo")
-            .args([
-                "run",
-                "--bin",
-                "claude-stub",
-                "--",
-                "--output-format",
-                "stream-json",
-                "--scenario",
-                "malformed",
-            ])
-            .output()
-            .expect("Failed to execute command");
-
-        assert_eq!(output.status.code(), Some(1));
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("conversation_start"));
-        // Should contain incomplete JSON
-        assert!(stdout.contains("msg_123"));
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains("JSON parsing error"));
-    }
-
-    #[test]
-    fn test_partial_scenario() {
-        let output = Command::new("cargo")
-            .args([
-                "run",
-                "--bin",
-                "claude-stub",
-                "--",
-                "--output-format",
-                "stream-json",
-                "--scenario",
-                "partial",
-            ])
-            .output()
-            .expect("Failed to execute command");
-
-        assert_eq!(output.status.code(), Some(1));
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        assert!(stdout.contains("conversation_start"));
-        assert!(stdout.contains("message_start"));
-        assert!(stdout.contains("Requirements Document"));
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        assert!(stderr.contains("Connection interrupted"));
-    }
 }

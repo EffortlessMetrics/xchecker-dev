@@ -1,5 +1,9 @@
 //! Integration tests for Runner output buffering (AT-RUN-006)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::{...}`, `types::RunnerMode`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests that verify ring buffer behavior with large stdout/stderr streams.
 
 use std::process::Stdio;

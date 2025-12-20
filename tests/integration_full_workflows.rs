@@ -1,5 +1,10 @@
 //! Integration Tests for Full Workflows
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`, `types::{PhaseId, Receipt}`) and may break with internal refactors.
+//! These tests are intentionally white-box to validate internal implementation details.
+//! Prefer `OrchestratorHandle` for new tests. See FR-TEST-4 for white-box test policy.
+//!
 //! This module tests complete spec generation flows end-to-end, verifying
 //! resume scenarios, failure recovery, and determinism with identical inputs.
 //!
@@ -8,9 +13,6 @@
 //! - R2.2: Deterministic outputs with identical inputs
 //! - R2.5: Structure determinism for canonicalized outputs
 //! - R4.2: Resume scenarios and failure recovery
-//!
-//! **White-box test**: Uses `PhaseOrchestrator` directly to probe internal behavior
-//! (artifact staging, receipt generation, etc.) rather than `OrchestratorHandle`.
 
 use anyhow::Result;
 use std::env;
@@ -87,6 +89,7 @@ impl WorkflowTestEnvironment {
             },
             selectors: None,
             strict_validation: false,
+            redactor: Default::default(),
         }
     }
 
@@ -96,6 +99,7 @@ impl WorkflowTestEnvironment {
             config: std::collections::HashMap::new(),
             selectors: None,
             strict_validation: false,
+            redactor: Default::default(),
         }
     }
 }
@@ -347,6 +351,7 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute Requirements phase in both environments

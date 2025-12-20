@@ -1,5 +1,9 @@
 //! Integration tests for structured logging (FR-OBS-001)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`logging::{...}`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! These tests verify that the tracing-based structured logging system
 //! works correctly with the required fields: spec_id, phase, duration_ms, runner_mode
 

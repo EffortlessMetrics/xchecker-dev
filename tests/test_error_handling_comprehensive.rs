@@ -1,5 +1,10 @@
 //! Comprehensive Error Handling Tests (FR-EXIT)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`error::{...}`, `exit_codes::codes`,
+//! `lock::LockError`, `receipt::ReceiptManager`, `types::{...}`) and may break with internal
+//! refactors. These tests are intentionally white-box to validate internal implementation details.
+//! See FR-TEST-4 for white-box test policy.
+//!
 //! This test suite validates FR-EXIT-001 through FR-EXIT-009:
 //! 1. Each ErrorKind maps to correct exit code
 //! 2. error_kind and error_reason are present in receipts

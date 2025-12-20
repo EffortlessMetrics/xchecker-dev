@@ -2,14 +2,27 @@
 name = "xchecker"
 version = "1.0.0"
 edition = "2024"
-description = "A CLI tool for orchestrating spec generation workflows using the Claude CLI"
+rust-version = "1.89"
+description = "Spec pipeline with receipts and gateable JSON contracts"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/EffortlessMetrics/xchecker"
+homepage = "https://github.com/EffortlessMetrics/xchecker"
+readme = "README.md"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["cli", "spec", "requirements", "workflow", "automation"]
+exclude = [
+    ".xchecker/",
+    ".kiro/",
+    ".github/",
+    ".vscode/",
+]
 
 [features]
 test-utils = ["dep:strum"]
 # Legacy Claude wrapper module - will be removed in V19+
 legacy_claude = []
+# Enables dev/test utilities like claude-stub binary (not installed via `cargo install xchecker`)
+dev-tools = []
 
 [lib]
 name = "xchecker"
@@ -22,48 +35,66 @@ path = "src/main.rs"
 [[bin]]
 name = "claude-stub"
 path = "src/bin/claude-stub.rs"
+required-features = ["dev-tools"]
+
+[[bin]]
+name = "regenerate_examples"
+path = "src/bin/regenerate_examples.rs"
+required-features = ["dev-tools"]
+
+[[test]]
+name = "claude_stub_cli"
+path = "tests/dev_tools/claude_stub_cli.rs"
+required-features = ["dev-tools"]
 
 [dependencies]
-clap = { version = "4.0", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.0", features = ["full"] }
-async-trait = "0.1"
-anyhow = "1.0"
-blake3 = { version = "1.5", features = ["rayon"] }
-tempfile = "3.8"
-camino = "1.1"
-toml = "0.9"
-globset = "0.4"
-ignore = "0.4"
-fd-lock = "4.0"
-serde_json = "1.0"
-serde_json_canonicalizer = "0.3"
-regex = "1.10"
-chrono = { version = "0.4", features = ["serde"] }
-itertools = "0.14"
-once_cell = "1.19"
-thiserror = "2.0"
-sysinfo = "0.37"
-which = "8.0"
-unicode-normalization = "0.1"
-strum = { version = "0.27", features = ["derive"], optional = true }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
-reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
-ratatui = "0.29"
-crossterm = "0.29"
+# Security-Critical Dependencies (keep exact patch versions)
+reqwest = { version = "0.12.26", features = ["json", "rustls-tls"], default-features = false }
+tokio = { version = "1.48.0", features = ["full"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
+blake3 = { version = "1.8.2", features = ["rayon"] }
+
+# Core Infrastructure Dependencies (coarse minima)
+clap = { version = "4.5.53", features = ["derive"] }
+anyhow = "1.0.100"
+thiserror = "2.0.17"
+tracing = "0.1.43"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "fmt", "json"] }
+tempfile = "3.23.0"
+
+# Other Dependencies (coarse minima)
+async-trait = "0.1.89"
+camino = "1.2.2"
+toml = "0.9.8"
+globset = "0.4.18"
+ignore = "0.4.25"
+fd-lock = "4.0.4"
+serde_json_canonicalizer = "0.3.1"
+regex = "1.12.2"
+chrono = { version = "0.4.42", features = ["serde"] }
+itertools = "0.14.0"
+once_cell = "1.21.3"
+sysinfo = "0.37.2"
+which = "8.0.0"
+unicode-normalization = "0.1.25"
+strum = { version = "0.27.2", features = ["derive"], optional = true }
+ratatui = "0.29.0"
+crossterm = "0.29.0"
 serde_yaml = { package = "serde_yaml_ng", version = "0.10.0" }
 
 [target.'cfg(unix)'.dependencies]
-libc = "0.2"
-nix = { version = "0.30", features = ["signal", "process"] }
+# Platform Dependencies (coarse minima)
+libc = "0.2.178"
+nix = { version = "0.30.1", features = ["signal", "process"] }
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["processthreadsapi", "winnt", "handleapi", "psapi", "jobapi2"] }
-dunce = "1.0"
+# Platform Dependencies (coarse minima)
+winapi = { version = "0.3.9", features = ["processthreadsapi", "winnt", "handleapi", "psapi", "jobapi2"] }
+dunce = "1.0.5"
 
 [target.'cfg(windows)'.dependencies.windows]
-version = "0.62.0"
+version = "0.62.2"
 features = [
     "Win32_Foundation",
     "Win32_System_JobObjects",
@@ -72,12 +103,14 @@ features = [
 ]
 
 [dev-dependencies]
-proptest = "1.4"
-criterion = { version = "0.8", features = ["html_reports"] }
-tokio-test = "0.4"
-serial_test = "3.0"
-jsonschema = "0.37"
-pulldown-cmark = "0.13"
-shell-words = "1.1"
-assert_cmd = "2.0"
-xchecker = { path = ".", features = ["test-utils", "legacy_claude"] }
+# Dev Dependencies (coarse minima)
+proptest = "1.9.0"
+criterion = { version = "0.8.1", features = ["html_reports"] }
+tokio-test = "0.4.4"
+serial_test = "3.2.0"
+jsonschema = "0.37.4"
+pulldown-cmark = "0.13.0"
+shell-words = "1.1.1"
+assert_cmd = "2.1.1"
+predicates = "3.1.3"
+xchecker = { path = ".", features = ["test-utils", "legacy_claude", "dev-tools"] }

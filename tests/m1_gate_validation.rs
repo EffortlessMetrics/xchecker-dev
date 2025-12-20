@@ -1,5 +1,11 @@
 //! M1 Gate Validation Tests
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`claude::ClaudeWrapper`,
+//! `orchestrator::{OrchestratorConfig, PhaseOrchestrator}`, `runner::{...}`, `types::{...}`)
+//! and may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. Prefer `OrchestratorHandle` for new tests. See FR-TEST-4
+//! for white-box test policy.
+//!
 //! This module validates the M1 Gate requirements by testing:
 //! - Complete Requirements phase with real Claude CLI integration (using stub)
 //! - Receipt contains all required metadata including runner info and version information
@@ -11,9 +17,6 @@
 //! - R4.4: Structured output handling with fallback
 //! - R2.1: Receipt contains all required metadata and version information
 //! - R12.1, R12.2: Runner system with auto-detection
-//!
-//! **White-box test**: Uses `PhaseOrchestrator` directly to probe internal behavior
-//! (artifact staging, receipt generation, etc.) rather than `OrchestratorHandle`.
 
 use anyhow::Result;
 use std::env;
@@ -77,6 +80,7 @@ async fn test_complete_requirements_phase_with_claude_integration() -> Result<()
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute Requirements phase
@@ -165,6 +169,7 @@ async fn test_receipt_metadata_completeness() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute phase
@@ -444,6 +449,7 @@ async fn test_error_handling_and_partial_outputs() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute phase - this should fail
@@ -501,6 +507,7 @@ async fn test_end_to_end_m1_gate_validation() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute complete Requirements phase

@@ -561,20 +561,32 @@ impl FileLock {
 
         #[cfg(windows)]
         {
-            // On Windows, try to open the process handle
-
+            // On Windows, try to open the process handle and check if it's still running
             use winapi::um::handleapi::CloseHandle;
-            use winapi::um::processthreadsapi::OpenProcess;
-            use winapi::um::winnt::PROCESS_QUERY_INFORMATION;
+            use winapi::um::minwinbase::STILL_ACTIVE;
+            use winapi::um::processthreadsapi::{GetExitCodeProcess, OpenProcess};
+            use winapi::um::winnt::PROCESS_QUERY_LIMITED_INFORMATION;
 
             unsafe {
-                let handle = OpenProcess(PROCESS_QUERY_INFORMATION, 0, pid);
+                // Use PROCESS_QUERY_LIMITED_INFORMATION which is sufficient for GetExitCodeProcess
+                // and works with more processes than PROCESS_QUERY_INFORMATION
+                let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
                 if handle.is_null() {
-                    false
-                } else {
-                    CloseHandle(handle);
-                    true
+                    return false;
                 }
+
+                // Check if the process is still running by getting its exit code
+                let mut exit_code: u32 = 0;
+                let result = GetExitCodeProcess(handle, &mut exit_code);
+                CloseHandle(handle);
+
+                // If GetExitCodeProcess fails, assume process is not running
+                if result == 0 {
+                    return false;
+                }
+
+                // STILL_ACTIVE (259) means the process is still running
+                exit_code == STILL_ACTIVE
             }
         }
 

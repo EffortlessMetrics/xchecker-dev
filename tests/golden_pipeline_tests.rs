@@ -88,6 +88,7 @@ impl GoldenPipelineTestEnvironment {
             },
             selectors: None,
             strict_validation: false,
+            redactor: Default::default(),
         }
     }
 }

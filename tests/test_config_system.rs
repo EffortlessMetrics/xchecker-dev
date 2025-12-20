@@ -1,5 +1,9 @@
 //! Comprehensive tests for configuration system (FR-CFG)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`config::{CliArgs, Config,
+//! ConfigSource}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! Tests:
 //! - FR-CFG-001: Upward discovery stopping at .git
 //! - FR-CFG-002: Precedence: CLI > config > defaults

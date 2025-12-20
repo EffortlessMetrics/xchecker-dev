@@ -1,7 +1,10 @@
 //! M1 Gate Integration Tests
 //!
-//! **White-box test**: Uses `PhaseOrchestrator` directly to probe internal behavior
-//! and validate Claude stub integration. Prefer `OrchestratorHandle` for new tests.
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::Runner`,
+//! `claude::ClaudeWrapper`, `orchestrator::{OrchestratorConfig, PhaseOrchestrator}`,
+//! `types::PhaseId`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate Claude stub integration. Prefer `OrchestratorHandle` for new tests.
+//! See FR-TEST-4 for white-box test policy.
 //!
 //! This module tests the complete Requirements phase with real Claude integration,
 //! verifying receipt metadata, version information, and fallback behavior.
@@ -73,6 +76,7 @@ async fn test_complete_requirements_phase_with_claude_integration() -> Result<()
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute Requirements phase
@@ -161,6 +165,7 @@ async fn test_receipt_metadata_completeness() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute phase
@@ -334,6 +339,7 @@ async fn test_claude_wrapper_fallback_behavior() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute phase - this should trigger fallback behavior
@@ -418,6 +424,7 @@ async fn test_end_to_end_m1_gate_validation() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute complete Requirements phase
@@ -519,6 +526,7 @@ async fn test_error_handling_and_partial_outputs() -> Result<()> {
         },
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute phase - this should fail

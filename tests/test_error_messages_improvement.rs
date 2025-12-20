@@ -1,5 +1,10 @@
 //! Integration tests for improved error messages and user guidance
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`error::{...}`, `fixup::FixupError`,
+//! `lock::LockError`, `spec_id::SpecIdError`) and may break with internal refactors. These tests
+//! are intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! This test suite validates that all error types provide:
 //! - Clear, user-friendly messages
 //! - Contextual information

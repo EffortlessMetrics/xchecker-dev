@@ -1,5 +1,10 @@
 //! Unit tests for line ending normalization (FR-FIX-010, FR-FS-004, FR-FS-005)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`fixup::{FixupMode, FixupParser,
+//! normalize_line_endings_for_diff}`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! This test file validates that:
 //! - Line endings are normalized before diff calculation (FR-FIX-010)
 //! - LF is enforced for JSON and text artifacts (FR-FS-004)

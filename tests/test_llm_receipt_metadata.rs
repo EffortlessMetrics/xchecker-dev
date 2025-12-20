@@ -1,5 +1,9 @@
 //! Tests for LLM metadata in receipts (V11+ multi-provider support)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`receipt::ReceiptManager`,
+//! `types::{...}`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test file validates:
 //! - Task 4.1: Execution strategy appears in receipts
 //! - Task 4.2: Controlled execution prevents disk writes (property test)
@@ -248,11 +252,13 @@ async fn test_dry_run_receipt_has_llm_metadata() {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let spec_id = format!("test-dry-run-metadata-{}", std::process::id());
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)
-        .expect("Failed to create orchestrator handle");
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)
+            .expect("Failed to create orchestrator handle");
 
     // Execute requirements phase in dry-run mode
     let result = handle
@@ -333,11 +339,13 @@ async fn test_dry_run_receipt_has_full_llm_metadata() {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     let spec_id = format!("test-dry-run-full-metadata-{}", std::process::id());
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)
-        .expect("Failed to create orchestrator handle");
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)
+            .expect("Failed to create orchestrator handle");
 
     // Execute requirements phase in dry-run mode
     let result = handle

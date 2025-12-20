@@ -1,5 +1,9 @@
 //! Tests for Unix process group termination (Task 5.9, FR-RUN-005)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::Runner`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test validates that:
 //! - Process groups are created correctly with setpgid(0, 0)
 //! - killpg sends SIGTERM to the entire process group

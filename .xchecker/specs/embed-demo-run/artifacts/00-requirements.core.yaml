@@ -1,0 +1,26 @@
+# Core requirements data for spec embed-demo-run
+# This file contains structured data extracted from the requirements document
+
+spec_id: "embed-demo-run"
+phase: "requirements"
+version: "1.0"
+
+# Metadata about the requirements (B3.0 extraction)
+metadata:
+  total_requirements: 3
+  total_user_stories: 3
+  total_acceptance_criteria: 9
+  total_nfrs: 0
+  has_nfrs: false
+
+# Structured requirements data (B3.1 - future)
+requirements: []
+
+# Non-functional requirements (B3.1 - future)
+nfrs: []
+
+# Dependencies and relationships
+dependencies: []
+
+# Generated timestamp
+generated_at: "2025-12-08T19:40:40.447264600+00:00"

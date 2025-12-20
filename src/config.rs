@@ -1,8 +1,8 @@
 //! Configuration management for xchecker
 //!
 //! This module provides hierarchical configuration with discovery and precedence:
-//! CLI > file > defaults. Supports TOML configuration files with [defaults],
-//! [selectors], and [runner] sections.
+//! CLI > file > defaults. Supports TOML configuration files with `[defaults]`,
+//! `[selectors]`, and `[runner]` sections.
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -14,20 +14,83 @@ use crate::error::{ConfigError, XCheckerError};
 use crate::hooks::HooksConfig;
 use crate::types::RunnerMode;
 
-/// Configuration with hierarchical precedence and source attribution
+/// Configuration for xchecker operations.
+///
+/// `Config` provides hierarchical configuration with discovery and precedence:
+/// CLI arguments > config file > built-in defaults.
+///
+/// # Discovery
+///
+/// Use [`Config::discover()`] for CLI-like behavior that:
+/// - Searches for `.xchecker/config.toml` upward from the current directory
+/// - Respects the `XCHECKER_HOME` environment variable
+/// - Applies built-in defaults for unspecified values
+///
+/// # Programmatic Configuration
+///
+/// For embedding scenarios where you need deterministic behavior independent
+/// of the user's environment, construct a `Config` directly or use
+/// [`OrchestratorHandle::from_config()`](crate::OrchestratorHandle::from_config).
+///
+/// # Source Attribution
+///
+/// Each configuration value tracks its source (`cli`, `config`, or `default`)
+/// for debugging and status display.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use xchecker::Config;
+/// use xchecker::config::CliArgs;
+///
+/// // Discover configuration using CLI semantics
+/// let config = Config::discover(&CliArgs::default())?;
+///
+/// // Access configuration values
+/// println!("Model: {:?}", config.defaults.model);
+/// println!("Max turns: {:?}", config.defaults.max_turns);
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+///
+/// # Configuration File Format
+///
+/// Configuration files use TOML format with these sections:
+///
+/// ```toml
+/// [defaults]
+/// model = "haiku"
+/// max_turns = 6
+/// phase_timeout = 600
+///
+/// [selectors]
+/// include = ["**/*.md", "**/*.yaml"]
+/// exclude = ["target/**", "node_modules/**"]
+///
+/// [runner]
+/// mode = "auto"
+///
+/// [llm]
+/// provider = "claude-cli"
+/// ```
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Default values for various settings.
     pub defaults: Defaults,
+    /// File selection patterns for packet building.
     pub selectors: Selectors,
+    /// Runner configuration for cross-platform execution.
     pub runner: RunnerConfig,
+    /// LLM provider configuration.
     pub llm: LlmConfig,
-    /// Per-phase configuration overrides (B-series feature)
+    /// Per-phase configuration overrides.
     pub phases: PhasesConfig,
-    /// Hooks configuration for pre/post phase scripts
+    /// Hooks configuration for pre/post phase scripts.
     // Reserved for hooks integration; not wired in v1.0
     #[allow(dead_code)]
     pub hooks: HooksConfig,
-    /// Track source of each setting for status display
+    /// Security configuration for secret detection and redaction.
+    pub security: SecurityConfig,
+    /// Source attribution for each setting (for status display).
     pub source_attribution: HashMap<String, ConfigSource>,
 }
 
@@ -295,6 +358,39 @@ impl std::fmt::Display for ConfigSource {
     }
 }
 
+/// Security configuration for secret detection and redaction
+///
+/// This section allows customizing secret detection patterns:
+/// - Add extra patterns to detect project-specific secrets
+/// - Ignore patterns that cause false positives
+///
+/// # Example
+///
+/// ```toml
+/// [security]
+/// extra_secret_patterns = ["SECRET_[A-Z0-9]{32}", "API_KEY_[A-Za-z0-9]{40}"]
+/// ignore_secret_patterns = ["github_pat"]
+/// ```
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct SecurityConfig {
+    /// Additional regex patterns for secret detection.
+    ///
+    /// These patterns are added to the built-in patterns and will cause
+    /// secret detection to trigger if matched.
+    #[serde(default)]
+    pub extra_secret_patterns: Vec<String>,
+
+    /// Patterns to suppress from secret detection.
+    ///
+    /// Pattern IDs listed here will be ignored during secret scanning.
+    /// Use this to suppress false positives for known-safe patterns.
+    ///
+    /// **Warning:** Suppressing patterns reduces security. Only suppress
+    /// patterns if you're certain they won't match real secrets.
+    #[serde(default)]
+    pub ignore_secret_patterns: Vec<String>,
+}
+
 /// TOML configuration file structure
 #[derive(Debug, Deserialize, Serialize)]
 struct TomlConfig {
@@ -304,6 +400,7 @@ struct TomlConfig {
     llm: Option<LlmConfig>,
     phases: Option<PhasesConfig>,
     hooks: Option<HooksConfig>,
+    security: Option<SecurityConfig>,
 }
 
 /// CLI arguments for configuration override
@@ -422,6 +519,7 @@ impl Config {
         };
         let mut hooks = HooksConfig::default();
         let mut phases = PhasesConfig::default();
+        let mut security = SecurityConfig::default();
 
         // Track default sources
         source_attribution.insert("max_turns".to_string(), ConfigSource::Defaults);
@@ -587,7 +685,13 @@ impl Config {
             // Load hooks configuration from file
             if let Some(file_hooks) = file_config.hooks {
                 hooks = file_hooks;
-                source_attribution.insert("hooks".to_string(), config_source);
+                source_attribution.insert("hooks".to_string(), config_source.clone());
+            }
+
+            // Load security configuration from file
+            if let Some(file_security) = file_config.security {
+                security = file_security;
+                source_attribution.insert("security".to_string(), config_source);
             }
         }
 
@@ -655,6 +759,20 @@ impl Config {
         if let Some(strict_validation) = cli_args.strict_validation {
             defaults.strict_validation = Some(strict_validation);
             source_attribution.insert("strict_validation".to_string(), ConfigSource::Cli);
+        }
+
+        // Apply security pattern overrides (CLI > file > defaults)
+        if !cli_args.extra_secret_pattern.is_empty() {
+            security
+                .extra_secret_patterns
+                .extend(cli_args.extra_secret_pattern.clone());
+            source_attribution.insert("security".to_string(), ConfigSource::Cli);
+        }
+        if !cli_args.ignore_secret_pattern.is_empty() {
+            security
+                .ignore_secret_patterns
+                .extend(cli_args.ignore_secret_pattern.clone());
+            source_attribution.insert("security".to_string(), ConfigSource::Cli);
         }
 
         // Apply LLM configuration with precedence: CLI > env > config > defaults
@@ -732,6 +850,7 @@ impl Config {
             llm,
             phases,
             hooks,
+            security,
             source_attribution,
         };
 
@@ -793,6 +912,7 @@ impl Config {
                     llm: None,
                     phases: None,
                     hooks: None,
+                    security: None,
                 })
             }
             Err(e) => Err(anyhow::anyhow!(
@@ -1172,6 +1292,499 @@ impl Config {
     pub fn strict_validation(&self) -> bool {
         self.defaults.strict_validation.unwrap_or(false)
     }
+
+    /// Discover configuration from environment and filesystem.
+    ///
+    /// This method uses the same discovery logic as the CLI:
+    /// - `XCHECKER_HOME` environment variable (if set)
+    /// - Upward search for `.xchecker/config.toml` from current directory
+    /// - Built-in defaults
+    ///
+    /// Precedence: config file > defaults
+    ///
+    /// This is the recommended method for library consumers who want CLI-like
+    /// behavior without needing to construct `CliArgs`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::Config;
+    ///
+    /// let config = Config::discover_from_env_and_fs()
+    ///     .expect("Failed to discover config");
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The current directory cannot be determined
+    /// - A config file exists but cannot be parsed
+    /// - Configuration validation fails
+    pub fn discover_from_env_and_fs() -> Result<Self> {
+        // Use empty CliArgs to get config file + defaults behavior
+        // This matches CLI semantics without any CLI overrides
+        let cli_args = CliArgs::default();
+        Self::discover(&cli_args)
+    }
+
+    /// Create a builder for programmatic configuration.
+    ///
+    /// Use this when you need to configure xchecker programmatically without
+    /// relying on environment variables or config files. This is the recommended
+    /// approach for embedding xchecker in other applications.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::Config;
+    /// use std::time::Duration;
+    ///
+    /// let config = Config::builder()
+    ///     .state_dir("/custom/path")
+    ///     .packet_max_bytes(32768)
+    ///     .packet_max_lines(600)
+    ///     .phase_timeout(Duration::from_secs(300))
+    ///     .build()
+    ///     .expect("Failed to build config");
+    /// ```
+    #[must_use]
+    pub fn builder() -> ConfigBuilder {
+        ConfigBuilder::new()
+    }
+}
+
+/// Builder for programmatic configuration of xchecker.
+///
+/// `ConfigBuilder` provides a fluent API for constructing `Config` instances
+/// without relying on environment variables or config files. This is useful
+/// for embedding xchecker in other applications where deterministic behavior
+/// is required.
+///
+/// # Example
+///
+/// ```rust,no_run
+/// use xchecker::Config;
+/// use std::time::Duration;
+///
+/// let config = Config::builder()
+///     .state_dir("/custom/state")
+///     .packet_max_bytes(65536)
+///     .packet_max_lines(1200)
+///     .phase_timeout(Duration::from_secs(600))
+///     .runner_mode("native")
+///     .build()
+///     .expect("Failed to build config");
+/// ```
+///
+/// # Source Attribution
+///
+/// All values set via the builder are attributed to `ConfigSource::Programmatic`
+/// in the resulting `Config`'s source attribution map.
+#[derive(Debug, Clone)]
+pub struct ConfigBuilder {
+    state_dir: Option<PathBuf>,
+    packet_max_bytes: Option<usize>,
+    packet_max_lines: Option<usize>,
+    phase_timeout: Option<std::time::Duration>,
+    runner_mode: Option<String>,
+    model: Option<String>,
+    max_turns: Option<u32>,
+    verbose: Option<bool>,
+    llm_provider: Option<String>,
+    execution_strategy: Option<String>,
+    extra_secret_patterns: Vec<String>,
+    ignore_secret_patterns: Vec<String>,
+}
+
+impl Default for ConfigBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ConfigBuilder {
+    /// Create a new `ConfigBuilder` with no values set.
+    ///
+    /// All configuration values will use their defaults unless explicitly set.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            state_dir: None,
+            packet_max_bytes: None,
+            packet_max_lines: None,
+            phase_timeout: None,
+            runner_mode: None,
+            model: None,
+            max_turns: None,
+            verbose: None,
+            llm_provider: None,
+            execution_strategy: None,
+            extra_secret_patterns: Vec::new(),
+            ignore_secret_patterns: Vec::new(),
+        }
+    }
+
+    /// Set the state directory for xchecker operations.
+    ///
+    /// This overrides the default state directory discovery (XCHECKER_HOME,
+    /// upward search for `.xchecker/`).
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the state directory
+    #[must_use]
+    pub fn state_dir(mut self, path: impl Into<PathBuf>) -> Self {
+        self.state_dir = Some(path.into());
+        self
+    }
+
+    /// Set the maximum packet size in bytes.
+    ///
+    /// This limits the size of context packets sent to the LLM.
+    /// Default: 65536 bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Maximum packet size in bytes (must be > 0 and <= 10MB)
+    #[must_use]
+    pub fn packet_max_bytes(mut self, bytes: usize) -> Self {
+        self.packet_max_bytes = Some(bytes);
+        self
+    }
+
+    /// Set the maximum packet size in lines.
+    ///
+    /// This limits the number of lines in context packets sent to the LLM.
+    /// Default: 1200 lines.
+    ///
+    /// # Arguments
+    ///
+    /// * `lines` - Maximum packet size in lines (must be > 0 and <= 100,000)
+    #[must_use]
+    pub fn packet_max_lines(mut self, lines: usize) -> Self {
+        self.packet_max_lines = Some(lines);
+        self
+    }
+
+    /// Set the phase execution timeout.
+    ///
+    /// This limits how long a single phase can run before timing out.
+    /// Default: 600 seconds (10 minutes).
+    ///
+    /// # Arguments
+    ///
+    /// * `timeout` - Phase timeout duration (must be >= 5 seconds and <= 2 hours)
+    #[must_use]
+    pub fn phase_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.phase_timeout = Some(timeout);
+        self
+    }
+
+    /// Set the runner mode for process execution.
+    ///
+    /// Valid values: "auto", "native", "wsl"
+    /// Default: "auto"
+    ///
+    /// # Arguments
+    ///
+    /// * `mode` - Runner mode string
+    #[must_use]
+    pub fn runner_mode(mut self, mode: impl Into<String>) -> Self {
+        self.runner_mode = Some(mode.into());
+        self
+    }
+
+    /// Set the model to use for LLM operations.
+    ///
+    /// Valid values: "haiku", "sonnet", "opus", or specific model versions.
+    /// Default: "haiku" (for testing/development)
+    ///
+    /// # Arguments
+    ///
+    /// * `model` - Model name or alias
+    #[must_use]
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+
+    /// Set the maximum number of turns for LLM interactions.
+    ///
+    /// Default: 6 turns.
+    ///
+    /// # Arguments
+    ///
+    /// * `turns` - Maximum number of turns (must be > 0 and <= 50)
+    #[must_use]
+    pub fn max_turns(mut self, turns: u32) -> Self {
+        self.max_turns = Some(turns);
+        self
+    }
+
+    /// Set verbose output mode.
+    ///
+    /// Default: false
+    ///
+    /// # Arguments
+    ///
+    /// * `verbose` - Whether to enable verbose output
+    #[must_use]
+    pub fn verbose(mut self, verbose: bool) -> Self {
+        self.verbose = Some(verbose);
+        self
+    }
+
+    /// Set the LLM provider.
+    ///
+    /// Valid values: "claude-cli", "gemini-cli", "openrouter", "anthropic"
+    /// Default: "claude-cli"
+    ///
+    /// # Arguments
+    ///
+    /// * `provider` - LLM provider name
+    #[must_use]
+    pub fn llm_provider(mut self, provider: impl Into<String>) -> Self {
+        self.llm_provider = Some(provider.into());
+        self
+    }
+
+    /// Set the execution strategy.
+    ///
+    /// Currently only "controlled" is supported.
+    /// Default: "controlled"
+    ///
+    /// # Arguments
+    ///
+    /// * `strategy` - Execution strategy name
+    #[must_use]
+    pub fn execution_strategy(mut self, strategy: impl Into<String>) -> Self {
+        self.execution_strategy = Some(strategy.into());
+        self
+    }
+
+    /// Add extra secret patterns for detection.
+    ///
+    /// These patterns are added to the built-in patterns and will cause
+    /// secret detection to trigger if matched.
+    ///
+    /// # Arguments
+    ///
+    /// * `patterns` - Vector of regex patterns to add
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::Config;
+    ///
+    /// let config = Config::builder()
+    ///     .extra_secret_patterns(vec![
+    ///         "SECRET_[A-Z0-9]{32}".to_string(),
+    ///         "API_KEY_[A-Za-z0-9]{40}".to_string(),
+    ///     ])
+    ///     .build()
+    ///     .expect("Failed to build config");
+    /// ```
+    #[must_use]
+    pub fn extra_secret_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.extra_secret_patterns = patterns;
+        self
+    }
+
+    /// Add a single extra secret pattern for detection.
+    ///
+    /// This pattern is added to the built-in patterns and will cause
+    /// secret detection to trigger if matched.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - Regex pattern to add
+    #[must_use]
+    pub fn add_extra_secret_pattern(mut self, pattern: impl Into<String>) -> Self {
+        self.extra_secret_patterns.push(pattern.into());
+        self
+    }
+
+    /// Set patterns to ignore during secret detection.
+    ///
+    /// Pattern IDs listed here will be ignored during secret scanning.
+    /// Use this to suppress false positives for known-safe patterns.
+    ///
+    /// **Warning:** Suppressing patterns reduces security. Only suppress
+    /// patterns if you're certain they won't match real secrets.
+    ///
+    /// # Arguments
+    ///
+    /// * `patterns` - Vector of pattern IDs to ignore
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use xchecker::Config;
+    ///
+    /// let config = Config::builder()
+    ///     .ignore_secret_patterns(vec!["test_token".to_string()])
+    ///     .build()
+    ///     .expect("Failed to build config");
+    /// ```
+    #[must_use]
+    pub fn ignore_secret_patterns(mut self, patterns: Vec<String>) -> Self {
+        self.ignore_secret_patterns = patterns;
+        self
+    }
+
+    /// Add a single pattern to ignore during secret detection.
+    ///
+    /// **Warning:** Suppressing patterns reduces security. Only suppress
+    /// patterns if you're certain they won't match real secrets.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - Pattern ID to ignore
+    #[must_use]
+    pub fn add_ignore_secret_pattern(mut self, pattern: impl Into<String>) -> Self {
+        self.ignore_secret_patterns.push(pattern.into());
+        self
+    }
+
+    /// Build the `Config` from the builder values.
+    ///
+    /// This creates a `Config` using the values set on the builder, with
+    /// defaults applied for any unset values. The resulting config is
+    /// validated before being returned.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Any configuration value is invalid (e.g., packet_max_bytes = 0)
+    /// - Validation fails for the resulting configuration
+    ///
+    /// # Returns
+    ///
+    /// A fully configured and validated `Config` instance.
+    pub fn build(self) -> Result<Config, XCheckerError> {
+        let mut source_attribution = HashMap::new();
+
+        // Start with defaults
+        let mut defaults = Defaults::default();
+        let selectors = Selectors::default();
+        let mut runner = RunnerConfig::default();
+        let mut llm = LlmConfig {
+            provider: None,
+            fallback_provider: None,
+            claude: None,
+            gemini: None,
+            openrouter: None,
+            anthropic: None,
+            execution_strategy: None,
+            prompt_template: None,
+        };
+        let phases = PhasesConfig::default();
+        let hooks = HooksConfig::default();
+
+        // Track default sources
+        source_attribution.insert("max_turns".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("output_format".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("verbose".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("runner_mode".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("phase_timeout".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("stdout_cap_bytes".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("stderr_cap_bytes".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("lock_ttl_seconds".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("debug_packet".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("allow_links".to_string(), ConfigSource::Defaults);
+
+        // Apply builder values (all attributed to Programmatic source)
+        // Note: We use ConfigSource::Cli as a stand-in for "programmatic" since
+        // ConfigSource doesn't have a Programmatic variant yet. This maintains
+        // the highest precedence for programmatically set values.
+        if let Some(bytes) = self.packet_max_bytes {
+            defaults.packet_max_bytes = Some(bytes);
+            source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Cli);
+        }
+
+        if let Some(lines) = self.packet_max_lines {
+            defaults.packet_max_lines = Some(lines);
+            source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Cli);
+        }
+
+        if let Some(timeout) = self.phase_timeout {
+            defaults.phase_timeout = Some(timeout.as_secs());
+            source_attribution.insert("phase_timeout".to_string(), ConfigSource::Cli);
+        }
+
+        if let Some(mode) = self.runner_mode {
+            runner.mode = Some(mode);
+            source_attribution.insert("runner_mode".to_string(), ConfigSource::Cli);
+        }
+
+        if let Some(model) = self.model {
+            defaults.model = Some(model);
+            source_attribution.insert("model".to_string(), ConfigSource::Cli);
+        }
+
+        if let Some(turns) = self.max_turns {
+            defaults.max_turns = Some(turns);
+            source_attribution.insert("max_turns".to_string(), ConfigSource::Cli);
+        }
+
+        if let Some(verbose) = self.verbose {
+            defaults.verbose = Some(verbose);
+            source_attribution.insert("verbose".to_string(), ConfigSource::Cli);
+        }
+
+        // Apply LLM provider (default to claude-cli if not set)
+        if let Some(provider) = self.llm_provider {
+            llm.provider = Some(provider);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Cli);
+        } else {
+            llm.provider = Some("claude-cli".to_string());
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Defaults);
+        }
+
+        // Apply execution strategy (default to controlled if not set)
+        if let Some(strategy) = self.execution_strategy {
+            llm.execution_strategy = Some(strategy);
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Cli);
+        } else {
+            llm.execution_strategy = Some("controlled".to_string());
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Defaults);
+        }
+
+        // Note: state_dir is stored but not directly used in Config struct
+        // It would be used by OrchestratorHandle when creating the orchestrator
+        // For now, we store it in a way that can be retrieved if needed
+        if self.state_dir.is_some() {
+            source_attribution.insert("state_dir".to_string(), ConfigSource::Cli);
+        }
+
+        // Build security config from builder values
+        let security = SecurityConfig {
+            extra_secret_patterns: self.extra_secret_patterns,
+            ignore_secret_patterns: self.ignore_secret_patterns,
+        };
+        if !security.extra_secret_patterns.is_empty() || !security.ignore_secret_patterns.is_empty()
+        {
+            source_attribution.insert("security".to_string(), ConfigSource::Cli);
+        }
+
+        let config = Config {
+            defaults,
+            selectors,
+            runner,
+            llm,
+            phases,
+            hooks,
+            security,
+            source_attribution,
+        };
+
+        // Validate the configuration
+        config.validate()?;
+
+        Ok(config)
+    }
 }
 
 #[cfg(test)]
@@ -1197,6 +1810,7 @@ impl Config {
             },
             phases: PhasesConfig::default(),
             hooks: HooksConfig::default(),
+            security: SecurityConfig::default(),
             source_attribution: HashMap::new(),
         }
     }
@@ -2838,5 +3452,452 @@ strict_validation = false
 
         let config = Config::discover(&cli_args).unwrap();
         assert!(!config.strict_validation());
+    }
+
+    // ===== ConfigBuilder Tests (Task 2.1) =====
+
+    #[test]
+    fn test_config_builder_default() {
+        let config = Config::builder().build().unwrap();
+
+        // Should use all defaults
+        assert_eq!(config.defaults.max_turns, Some(6));
+        assert_eq!(config.defaults.packet_max_bytes, Some(65536));
+        assert_eq!(config.defaults.packet_max_lines, Some(1200));
+        assert_eq!(config.defaults.phase_timeout, Some(600));
+        assert_eq!(config.runner.mode, Some("auto".to_string()));
+        assert_eq!(config.llm.provider, Some("claude-cli".to_string()));
+        assert_eq!(
+            config.llm.execution_strategy,
+            Some("controlled".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_builder_with_packet_max_bytes() {
+        let config = Config::builder().packet_max_bytes(32768).build().unwrap();
+
+        assert_eq!(config.defaults.packet_max_bytes, Some(32768));
+        assert_eq!(
+            config.source_attribution.get("packet_max_bytes"),
+            Some(&ConfigSource::Cli)
+        );
+    }
+
+    #[test]
+    fn test_config_builder_with_packet_max_lines() {
+        let config = Config::builder().packet_max_lines(600).build().unwrap();
+
+        assert_eq!(config.defaults.packet_max_lines, Some(600));
+        assert_eq!(
+            config.source_attribution.get("packet_max_lines"),
+            Some(&ConfigSource::Cli)
+        );
+    }
+
+    #[test]
+    fn test_config_builder_with_phase_timeout() {
+        use std::time::Duration;
+
+        let config = Config::builder()
+            .phase_timeout(Duration::from_secs(300))
+            .build()
+            .unwrap();
+
+        assert_eq!(config.defaults.phase_timeout, Some(300));
+        assert_eq!(
+            config.source_attribution.get("phase_timeout"),
+            Some(&ConfigSource::Cli)
+        );
+    }
+
+    #[test]
+    fn test_config_builder_with_runner_mode() {
+        let config = Config::builder().runner_mode("native").build().unwrap();
+
+        assert_eq!(config.runner.mode, Some("native".to_string()));
+        assert_eq!(
+            config.source_attribution.get("runner_mode"),
+            Some(&ConfigSource::Cli)
+        );
+    }
+
+    #[test]
+    fn test_config_builder_with_state_dir() {
+        let config = Config::builder().state_dir("/custom/path").build().unwrap();
+
+        // state_dir is tracked in source attribution
+        assert_eq!(
+            config.source_attribution.get("state_dir"),
+            Some(&ConfigSource::Cli)
+        );
+    }
+
+    #[test]
+    fn test_config_builder_with_all_options() {
+        use std::time::Duration;
+
+        let config = Config::builder()
+            .state_dir("/custom/state")
+            .packet_max_bytes(32768)
+            .packet_max_lines(600)
+            .phase_timeout(Duration::from_secs(300))
+            .runner_mode("native")
+            .model("sonnet")
+            .max_turns(10)
+            .verbose(true)
+            .llm_provider("claude-cli")
+            .execution_strategy("controlled")
+            .build()
+            .unwrap();
+
+        assert_eq!(config.defaults.packet_max_bytes, Some(32768));
+        assert_eq!(config.defaults.packet_max_lines, Some(600));
+        assert_eq!(config.defaults.phase_timeout, Some(300));
+        assert_eq!(config.runner.mode, Some("native".to_string()));
+        assert_eq!(config.defaults.model, Some("sonnet".to_string()));
+        assert_eq!(config.defaults.max_turns, Some(10));
+        assert_eq!(config.defaults.verbose, Some(true));
+        assert_eq!(config.llm.provider, Some("claude-cli".to_string()));
+        assert_eq!(
+            config.llm.execution_strategy,
+            Some("controlled".to_string())
+        );
+    }
+
+    #[test]
+    fn test_config_builder_validation_rejects_invalid_packet_max_bytes() {
+        let result = Config::builder().packet_max_bytes(0).build();
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, .. }) => {
+                assert_eq!(key, "packet_max_bytes");
+            }
+            _ => panic!("Expected Config InvalidValue error for packet_max_bytes"),
+        }
+    }
+
+    #[test]
+    fn test_config_builder_validation_rejects_excessive_packet_max_bytes() {
+        let result = Config::builder()
+            .packet_max_bytes(20_000_000) // Exceeds 10MB limit
+            .build();
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
+                assert_eq!(key, "packet_max_bytes");
+                assert!(value.contains("exceeds maximum"));
+            }
+            _ => panic!("Expected Config InvalidValue error for packet_max_bytes"),
+        }
+    }
+
+    #[test]
+    fn test_config_builder_validation_rejects_invalid_runner_mode() {
+        let result = Config::builder().runner_mode("invalid_mode").build();
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, .. }) => {
+                assert_eq!(key, "runner_mode");
+            }
+            _ => panic!("Expected Config InvalidValue error for runner_mode"),
+        }
+    }
+
+    #[test]
+    fn test_config_builder_validation_rejects_invalid_execution_strategy() {
+        let result = Config::builder().execution_strategy("externaltool").build();
+
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
+                assert_eq!(key, "llm.execution_strategy");
+                assert!(value.contains("externaltool"));
+            }
+            _ => panic!("Expected Config InvalidValue error for execution_strategy"),
+        }
+    }
+
+    #[test]
+    fn test_config_builder_chaining() {
+        // Test that builder methods can be chained in any order
+        let config = Config::builder()
+            .runner_mode("native")
+            .packet_max_bytes(32768)
+            .phase_timeout(std::time::Duration::from_secs(300))
+            .packet_max_lines(600)
+            .build()
+            .unwrap();
+
+        assert_eq!(config.defaults.packet_max_bytes, Some(32768));
+        assert_eq!(config.defaults.packet_max_lines, Some(600));
+        assert_eq!(config.defaults.phase_timeout, Some(300));
+        assert_eq!(config.runner.mode, Some("native".to_string()));
+    }
+
+    #[test]
+    fn test_config_builder_default_impl() {
+        // Test that ConfigBuilder implements Default
+        let builder = ConfigBuilder::default();
+        let config = builder.build().unwrap();
+
+        // Should use all defaults
+        assert_eq!(config.defaults.max_turns, Some(6));
+        assert_eq!(config.defaults.packet_max_bytes, Some(65536));
+    }
+
+    // ===== discover_from_env_and_fs Tests =====
+
+    #[test]
+    fn test_discover_from_env_and_fs_uses_defaults() {
+        // Use isolated home to avoid picking up real config files
+        let _home = crate::paths::with_isolated_home();
+
+        // discover_from_env_and_fs should work with no config file present
+        let config = Config::discover_from_env_and_fs().unwrap();
+
+        // Should use all defaults
+        assert_eq!(config.defaults.max_turns, Some(6));
+        assert_eq!(config.defaults.packet_max_bytes, Some(65536));
+        assert_eq!(config.defaults.packet_max_lines, Some(1200));
+        assert_eq!(config.llm.provider, Some("claude-cli".to_string()));
+        assert_eq!(
+            config.llm.execution_strategy,
+            Some("controlled".to_string())
+        );
+
+        // Source attribution should be defaults
+        assert_eq!(
+            config.source_attribution.get("max_turns"),
+            Some(&ConfigSource::Defaults)
+        );
+        assert_eq!(
+            config.source_attribution.get("llm_provider"),
+            Some(&ConfigSource::Defaults)
+        );
+    }
+
+    #[test]
+    fn test_discover_from_env_and_fs_reads_config_file() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a config file in a temp directory's .xchecker folder
+        // (simulating a project with a config file)
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[defaults]
+model = "sonnet"
+max_turns = 10
+packet_max_bytes = 32768
+"#,
+        );
+
+        // Use discover_from with the temp directory to simulate being in that project
+        let config = Config::discover_from(temp_dir.path(), &CliArgs::default()).unwrap();
+
+        // Should use values from config file
+        assert_eq!(config.defaults.model, Some("sonnet".to_string()));
+        assert_eq!(config.defaults.max_turns, Some(10));
+        assert_eq!(config.defaults.packet_max_bytes, Some(32768));
+
+        // Values not in config file should use defaults
+        assert_eq!(config.defaults.packet_max_lines, Some(1200));
+
+        // Source attribution should reflect config file for overridden values
+        assert!(matches!(
+            config.source_attribution.get("model"),
+            Some(ConfigSource::ConfigFile(_))
+        ));
+        assert!(matches!(
+            config.source_attribution.get("max_turns"),
+            Some(ConfigSource::ConfigFile(_))
+        ));
+        // Default values should have Defaults source
+        assert_eq!(
+            config.source_attribution.get("packet_max_lines"),
+            Some(&ConfigSource::Defaults)
+        );
+
+        // Verify the config path matches what we created
+        if let Some(ConfigSource::ConfigFile(path)) = config.source_attribution.get("model") {
+            assert_eq!(path, &config_path);
+        }
+    }
+
+    #[test]
+    fn test_discover_from_env_and_fs_matches_discover_with_empty_cli_args() {
+        let _home = crate::paths::with_isolated_home();
+
+        // Both methods should produce equivalent configs when no config file exists
+        // (discover_from_env_and_fs is equivalent to discover with empty CliArgs)
+        let config_env_fs = Config::discover_from_env_and_fs().unwrap();
+        let config_discover = Config::discover(&CliArgs::default()).unwrap();
+
+        // Compare key values - both should use defaults
+        assert_eq!(config_env_fs.defaults.model, config_discover.defaults.model);
+        assert_eq!(
+            config_env_fs.defaults.max_turns,
+            config_discover.defaults.max_turns
+        );
+        assert_eq!(
+            config_env_fs.defaults.packet_max_bytes,
+            config_discover.defaults.packet_max_bytes
+        );
+        assert_eq!(config_env_fs.llm.provider, config_discover.llm.provider);
+        assert_eq!(
+            config_env_fs.llm.execution_strategy,
+            config_discover.llm.execution_strategy
+        );
+
+        // Source attribution should also match
+        assert_eq!(
+            config_env_fs.source_attribution.get("max_turns"),
+            config_discover.source_attribution.get("max_turns")
+        );
+        assert_eq!(
+            config_env_fs.source_attribution.get("llm_provider"),
+            config_discover.source_attribution.get("llm_provider")
+        );
+    }
+
+    // ===== Security Config Tests (Task 23.2) =====
+
+    #[test]
+    fn test_security_config_defaults() {
+        let config = Config::builder().build().unwrap();
+
+        // Security config should have empty defaults
+        assert!(config.security.extra_secret_patterns.is_empty());
+        assert!(config.security.ignore_secret_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_security_config_from_toml_file() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[security]
+extra_secret_patterns = ["CUSTOM_[A-Z0-9]{32}", "MY_SECRET_[A-Za-z0-9]{20}"]
+ignore_secret_patterns = ["github_pat", "aws_access_key"]
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+        let config = Config::discover(&cli_args).unwrap();
+
+        // Should have extra patterns from file
+        assert_eq!(config.security.extra_secret_patterns.len(), 2);
+        assert!(
+            config
+                .security
+                .extra_secret_patterns
+                .contains(&"CUSTOM_[A-Z0-9]{32}".to_string())
+        );
+        assert!(
+            config
+                .security
+                .extra_secret_patterns
+                .contains(&"MY_SECRET_[A-Za-z0-9]{20}".to_string())
+        );
+
+        // Should have ignore patterns from file
+        assert_eq!(config.security.ignore_secret_patterns.len(), 2);
+        assert!(
+            config
+                .security
+                .ignore_secret_patterns
+                .contains(&"github_pat".to_string())
+        );
+        assert!(
+            config
+                .security
+                .ignore_secret_patterns
+                .contains(&"aws_access_key".to_string())
+        );
+
+        // Source attribution should be config file
+        assert!(matches!(
+            config.source_attribution.get("security"),
+            Some(ConfigSource::ConfigFile(_))
+        ));
+    }
+
+    #[test]
+    fn test_security_config_empty_section() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[security]
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+        let config = Config::discover(&cli_args).unwrap();
+
+        // Empty security section should use defaults
+        assert!(config.security.extra_secret_patterns.is_empty());
+        assert!(config.security.ignore_secret_patterns.is_empty());
+    }
+
+    #[test]
+    fn test_security_config_builder_methods() {
+        let config = Config::builder()
+            .extra_secret_patterns(vec!["PATTERN_A".to_string()])
+            .add_extra_secret_pattern("PATTERN_B")
+            .ignore_secret_patterns(vec!["ignore_a".to_string()])
+            .add_ignore_secret_pattern("ignore_b")
+            .build()
+            .unwrap();
+
+        // Should have both extra patterns
+        assert_eq!(config.security.extra_secret_patterns.len(), 2);
+        assert!(
+            config
+                .security
+                .extra_secret_patterns
+                .contains(&"PATTERN_A".to_string())
+        );
+        assert!(
+            config
+                .security
+                .extra_secret_patterns
+                .contains(&"PATTERN_B".to_string())
+        );
+
+        // Should have both ignore patterns
+        assert_eq!(config.security.ignore_secret_patterns.len(), 2);
+        assert!(
+            config
+                .security
+                .ignore_secret_patterns
+                .contains(&"ignore_a".to_string())
+        );
+        assert!(
+            config
+                .security
+                .ignore_secret_patterns
+                .contains(&"ignore_b".to_string())
+        );
     }
 }

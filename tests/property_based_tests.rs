@@ -1,5 +1,10 @@
 //! Property-Based Tests for xchecker
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`canonicalization::Canonicalizer`,
+//! `packet::{...}`, `phase::BudgetUsage`, `redaction::SecretRedactor`, `types::FileType`) and
+//! may break with internal refactors. These tests are intentionally white-box to validate
+//! internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This module contains property-based tests that verify system invariants
 //! across a wide range of inputs and transformations.
 //!
@@ -316,7 +321,7 @@ fn prop_secret_redaction_consistency() {
             1 => "AKIA1234567890123456", // AWS access key
             2 => "xoxb-1234567890-1234567890-abcdefghijklmnop", // Slack token
             3 => "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", // Bearer token
-            _ => "AWS_SECRET_ACCESS_KEY=abcdefghijklmnopqrstuvwxyz", // AWS secret
+            _ => "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", // AWS secret
         };
 
         let content_with_secret = format!("{base_content}\n{secret}\n{base_content}");
@@ -2204,4 +2209,893 @@ mod hook_timeout_property {
             }
         }
     }
+}
+
+// =============================================================================
+// Property 11: Secret Redaction Coverage
+// =============================================================================
+//
+// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+//
+// *For any* content containing patterns matching the documented secret categories
+// (AWS keys, GCP keys, Azure keys, generic API tokens, database URLs, SSH keys),
+// the system SHALL redact those patterns before including the content in receipts,
+// status, doctor outputs, or logs.
+//
+// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+
+/// Generators for each documented secret category
+mod secret_generators {
+    use proptest::prelude::*;
+
+    /// Generate a valid AWS access key (AKIA prefix + 16 alphanumeric chars)
+    pub fn aws_access_key() -> impl Strategy<Value = String> {
+        "[A-Z0-9]{16}".prop_map(|suffix| format!("AKIA{}", suffix))
+    }
+
+    /// Generate an AWS secret key assignment
+    pub fn aws_secret_key() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9/+=]{40}".prop_map(|key| format!("AWS_SECRET_ACCESS_KEY={}", key))
+    }
+
+    /// Generate a GCP API key (AIza prefix + 35 chars)
+    pub fn gcp_api_key() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9_-]{35}".prop_map(|suffix| format!("AIza{}", suffix))
+    }
+
+    /// Generate an Azure storage key assignment (88-char base64)
+    pub fn azure_storage_key() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9/+=]{88}".prop_map(|key| format!("AccountKey={}", key))
+    }
+
+    /// Generate an Azure SAS token
+    pub fn azure_sas_token() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9%/+=]{50,60}".prop_map(|sig| format!("?sig={}", sig))
+    }
+
+    /// Generate a Bearer token
+    pub fn bearer_token() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9._-]{30,50}".prop_map(|token| format!("Bearer {}", token))
+    }
+
+    /// Generate a JWT token (eyJ prefix for header and payload)
+    pub fn jwt_token() -> impl Strategy<Value = String> {
+        (
+            "[A-Za-z0-9_-]{20,40}",
+            "[A-Za-z0-9_-]{20,40}",
+            "[A-Za-z0-9_-]{20,40}",
+        )
+            .prop_map(|(header, payload, sig)| format!("eyJ{}.eyJ{}.{}", header, payload, sig))
+    }
+
+    /// Generate a PostgreSQL connection URL with credentials
+    pub fn postgres_url() -> impl Strategy<Value = String> {
+        ("[a-z]{4,10}", "[a-zA-Z0-9]{8,16}", "[a-z]{4,10}").prop_map(|(user, pass, db)| {
+            format!("postgres://{}:{}@localhost:5432/{}", user, pass, db)
+        })
+    }
+
+    /// Generate a MySQL connection URL with credentials
+    pub fn mysql_url() -> impl Strategy<Value = String> {
+        ("[a-z]{4,10}", "[a-zA-Z0-9]{8,16}", "[a-z]{4,10}")
+            .prop_map(|(user, pass, db)| format!("mysql://{}:{}@localhost:3306/{}", user, pass, db))
+    }
+
+    /// Generate a MongoDB connection URL with credentials
+    pub fn mongodb_url() -> impl Strategy<Value = String> {
+        ("[a-z]{4,10}", "[a-zA-Z0-9]{8,16}", "[a-z]{4,10}").prop_map(|(user, pass, db)| {
+            format!("mongodb://{}:{}@cluster.mongodb.net/{}", user, pass, db)
+        })
+    }
+
+    /// Generate a Redis connection URL with credentials
+    pub fn redis_url() -> impl Strategy<Value = String> {
+        "[a-zA-Z0-9]{8,16}".prop_map(|pass| format!("redis://:{}@localhost:6379", pass))
+    }
+
+    /// Generate a GitHub personal access token (ghp_ prefix + 36 chars)
+    pub fn github_pat() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9]{36}".prop_map(|suffix| format!("ghp_{}", suffix))
+    }
+
+    /// Generate a GitLab token (glpat- prefix + 20+ chars)
+    pub fn gitlab_token() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9_-]{20,30}".prop_map(|suffix| format!("glpat-{}", suffix))
+    }
+
+    /// Generate a Slack token (xoxb- prefix)
+    pub fn slack_token() -> impl Strategy<Value = String> {
+        "[A-Za-z0-9-]{20,40}".prop_map(|suffix| format!("xoxb-{}", suffix))
+    }
+
+    /// Generate a Stripe API key (sk_live_ or sk_test_ prefix + 24+ chars)
+    pub fn stripe_key() -> impl Strategy<Value = String> {
+        (
+            prop_oneof![Just("live"), Just("test")],
+            "[A-Za-z0-9]{24,32}",
+        )
+            .prop_map(|(env, suffix)| format!("sk_{}_{}", env, suffix))
+    }
+
+    /// Generate an SSH private key marker
+    pub fn ssh_private_key() -> impl Strategy<Value = String> {
+        prop_oneof![
+            Just("-----BEGIN RSA PRIVATE KEY-----".to_string()),
+            Just("-----BEGIN OPENSSH PRIVATE KEY-----".to_string()),
+            Just("-----BEGIN EC PRIVATE KEY-----".to_string()),
+            Just("-----BEGIN PRIVATE KEY-----".to_string()),
+        ]
+    }
+
+    /// Generate a secret from any documented category
+    pub fn any_secret_category() -> impl Strategy<Value = (String, &'static str)> {
+        prop_oneof![
+            aws_access_key().prop_map(|s| (s, "aws_access_key")),
+            aws_secret_key().prop_map(|s| (s, "aws_secret_key")),
+            gcp_api_key().prop_map(|s| (s, "gcp_api_key")),
+            azure_storage_key().prop_map(|s| (s, "azure_storage_key")),
+            azure_sas_token().prop_map(|s| (s, "azure_sas_token")),
+            bearer_token().prop_map(|s| (s, "bearer_token")),
+            jwt_token().prop_map(|s| (s, "jwt_token")),
+            postgres_url().prop_map(|s| (s, "postgres_url")),
+            mysql_url().prop_map(|s| (s, "mysql_url")),
+            mongodb_url().prop_map(|s| (s, "mongodb_url")),
+            redis_url().prop_map(|s| (s, "redis_url")),
+            github_pat().prop_map(|s| (s, "github_pat")),
+            gitlab_token().prop_map(|s| (s, "gitlab_token")),
+            slack_token().prop_map(|s| (s, "slack_token")),
+            stripe_key().prop_map(|s| (s, "stripe_key")),
+            ssh_private_key().prop_map(|s| (s, "ssh_private_key")),
+        ]
+    }
+}
+
+/// Property test: Secret redaction coverage for all documented categories
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+///
+/// This test verifies that for any content containing patterns matching the
+/// documented secret categories (AWS keys, GCP keys, Azure keys, generic API
+/// tokens, database URLs, SSH keys), the system SHALL redact those patterns.
+///
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_coverage_all_categories() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret, category) in secret_generators::any_secret_category(),
+        prefix in "[a-zA-Z0-9 ]{0,50}",
+        suffix in "[a-zA-Z0-9 ]{0,50}"
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Embed the secret in surrounding content
+        let content = format!("{}\n{}\n{}", prefix, secret, suffix);
+
+        // Test 1: has_secrets should detect the secret
+        let has_secrets = redactor.has_secrets(&content, "test.txt").unwrap();
+        prop_assert!(
+            has_secrets,
+            "Secret category '{}' should be detected. Secret: '{}'",
+            category, secret
+        );
+
+        // Test 2: scan_for_secrets should find matches
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        prop_assert!(
+            !matches.is_empty(),
+            "Secret category '{}' should produce matches. Secret: '{}'",
+            category, secret
+        );
+
+        // Test 3: redact_string should replace the secret with ***
+        // This is the primary API for redaction used in logging, error messages, etc.
+        let redacted = redactor.redact_string(&content);
+        prop_assert!(
+            !redacted.contains(&secret),
+            "Secret should be redacted from output. Category: '{}', Secret: '{}', Redacted: '{}'",
+            category, secret, redacted
+        );
+        prop_assert!(
+            redacted.contains("***"),
+            "Redacted output should contain '***' marker for category '{}'",
+            category
+        );
+    });
+}
+
+/// Property test: Each specific secret category is detected and redacted
+///
+/// This test ensures comprehensive coverage by testing each category individually
+/// with multiple generated examples.
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_aws_credentials() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        access_key in secret_generators::aws_access_key(),
+        secret_key in secret_generators::aws_secret_key()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Test AWS access key
+        let content1 = format!("config: {}", access_key);
+        prop_assert!(
+            redactor.has_secrets(&content1, "test.txt").unwrap(),
+            "AWS access key should be detected: {}", access_key
+        );
+        let redacted1 = redactor.redact_string(&content1);
+        prop_assert!(
+            !redacted1.contains(&access_key),
+            "AWS access key should be redacted"
+        );
+
+        // Test AWS secret key
+        let content2 = format!("export {}", secret_key);
+        prop_assert!(
+            redactor.has_secrets(&content2, "test.txt").unwrap(),
+            "AWS secret key should be detected: {}", secret_key
+        );
+        let redacted2 = redactor.redact_string(&content2);
+        prop_assert!(
+            !redacted2.contains(&secret_key),
+            "AWS secret key should be redacted"
+        );
+    });
+}
+
+/// Property test: GCP credentials are detected and redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_gcp_credentials() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        api_key in secret_generators::gcp_api_key()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        let content = format!("GOOGLE_API_KEY={}", api_key);
+        prop_assert!(
+            redactor.has_secrets(&content, "test.txt").unwrap(),
+            "GCP API key should be detected: {}", api_key
+        );
+        let redacted = redactor.redact_string(&content);
+        prop_assert!(
+            !redacted.contains(&api_key),
+            "GCP API key should be redacted"
+        );
+    });
+}
+
+/// Property test: Azure credentials are detected and redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_azure_credentials() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        storage_key in secret_generators::azure_storage_key(),
+        sas_token in secret_generators::azure_sas_token()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Test Azure storage key
+        let content1 = format!("connection: {}", storage_key);
+        prop_assert!(
+            redactor.has_secrets(&content1, "test.txt").unwrap(),
+            "Azure storage key should be detected: {}", storage_key
+        );
+        let redacted1 = redactor.redact_string(&content1);
+        prop_assert!(
+            !redacted1.contains(&storage_key),
+            "Azure storage key should be redacted"
+        );
+
+        // Test Azure SAS token
+        let content2 = format!("https://storage.blob.core.windows.net/container{}", sas_token);
+        prop_assert!(
+            redactor.has_secrets(&content2, "test.txt").unwrap(),
+            "Azure SAS token should be detected: {}", sas_token
+        );
+        let redacted2 = redactor.redact_string(&content2);
+        prop_assert!(
+            !redacted2.contains(&sas_token),
+            "Azure SAS token should be redacted"
+        );
+    });
+}
+
+/// Property test: Generic API tokens are detected and redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_generic_tokens() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        bearer in secret_generators::bearer_token(),
+        jwt in secret_generators::jwt_token()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Test Bearer token
+        let content1 = format!("Authorization: {}", bearer);
+        prop_assert!(
+            redactor.has_secrets(&content1, "test.txt").unwrap(),
+            "Bearer token should be detected: {}", bearer
+        );
+        let redacted1 = redactor.redact_string(&content1);
+        prop_assert!(
+            !redacted1.contains(&bearer),
+            "Bearer token should be redacted"
+        );
+
+        // Test JWT token
+        let content2 = format!("token={}", jwt);
+        prop_assert!(
+            redactor.has_secrets(&content2, "test.txt").unwrap(),
+            "JWT token should be detected: {}", jwt
+        );
+        let redacted2 = redactor.redact_string(&content2);
+        prop_assert!(
+            !redacted2.contains(&jwt),
+            "JWT token should be redacted"
+        );
+    });
+}
+
+/// Property test: Database connection URLs are detected and redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_database_urls() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        postgres in secret_generators::postgres_url(),
+        mysql in secret_generators::mysql_url(),
+        mongodb in secret_generators::mongodb_url(),
+        redis in secret_generators::redis_url()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Test PostgreSQL URL
+        let content1 = format!("DATABASE_URL={}", postgres);
+        prop_assert!(
+            redactor.has_secrets(&content1, "test.txt").unwrap(),
+            "PostgreSQL URL should be detected: {}", postgres
+        );
+        let redacted1 = redactor.redact_string(&content1);
+        prop_assert!(
+            !redacted1.contains(&postgres),
+            "PostgreSQL URL should be redacted"
+        );
+
+        // Test MySQL URL
+        let content2 = format!("MYSQL_URL={}", mysql);
+        prop_assert!(
+            redactor.has_secrets(&content2, "test.txt").unwrap(),
+            "MySQL URL should be detected: {}", mysql
+        );
+        let redacted2 = redactor.redact_string(&content2);
+        prop_assert!(
+            !redacted2.contains(&mysql),
+            "MySQL URL should be redacted"
+        );
+
+        // Test MongoDB URL
+        let content3 = format!("MONGO_URI={}", mongodb);
+        prop_assert!(
+            redactor.has_secrets(&content3, "test.txt").unwrap(),
+            "MongoDB URL should be detected: {}", mongodb
+        );
+        let redacted3 = redactor.redact_string(&content3);
+        prop_assert!(
+            !redacted3.contains(&mongodb),
+            "MongoDB URL should be redacted"
+        );
+
+        // Test Redis URL
+        let content4 = format!("REDIS_URL={}", redis);
+        prop_assert!(
+            redactor.has_secrets(&content4, "test.txt").unwrap(),
+            "Redis URL should be detected: {}", redis
+        );
+        let redacted4 = redactor.redact_string(&content4);
+        prop_assert!(
+            !redacted4.contains(&redis),
+            "Redis URL should be redacted"
+        );
+    });
+}
+
+/// Property test: Platform-specific tokens are detected and redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_platform_tokens() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        github in secret_generators::github_pat(),
+        gitlab in secret_generators::gitlab_token(),
+        slack in secret_generators::slack_token(),
+        stripe in secret_generators::stripe_key()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Test GitHub PAT
+        let content1 = format!("GITHUB_TOKEN={}", github);
+        prop_assert!(
+            redactor.has_secrets(&content1, "test.txt").unwrap(),
+            "GitHub PAT should be detected: {}", github
+        );
+        let redacted1 = redactor.redact_string(&content1);
+        prop_assert!(
+            !redacted1.contains(&github),
+            "GitHub PAT should be redacted"
+        );
+
+        // Test GitLab token
+        let content2 = format!("GITLAB_TOKEN={}", gitlab);
+        prop_assert!(
+            redactor.has_secrets(&content2, "test.txt").unwrap(),
+            "GitLab token should be detected: {}", gitlab
+        );
+        let redacted2 = redactor.redact_string(&content2);
+        prop_assert!(
+            !redacted2.contains(&gitlab),
+            "GitLab token should be redacted"
+        );
+
+        // Test Slack token
+        let content3 = format!("SLACK_TOKEN={}", slack);
+        prop_assert!(
+            redactor.has_secrets(&content3, "test.txt").unwrap(),
+            "Slack token should be detected: {}", slack
+        );
+        let redacted3 = redactor.redact_string(&content3);
+        prop_assert!(
+            !redacted3.contains(&slack),
+            "Slack token should be redacted"
+        );
+
+        // Test Stripe key
+        let content4 = format!("STRIPE_KEY={}", stripe);
+        prop_assert!(
+            redactor.has_secrets(&content4, "test.txt").unwrap(),
+            "Stripe key should be detected: {}", stripe
+        );
+        let redacted4 = redactor.redact_string(&content4);
+        prop_assert!(
+            !redacted4.contains(&stripe),
+            "Stripe key should be redacted"
+        );
+    });
+}
+
+/// Property test: SSH private keys are detected and redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_ssh_keys() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        ssh_key in secret_generators::ssh_private_key()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        let content = format!("key:\n{}\nMIIEvgIBADANBg...\n-----END PRIVATE KEY-----", ssh_key);
+        prop_assert!(
+            redactor.has_secrets(&content, "test.txt").unwrap(),
+            "SSH private key should be detected: {}", ssh_key
+        );
+        let redacted = redactor.redact_string(&content);
+        prop_assert!(
+            !redacted.contains(&ssh_key),
+            "SSH private key marker should be redacted"
+        );
+    });
+}
+
+/// Property test: Multiple secrets in same content are all redacted
+///
+/// **Feature: crates-io-packaging, Property 11: Secret redaction coverage**
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_secret_redaction_multiple_secrets() {
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret1, cat1) in secret_generators::any_secret_category(),
+        (secret2, cat2) in secret_generators::any_secret_category()
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Content with multiple secrets
+        let content = format!("first: {}\nsecond: {}", secret1, secret2);
+
+        // Both should be detected
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        prop_assert!(
+            matches.len() >= 2,
+            "Both secrets should be detected. Categories: '{}', '{}'. Found {} matches.",
+            cat1, cat2, matches.len()
+        );
+
+        // Both should be redacted
+        let redacted = redactor.redact_string(&content);
+        prop_assert!(
+            !redacted.contains(&secret1),
+            "First secret ({}) should be redacted", cat1
+        );
+        prop_assert!(
+            !redacted.contains(&secret2),
+            "Second secret ({}) should be redacted", cat2
+        );
+    });
+}
+
+// =============================================================================
+// Property 12: Redaction Pipeline Completeness
+// =============================================================================
+//
+// **Feature: crates-io-packaging, Property 12: Redaction pipeline completeness**
+//
+// *For any* string that passes through LLM invocation, logging, or JSON emission,
+// the string SHALL have been processed by `redact_all()` with the effective
+// `RedactionConfig`.
+//
+// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+//
+// This property verifies that all output surfaces in the system apply redaction
+// before emitting content. We test this by:
+// 1. Verifying that Receipt creation applies redaction to all user-facing fields
+// 2. Verifying that global redaction helpers work correctly for all output surfaces
+// 3. Verifying that error messages are redacted before display
+
+/// Property test: Receipt creation applies redaction to all user-facing fields
+///
+/// **Feature: crates-io-packaging, Property 12: Redaction pipeline completeness**
+///
+/// This test verifies that when a Receipt is created with content containing secrets,
+/// all user-facing fields (stderr_tail, stderr_redacted, warnings, error_reason)
+/// are properly redacted before being stored in the receipt.
+///
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_receipt_creation_applies_redaction() {
+    use camino::Utf8PathBuf;
+    use xchecker::receipt::ReceiptManager;
+    use xchecker::redaction::SecretRedactor;
+    use xchecker::types::{ErrorKind, PacketEvidence, PhaseId};
+
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret, category) in secret_generators::any_secret_category(),
+        safe_prefix in "[a-zA-Z0-9 ]{5,20}",
+        safe_suffix in "[a-zA-Z0-9 ]{5,20}"
+    )| {
+        let redactor = SecretRedactor::new().unwrap();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let spec_path = Utf8PathBuf::from_path_buf(temp_dir.path().to_path_buf())
+            .expect("temp dir should be valid UTF-8");
+        let receipt_manager = ReceiptManager::new(&spec_path);
+
+        // Create content with embedded secret for each user-facing field
+        let stderr_with_secret = format!("{} {} {}", safe_prefix, secret, safe_suffix);
+        let warning_with_secret = format!("Warning: {} detected", secret);
+        let error_reason_with_secret = format!("Failed due to {}", secret);
+
+        // Create a receipt with secrets in user-facing fields
+        // Note: create_receipt uses default_redactor() internally, so we use
+        // create_receipt_with_redactor to test with our explicit redactor
+        let receipt = receipt_manager.create_receipt_with_redactor(
+            &redactor,
+            "test-spec",
+            PhaseId::Requirements,
+            0, // exit_code
+            vec![], // outputs
+            "1.0.0", // xchecker_version
+            "1.0.0", // claude_cli_version
+            "claude-3-opus", // model_full_name
+            Some("opus".to_string()), // model_alias
+            std::collections::HashMap::new(), // flags
+            PacketEvidence {
+                files: vec![],
+                max_bytes: 100000,
+                max_lines: 1000,
+            },
+            Some(stderr_with_secret.clone()), // stderr_tail
+            Some(stderr_with_secret.clone()), // stderr_redacted
+            vec![warning_with_secret.clone()], // warnings
+            None, // fallback_used
+            "native", // runner
+            None, // runner_distro
+            Some(ErrorKind::Unknown), // error_kind
+            Some(error_reason_with_secret.clone()), // error_reason
+            None, // diff_context
+            None, // pipeline
+        );
+
+        // Verify that the secret is NOT present in any user-facing field
+        if let Some(ref stderr_tail) = receipt.stderr_tail {
+            prop_assert!(
+                !stderr_tail.contains(&secret),
+                "stderr_tail should be redacted. Category: '{}', Found secret in: '{}'",
+                category, stderr_tail
+            );
+        }
+
+        if let Some(ref stderr_redacted) = receipt.stderr_redacted {
+            prop_assert!(
+                !stderr_redacted.contains(&secret),
+                "stderr_redacted should be redacted. Category: '{}', Found secret in: '{}'",
+                category, stderr_redacted
+            );
+        }
+
+        for warning in &receipt.warnings {
+            prop_assert!(
+                !warning.contains(&secret),
+                "warnings should be redacted. Category: '{}', Found secret in: '{}'",
+                category, warning
+            );
+        }
+
+        if let Some(ref error_reason) = receipt.error_reason {
+            prop_assert!(
+                !error_reason.contains(&secret),
+                "error_reason should be redacted. Category: '{}', Found secret in: '{}'",
+                category, error_reason
+            );
+        }
+
+        // Verify that the safe content is preserved (redaction doesn't destroy everything)
+        if let Some(ref stderr_tail) = receipt.stderr_tail {
+            prop_assert!(
+                stderr_tail.contains(&safe_prefix) || stderr_tail.contains("***"),
+                "Safe content should be preserved or replaced with redaction marker"
+            );
+        }
+    });
+}
+
+/// Property test: Global redaction helpers process all output surfaces
+///
+/// **Feature: crates-io-packaging, Property 12: Redaction pipeline completeness**
+///
+/// This test verifies that the global redaction helper functions
+/// (redact_user_string, redact_user_strings, redact_user_optional) correctly
+/// process content for all output surfaces.
+///
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_global_redaction_helpers_complete() {
+    use xchecker::redaction::{redact_user_optional, redact_user_string, redact_user_strings};
+
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret, category) in secret_generators::any_secret_category(),
+        safe_content in "[a-zA-Z0-9 ]{10,50}"
+    )| {
+        // Test redact_user_string
+        let content_with_secret = format!("{} contains {}", safe_content, secret);
+        let redacted = redact_user_string(&content_with_secret);
+        prop_assert!(
+            !redacted.contains(&secret),
+            "redact_user_string should redact '{}' category. Found in: '{}'",
+            category, redacted
+        );
+        prop_assert!(
+            redacted.contains(&safe_content),
+            "redact_user_string should preserve safe content"
+        );
+
+        // Test redact_user_strings (batch)
+        let strings_with_secrets = vec![
+            format!("First: {}", secret),
+            safe_content.clone(),
+            format!("Third: {}", secret),
+        ];
+        let redacted_strings = redact_user_strings(&strings_with_secrets);
+        prop_assert_eq!(
+            redacted_strings.len(),
+            strings_with_secrets.len(),
+            "redact_user_strings should preserve vector length"
+        );
+        for (i, redacted_str) in redacted_strings.iter().enumerate() {
+            prop_assert!(
+                !redacted_str.contains(&secret),
+                "redact_user_strings[{}] should be redacted. Category: '{}', Found: '{}'",
+                i, category, redacted_str
+            );
+        }
+        // Safe content should be preserved
+        prop_assert_eq!(
+            &redacted_strings[1], &safe_content,
+            "Safe content should be unchanged"
+        );
+
+        // Test redact_user_optional with Some
+        let optional_with_secret = Some(format!("Optional: {}", secret));
+        let redacted_optional = redact_user_optional(&optional_with_secret);
+        prop_assert!(
+            redacted_optional.is_some(),
+            "redact_user_optional should preserve Some"
+        );
+        prop_assert!(
+            !redacted_optional.as_ref().unwrap().contains(&secret),
+            "redact_user_optional should redact '{}' category. Found: '{}'",
+            category, redacted_optional.unwrap()
+        );
+
+        // Test redact_user_optional with None
+        let none_value: Option<String> = None;
+        let redacted_none = redact_user_optional(&none_value);
+        prop_assert!(
+            redacted_none.is_none(),
+            "redact_user_optional should preserve None"
+        );
+    });
+}
+
+/// Property test: Error messages are redacted before display
+///
+/// **Feature: crates-io-packaging, Property 12: Redaction pipeline completeness**
+///
+/// This test verifies that error messages containing secrets are properly
+/// redacted when using the display_for_user() method or similar user-facing
+/// error formatting.
+///
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_error_messages_redacted() {
+    use xchecker::redaction::redact_user_string;
+
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret, category) in secret_generators::any_secret_category(),
+        error_context in "[a-zA-Z0-9 ]{10,30}"
+    )| {
+        // Simulate various error message formats that might contain secrets
+        let error_formats = vec![
+            format!("Authentication failed with token {}", secret),
+            format!("Connection to {} refused", secret),
+            format!("Invalid credentials: {}", secret),
+            format!("{}: error processing {}", error_context, secret),
+            format!("Failed to parse config containing {}", secret),
+        ];
+
+        for error_msg in error_formats {
+            let redacted = redact_user_string(&error_msg);
+            prop_assert!(
+                !redacted.contains(&secret),
+                "Error message should be redacted. Category: '{}', Original: '{}', Redacted: '{}'",
+                category, error_msg, redacted
+            );
+            // Verify the error context is preserved
+            prop_assert!(
+                redacted.contains("***") || !error_msg.contains(&secret),
+                "Redacted content should contain redaction marker"
+            );
+        }
+    });
+}
+
+/// Property test: Redaction is idempotent
+///
+/// **Feature: crates-io-packaging, Property 12: Redaction pipeline completeness**
+///
+/// This test verifies that applying redaction multiple times produces the same
+/// result as applying it once. This is important for ensuring that content
+/// passing through multiple output surfaces doesn't get corrupted.
+///
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_redaction_idempotent() {
+    use xchecker::redaction::redact_user_string;
+
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret, _category) in secret_generators::any_secret_category(),
+        content in "[a-zA-Z0-9 ]{10,50}"
+    )| {
+        let content_with_secret = format!("{} {} more content", content, secret);
+
+        // Apply redaction once
+        let redacted_once = redact_user_string(&content_with_secret);
+
+        // Apply redaction twice
+        let redacted_twice = redact_user_string(&redacted_once);
+
+        // Apply redaction three times
+        let redacted_thrice = redact_user_string(&redacted_twice);
+
+        // All should be identical (idempotent)
+        prop_assert_eq!(
+            &redacted_once, &redacted_twice,
+            "Redaction should be idempotent (once == twice)"
+        );
+        prop_assert_eq!(
+            &redacted_twice, &redacted_thrice,
+            "Redaction should be idempotent (twice == thrice)"
+        );
+
+        // The secret should not be present in any version
+        prop_assert!(
+            !redacted_once.contains(&secret),
+            "Secret should be redacted after one pass"
+        );
+    });
+}
+
+/// Property test: Redaction preserves content structure
+///
+/// **Feature: crates-io-packaging, Property 12: Redaction pipeline completeness**
+///
+/// This test verifies that redaction preserves the overall structure of content
+/// (line count, general format) while only replacing secret patterns.
+///
+/// **Validates: Requirements FR-SEC-1, FR-SEC-5**
+#[test]
+fn prop_redaction_preserves_structure() {
+    use xchecker::redaction::redact_user_string;
+
+    let config = proptest_config(None);
+
+    proptest!(config, |(
+        (secret, _category) in secret_generators::any_secret_category(),
+        lines in prop::collection::vec("[a-zA-Z0-9 ]{5,30}", 1..10)
+    )| {
+        // Create multi-line content with secret on one line
+        let secret_line_idx = lines.len() / 2;
+        let mut content_lines = lines.clone();
+        content_lines[secret_line_idx] = format!("{} {}", content_lines[secret_line_idx], secret);
+        let content = content_lines.join("\n");
+
+        let redacted = redact_user_string(&content);
+
+        // Line count should be preserved
+        let original_line_count = content.lines().count();
+        let redacted_line_count = redacted.lines().count();
+        prop_assert_eq!(
+            original_line_count, redacted_line_count,
+            "Redaction should preserve line count"
+        );
+
+        // Lines without secrets should be unchanged
+        for (i, (original, redacted_line)) in content.lines().zip(redacted.lines()).enumerate() {
+            if i != secret_line_idx {
+                prop_assert_eq!(
+                    original, redacted_line,
+                    "Non-secret lines should be unchanged at line {}", i
+                );
+            }
+        }
+
+        // The secret should not be present
+        prop_assert!(
+            !redacted.contains(&secret),
+            "Secret should be redacted"
+        );
+    });
 }

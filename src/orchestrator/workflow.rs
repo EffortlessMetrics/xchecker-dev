@@ -388,7 +388,8 @@ impl PhaseOrchestrator {
         };
 
         // Create receipt using core outputs
-        let mut receipt = self.receipt_manager().create_receipt(
+        let mut receipt = self.receipt_manager().create_receipt_with_redactor(
+            config.redactor.as_ref(),
             self.spec_id(),
             phase_id,
             core.claude_exit_code,

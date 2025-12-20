@@ -18,6 +18,7 @@ fn dry_run_config() -> xchecker::orchestrator::OrchestratorConfig {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     }
 }
 
@@ -36,7 +37,8 @@ async fn test_core_output_has_packet_evidence() -> Result<()> {
     let spec_id = unique_spec_id("packet-evidence");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run a phase (Requirements)
     let result = handle
@@ -92,7 +94,8 @@ async fn test_core_output_success_has_artifacts() -> Result<()> {
     let spec_id = unique_spec_id("success-artifacts");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run a phase (Requirements) with exit_code 0
     let result = handle
@@ -151,7 +154,8 @@ async fn test_core_output_has_hashes() -> Result<()> {
     let spec_id = unique_spec_id("output-hashes");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run a phase (Requirements)
     let result = handle
@@ -224,7 +228,8 @@ async fn test_phase_execution_deterministic() -> Result<()> {
     let spec_id = unique_spec_id("deterministic");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run phase first time
     let result1 = handle
@@ -286,7 +291,8 @@ async fn test_receipts_have_required_metadata() -> Result<()> {
     let spec_id = unique_spec_id("required-metadata");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run phase
     let result = handle
@@ -365,7 +371,8 @@ async fn test_artifacts_follow_naming_convention() -> Result<()> {
     let spec_id = unique_spec_id("naming-convention");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Test Requirements phase
     let result = handle
@@ -504,9 +511,11 @@ async fn test_packet_construction_in_execute_phase_core() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run Requirements phase which should produce a packet
     let result = handle
@@ -704,7 +713,8 @@ async fn test_prompt_packet_consistency() -> Result<()> {
 
     // Create handle with dry-run config
     let config = dry_run_config();
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run Requirements phase which should generate both prompt and packet
     let result = handle
@@ -879,9 +889,11 @@ async fn test_packet_evidence_round_trip_validation() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run Requirements phase
     let result = handle
@@ -1051,7 +1063,8 @@ async fn test_pipeline_execution_strategy_consistency() -> Result<()> {
     let spec_id = unique_spec_id("execution-strategy-consistency");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Test multiple phases to ensure consistency
     let phases = vec![
@@ -1102,7 +1115,8 @@ async fn test_receipt_required_fields_populated() -> Result<()> {
     let spec_id = unique_spec_id("receipt-fields-populated");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run a phase to generate a receipt
     let result = handle
@@ -1277,7 +1291,8 @@ async fn test_packet_file_count_matches_actual_files() -> Result<()> {
     let spec_id = unique_spec_id("packet-file-count");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run Requirements phase first (produces artifacts)
     let req_result = handle
@@ -1364,7 +1379,8 @@ async fn test_receipt_consistency_across_executions() -> Result<()> {
     let spec_id = unique_spec_id("receipt-consistency");
     let config = dry_run_config();
 
-    let handle = xchecker::orchestrator::OrchestratorHandle::with_config(&spec_id, config)?;
+    let mut handle =
+        xchecker::orchestrator::OrchestratorHandle::with_config_and_force(&spec_id, config, false)?;
 
     // Run Requirements phase twice
     let result1 = handle

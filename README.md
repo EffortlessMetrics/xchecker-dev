@@ -28,6 +28,42 @@ cd xchecker && cargo install --path .
 
 **Requirements**: Rust 1.89+, [Claude CLI](https://claude.ai/download) installed and authenticated.
 
+## Embedding xchecker
+
+xchecker can be embedded as a library in your Rust applications:
+
+```toml
+# Cargo.toml
+[dependencies]
+xchecker = "1"
+```
+
+```rust
+use xchecker::{OrchestratorHandle, PhaseId, Config};
+
+fn main() -> Result<(), xchecker::XcError> {
+    // Option 1: Use environment-based discovery (like CLI)
+    let mut handle = OrchestratorHandle::new("my-feature")?;
+    
+    // Option 2: Use explicit configuration
+    let config = Config::builder()
+        .state_dir(".xchecker")
+        .build()?;
+    let mut handle = OrchestratorHandle::from_config("my-feature", config)?;
+    
+    // Run a single phase
+    handle.run_phase(PhaseId::Requirements)?;
+    
+    // Check status
+    let status = handle.status()?;
+    println!("Artifacts: {:?}", status.artifacts);
+    
+    Ok(())
+}
+```
+
+See the [examples/](examples/) directory for more embedding examples.
+
 ## Quick Start
 
 ```bash

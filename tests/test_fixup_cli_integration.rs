@@ -1,5 +1,10 @@
 //! CLI integration tests for fixup command (Task 4.7)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
+//! PhaseOrchestrator}`, `types::PhaseId`) and may break with internal refactors. These tests are
+//! intentionally white-box to validate internal implementation details. See FR-TEST-4 for
+//! white-box test policy.
+//!
 //! This test validates the complete CLI integration for fixup:
 //! - `xchecker resume <spec-id> --phase fixup` command works
 //! - `xchecker resume <spec-id> --phase fixup --apply-fixups` command works
@@ -131,6 +136,7 @@ async fn test_fixup_phase_preview_mode() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute fixup phase
@@ -175,6 +181,7 @@ async fn test_fixup_phase_apply_mode() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute fixup phase
@@ -223,6 +230,7 @@ async fn test_fixup_phase_validates_dependencies() -> Result<()> {
         config: HashMap::new(),
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Try to execute fixup without dependencies - should fail
@@ -254,6 +262,7 @@ async fn test_fixup_phase_creates_artifacts() -> Result<()> {
         config: config_map,
         selectors: None,
         strict_validation: false,
+        redactor: Default::default(),
     };
 
     // Execute fixup phase

@@ -1,5 +1,9 @@
 //! M3 Gate Simple Validation Test
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`canonicalization::Canonicalizer`,
+//! `types::FileType`) and may break with internal refactors. These tests are intentionally
+//! white-box to validate internal implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This module contains a simplified test for the M3 Gate canonicalization requirement.
 
 use anyhow::Result;

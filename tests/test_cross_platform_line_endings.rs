@@ -1,5 +1,10 @@
 //! Integration tests for cross-platform line ending handling (FR-FS-004, FR-FS-005)
 //!
+//! **WHITE-BOX TEST**: This test uses internal module APIs (`atomic_write::{...}`,
+//! `canonicalization::Canonicalizer`, `receipt::ReceiptManager`, `types::{...}`) and may break
+//! with internal refactors. These tests are intentionally white-box to validate internal
+//! implementation details. See FR-TEST-4 for white-box test policy.
+//!
 //! This test file validates that:
 //! - CRLF tolerance on read (Windows) - FR-FS-005
 //! - LF enforcement on write (all platforms) - FR-FS-004
