@@ -359,14 +359,6 @@ impl ArtifactManager {
         content.replace("\r\n", "\n").replace('\r', "\n")
     }
 
-    /// Get the full path for an artifact (non-validated, for existence checks)
-    fn get_artifact_path(&self, name: &str, artifact_type: ArtifactType) -> Utf8PathBuf {
-        match artifact_type {
-            ArtifactType::Context => self.base_path.join("context").join(name),
-            _ => self.base_path.join("artifacts").join(name),
-        }
-    }
-
     /// Get the full path for an artifact with sandbox validation
     ///
     /// # Security
@@ -435,8 +427,10 @@ impl ArtifactManager {
     /// Check if an artifact exists
     #[must_use]
     pub fn artifact_exists(&self, name: &str, artifact_type: ArtifactType) -> bool {
-        let path = self.get_artifact_path(name, artifact_type);
-        path.exists()
+        match self.get_artifact_path_validated(name, artifact_type) {
+            Ok(path) => path.exists(),
+            Err(_) => false,
+        }
     }
 
     /// Read an existing artifact

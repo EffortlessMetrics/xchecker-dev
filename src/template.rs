@@ -12,7 +12,6 @@
 use crate::atomic_write::write_file_atomic;
 use anyhow::{Context, Result};
 use camino::Utf8Path;
-use std::path::Path;
 
 /// Built-in template identifiers
 pub const TEMPLATE_FULLSTACK_NEXTJS: &str = "fullstack-nextjs";

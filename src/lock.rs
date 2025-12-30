@@ -139,7 +139,7 @@ impl XCheckerLock {
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
         write_file_atomic(&lock_path, &json)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            .map_err(io::Error::other)?;
 
         Ok(())
     }

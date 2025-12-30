@@ -100,6 +100,12 @@ for name, expected in SECURITY_CRITICAL.items():
     else:
         print(f"  ✅ {name}: exact version {expected}")
 
+def parse_major_minor(s: str) -> tuple[int, int] | None:
+    parts = s.split(".")
+    if len(parts) < 2:
+        return None
+    return int(parts[0]), int(parts[1])
+
 print("  Checking core dependency coarse minima...")
 for name, minimum in CORE_DEPS.items():
     version = read_version(deps, name)
@@ -107,7 +113,13 @@ for name, minimum in CORE_DEPS.items():
         errors.append(f"{name}: missing from Cargo.toml")
         continue
     found = extract_version(version)
-    if found is None or not found.startswith(minimum):
+    
+    min_mm = parse_major_minor(minimum)
+    cur_mm = parse_major_minor(found) if found else None
+    
+    if min_mm is None or cur_mm is None:
+        errors.append(f"{name}: expected minimum {minimum}, found {version}")
+    elif cur_mm < min_mm:
         errors.append(f"{name}: expected minimum {minimum}, found {version}")
     else:
         print(f"  ✅ {name}: coarse minimum {minimum} (found {version})")

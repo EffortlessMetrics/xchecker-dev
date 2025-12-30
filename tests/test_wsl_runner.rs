@@ -132,6 +132,33 @@ mod wsl_runner_tests {
         }
     }
 
+    /// Test that WSL runner validation behaves correctly on Windows
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_wsl_runner_validation_on_windows() {
+        let runner = Runner::new(RunnerMode::Wsl, WslOptions::default());
+        let result = runner.validate();
+
+        // On Windows, validation might succeed if WSL is available, or fail if not.
+        // We just want to ensure it doesn't panic and returns a reasonable result.
+        if is_wsl_available().unwrap_or(false) {
+            // If WSL is available, validation should likely pass or fail with a specific error
+            // (e.g. if claude is missing).
+            // We can't assert Ok() because we don't know if claude is installed in WSL.
+            // But we can assert that it doesn't return "only supported on Windows".
+            if let Err(e) = result {
+                let error_str = format!("{:?}", e);
+                assert!(!error_str.contains("only supported on Windows"));
+            }
+        } else {
+            // If WSL is not available, it might fail
+            if let Err(e) = result {
+                let error_str = format!("{:?}", e);
+                assert!(!error_str.contains("only supported on Windows"));
+            }
+        }
+    }
+
     /// Test that `get_wsl_distro_name` returns configured distro
     #[test]
     fn test_get_wsl_distro_name_from_config() {

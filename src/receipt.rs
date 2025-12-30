@@ -2,8 +2,6 @@ use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
 use chrono::Utc;
 use std::fs;
-use std::io::Write;
-use tempfile::NamedTempFile;
 
 use crate::atomic_write::write_file_atomic;
 use crate::canonicalization::Canonicalizer;

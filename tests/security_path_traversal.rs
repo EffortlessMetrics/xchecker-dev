@@ -4,15 +4,41 @@ use xchecker::artifact::{Artifact, ArtifactType};
 use xchecker::fixup::{FixupMode, FixupParser, UnifiedDiff, DiffHunk};
 use xchecker::OrchestratorHandle;
 
+use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
+
+static CWD_LOCK: Mutex<()> = Mutex::new(());
+
+struct CwdGuard {
+    _lock: MutexGuard<'static, ()>,
+    original: PathBuf,
+}
+
+impl CwdGuard {
+    fn new() -> Self {
+        let lock = CWD_LOCK.lock().unwrap();
+        let original = std::env::current_dir().unwrap();
+        Self { _lock: lock, original }
+    }
+}
+
+impl Drop for CwdGuard {
+    fn drop(&mut self) {
+        let _ = std::env::set_current_dir(&self.original);
+    }
+}
+
 /// Test environment setup
 struct SecurityTestEnvironment {
     _temp_dir: TempDir,
+    _cwd_guard: CwdGuard,
     handle: OrchestratorHandle,
 }
 
 impl SecurityTestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
+        let cwd_guard = CwdGuard::new();
         std::env::set_current_dir(temp_dir.path())?;
 
         // Create .xchecker directory structure
@@ -23,6 +49,7 @@ impl SecurityTestEnvironment {
 
         Ok(Self {
             _temp_dir: temp_dir,
+            _cwd_guard: cwd_guard,
             handle,
         })
     }
