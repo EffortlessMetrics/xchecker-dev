@@ -45,12 +45,12 @@ proptest! {
         // We can't easily test the internal build_wsl_command since it's private,
         // but we can verify that creating the runner and validating it works.
         let runner = WslRunner::new();
-        
+
         // On Windows, we could try to run it, but that would be slow and might fail
         // if WSL is not installed.
         // Instead, we rely on the fact that WslRunner uses CommandSpec internally,
         // which we've verified preserves arguments.
-        
+
         // We can at least verify that the runner configuration is valid
         // (though validate() checks for WSL availability on Windows)
         let _ = runner;
@@ -76,7 +76,7 @@ fn test_command_spec_shell_metacharacters() {
     for input in dangerous_inputs {
         let cmd = CommandSpec::new("echo").arg(input);
         assert_eq!(cmd.args[0], OsString::from(input));
-        
+
         // Verify to_command() doesn't panic
         let _ = cmd.to_command();
     }

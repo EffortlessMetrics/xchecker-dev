@@ -133,29 +133,40 @@ mod wsl_runner_tests {
     }
 
     /// Test that WSL runner validation behaves correctly on Windows
+    ///
+    /// When WSL is available, validation should not claim "WSL unavailable".
+    /// When WSL is not available, validation should fail with a WSL-related error.
     #[test]
     #[cfg(target_os = "windows")]
     fn test_wsl_runner_validation_on_windows() {
         let runner = Runner::new(RunnerMode::Wsl, WslOptions::default());
+        let wsl_available = is_wsl_available().unwrap_or(false);
         let result = runner.validate();
 
-        // On Windows, validation might succeed if WSL is available, or fail if not.
-        // We just want to ensure it doesn't panic and returns a reasonable result.
-        if is_wsl_available().unwrap_or(false) {
-            // If WSL is available, validation should likely pass or fail with a specific error
-            // (e.g. if claude is missing).
-            // We can't assert Ok() because we don't know if claude is installed in WSL.
-            // But we can assert that it doesn't return "only supported on Windows".
+        if wsl_available {
+            // If WSL is available, validation should not claim WSL is unavailable.
+            // It may still fail for other reasons (e.g., Claude not installed).
             if let Err(e) = result {
-                let error_str = format!("{:?}", e);
-                assert!(!error_str.contains("only supported on Windows"));
+                let error_str = format!("{e:?}");
+                assert!(
+                    !error_str.contains("WslNotAvailable")
+                        && !error_str.contains("only supported on Windows"),
+                    "unexpected WSL unavailable error when WSL is available: {error_str}"
+                );
             }
         } else {
-            // If WSL is not available, it might fail
-            if let Err(e) = result {
-                let error_str = format!("{:?}", e);
-                assert!(!error_str.contains("only supported on Windows"));
-            }
+            // If WSL is not available, validation should fail with a WSL-related error.
+            assert!(
+                result.is_err(),
+                "expected validation to fail when WSL is not available"
+            );
+            let error_str = format!("{:?}", result.unwrap_err());
+            assert!(
+                error_str.contains("WslNotAvailable")
+                    || error_str.contains("WSL")
+                    || error_str.contains("wsl"),
+                "expected WSL-related error, got: {error_str}"
+            );
         }
     }
 

@@ -586,7 +586,7 @@ fn test_manifest_no_content_leak() -> Result<()> {
     let unique_content = "unique_content_value_that_should_not_leak ".repeat(10);
     let file_path = base_path.join("config.core.yaml");
     fs::write(&file_path, &unique_content)?;
-    
+
     assert!(file_path.exists(), "Test file must exist");
 
     let mut builder = PacketBuilder::with_limits(50, 3)?;

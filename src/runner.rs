@@ -494,9 +494,15 @@ impl ProcessRunner for NativeRunner {
             .stderr(Stdio::piped());
 
         // Spawn the process
-        let child = command.spawn().map_err(|e| RunnerError::NativeExecutionFailed {
-            reason: format!("Failed to spawn process '{}': {}", cmd.program.to_string_lossy(), e),
-        })?;
+        let child = command
+            .spawn()
+            .map_err(|e| RunnerError::NativeExecutionFailed {
+                reason: format!(
+                    "Failed to spawn process '{}': {}",
+                    cmd.program.to_string_lossy(),
+                    e
+                ),
+            })?;
 
         // Create a channel for the result
         let (tx, rx) = mpsc::channel();
@@ -515,7 +521,7 @@ impl ProcessRunner for NativeRunner {
             Ok(output_result) => {
                 // Process completed within timeout
                 let _ = handle.join();
-                
+
                 let output = output_result.map_err(|e| RunnerError::NativeExecutionFailed {
                     reason: format!("Failed to wait for process: {e}"),
                 })?;
@@ -530,7 +536,7 @@ impl ProcessRunner for NativeRunner {
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 // Timeout occurred - attempt to terminate the process
                 Self::terminate_process(child_id);
-                
+
                 // Wait for the thread to finish (it should complete after termination)
                 let _ = handle.join();
 
@@ -565,7 +571,9 @@ impl NativeRunner {
         #[cfg(windows)]
         {
             use windows::Win32::Foundation::CloseHandle;
-            use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+            use windows::Win32::System::Threading::{
+                OpenProcess, PROCESS_TERMINATE, TerminateProcess,
+            };
 
             unsafe {
                 if let Ok(handle) = OpenProcess(PROCESS_TERMINATE, false, pid) {
@@ -809,13 +817,15 @@ impl ProcessRunner for WslRunner {
             .stderr(Stdio::piped());
 
         // Spawn the process
-        let child = command.spawn().map_err(|e| RunnerError::WslExecutionFailed {
-            reason: format!(
-                "Failed to spawn WSL process for '{}': {}",
-                cmd.program.to_string_lossy(),
-                e
-            ),
-        })?;
+        let child = command
+            .spawn()
+            .map_err(|e| RunnerError::WslExecutionFailed {
+                reason: format!(
+                    "Failed to spawn WSL process for '{}': {}",
+                    cmd.program.to_string_lossy(),
+                    e
+                ),
+            })?;
 
         // Get the child's PID for potential termination
         let child_id = child.id();
@@ -877,7 +887,7 @@ impl WslRunner {
         {
             use windows::Win32::Foundation::CloseHandle;
             use windows::Win32::System::Threading::{
-                OpenProcess, TerminateProcess, PROCESS_TERMINATE,
+                OpenProcess, PROCESS_TERMINATE, TerminateProcess,
             };
 
             unsafe {
@@ -1250,9 +1260,7 @@ impl Runner {
         stdin_content: &str,
         timeout_duration: Option<Duration>,
     ) -> Result<ClaudeResponse, RunnerError> {
-        let mut cmd = CommandSpec::new("claude")
-            .args(args)
-            .to_tokio_command();
+        let mut cmd = CommandSpec::new("claude").args(args).to_tokio_command();
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -1701,7 +1709,10 @@ impl Runner {
         }
 
         // Try to get default distro using CommandSpec
-        if let Ok(output) = CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output()
+        if let Ok(output) = CommandSpec::new("wsl")
+            .args(["-l", "-q"])
+            .to_command()
+            .output()
             && output.status.success()
         {
             let distros = String::from_utf8_lossy(&output.stdout);
@@ -2422,9 +2433,7 @@ null
 
     #[test]
     fn test_command_spec_arg() {
-        let cmd = CommandSpec::new("claude")
-            .arg("--print")
-            .arg("--verbose");
+        let cmd = CommandSpec::new("claude").arg("--print").arg("--verbose");
         assert_eq!(cmd.args.len(), 2);
         assert_eq!(cmd.args[0], OsString::from("--print"));
         assert_eq!(cmd.args[1], OsString::from("--verbose"));
@@ -2432,8 +2441,7 @@ null
 
     #[test]
     fn test_command_spec_args() {
-        let cmd = CommandSpec::new("claude")
-            .args(["--print", "--output-format", "json"]);
+        let cmd = CommandSpec::new("claude").args(["--print", "--output-format", "json"]);
         assert_eq!(cmd.args.len(), 3);
         assert_eq!(cmd.args[0], OsString::from("--print"));
         assert_eq!(cmd.args[1], OsString::from("--output-format"));
@@ -2442,8 +2450,7 @@ null
 
     #[test]
     fn test_command_spec_cwd() {
-        let cmd = CommandSpec::new("claude")
-            .cwd("/path/to/workspace");
+        let cmd = CommandSpec::new("claude").cwd("/path/to/workspace");
         assert_eq!(cmd.cwd, Some(PathBuf::from("/path/to/workspace")));
     }
 
@@ -2454,18 +2461,29 @@ null
             .env("VERBOSE", "true");
         let env = cmd.env.as_ref().unwrap();
         assert_eq!(env.len(), 2);
-        assert_eq!(env.get(&OsString::from("DEBUG")), Some(&OsString::from("1")));
-        assert_eq!(env.get(&OsString::from("VERBOSE")), Some(&OsString::from("true")));
+        assert_eq!(
+            env.get(&OsString::from("DEBUG")),
+            Some(&OsString::from("1"))
+        );
+        assert_eq!(
+            env.get(&OsString::from("VERBOSE")),
+            Some(&OsString::from("true"))
+        );
     }
 
     #[test]
     fn test_command_spec_envs() {
-        let cmd = CommandSpec::new("claude")
-            .envs([("DEBUG", "1"), ("VERBOSE", "true")]);
+        let cmd = CommandSpec::new("claude").envs([("DEBUG", "1"), ("VERBOSE", "true")]);
         let env = cmd.env.as_ref().unwrap();
         assert_eq!(env.len(), 2);
-        assert_eq!(env.get(&OsString::from("DEBUG")), Some(&OsString::from("1")));
-        assert_eq!(env.get(&OsString::from("VERBOSE")), Some(&OsString::from("true")));
+        assert_eq!(
+            env.get(&OsString::from("DEBUG")),
+            Some(&OsString::from("1"))
+        );
+        assert_eq!(
+            env.get(&OsString::from("VERBOSE")),
+            Some(&OsString::from("true"))
+        );
     }
 
     #[test]
@@ -2509,9 +2527,7 @@ null
 
     #[test]
     fn test_command_spec_to_command() {
-        let cmd = CommandSpec::new("echo")
-            .arg("hello")
-            .arg("world");
+        let cmd = CommandSpec::new("echo").arg("hello").arg("world");
 
         // Verify we can create a std::process::Command
         let std_cmd = cmd.to_command();
@@ -2521,8 +2537,7 @@ null
 
     #[test]
     fn test_command_spec_to_tokio_command() {
-        let cmd = CommandSpec::new("echo")
-            .arg("hello");
+        let cmd = CommandSpec::new("echo").arg("hello");
 
         // Verify we can create a tokio::process::Command
         let tokio_cmd = cmd.to_tokio_command();
@@ -2533,8 +2548,7 @@ null
     #[test]
     fn test_command_spec_osstring_args() {
         // Test that we can use OsString directly
-        let cmd = CommandSpec::new(OsString::from("claude"))
-            .arg(OsString::from("--print"));
+        let cmd = CommandSpec::new(OsString::from("claude")).arg(OsString::from("--print"));
         assert_eq!(cmd.program, OsString::from("claude"));
         assert_eq!(cmd.args[0], OsString::from("--print"));
     }
@@ -2593,23 +2607,13 @@ null
 
     #[test]
     fn test_process_output_stdout_string() {
-        let output = ProcessOutput::new(
-            b"hello world".to_vec(),
-            Vec::new(),
-            Some(0),
-            false,
-        );
+        let output = ProcessOutput::new(b"hello world".to_vec(), Vec::new(), Some(0), false);
         assert_eq!(output.stdout_string(), "hello world");
     }
 
     #[test]
     fn test_process_output_stderr_string() {
-        let output = ProcessOutput::new(
-            Vec::new(),
-            b"error message".to_vec(),
-            Some(1),
-            false,
-        );
+        let output = ProcessOutput::new(Vec::new(), b"error message".to_vec(), Some(1), false);
         assert_eq!(output.stderr_string(), "error message");
     }
 
@@ -2634,12 +2638,7 @@ null
 
     #[test]
     fn test_process_output_clone() {
-        let output = ProcessOutput::new(
-            b"stdout".to_vec(),
-            b"stderr".to_vec(),
-            Some(42),
-            true,
-        );
+        let output = ProcessOutput::new(b"stdout".to_vec(), b"stderr".to_vec(), Some(42), true);
         let cloned = output.clone();
         assert_eq!(cloned.stdout, output.stdout);
         assert_eq!(cloned.stderr, output.stderr);
@@ -2652,7 +2651,7 @@ null
         // Test that invalid UTF-8 is handled gracefully
         let invalid_utf8 = vec![0xff, 0xfe, 0x00, 0x01];
         let output = ProcessOutput::new(invalid_utf8.clone(), invalid_utf8, Some(0), false);
-        
+
         // Should not panic, should produce replacement characters
         let stdout = output.stdout_string();
         let stderr = output.stderr_string();
@@ -2670,7 +2669,11 @@ null
     }
 
     impl ProcessRunner for MockRunner {
-        fn run(&self, _cmd: &CommandSpec, _timeout: Duration) -> Result<ProcessOutput, RunnerError> {
+        fn run(
+            &self,
+            _cmd: &CommandSpec,
+            _timeout: Duration,
+        ) -> Result<ProcessOutput, RunnerError> {
             Ok(self.expected_output.clone())
         }
     }
@@ -2703,7 +2706,11 @@ null
         struct ErrorRunner;
 
         impl ProcessRunner for ErrorRunner {
-            fn run(&self, _cmd: &CommandSpec, _timeout: Duration) -> Result<ProcessOutput, RunnerError> {
+            fn run(
+                &self,
+                _cmd: &CommandSpec,
+                _timeout: Duration,
+            ) -> Result<ProcessOutput, RunnerError> {
                 Err(RunnerError::NativeExecutionFailed {
                     reason: "mock error".to_string(),
                 })
@@ -2729,7 +2736,11 @@ null
         struct TimeoutRunner;
 
         impl ProcessRunner for TimeoutRunner {
-            fn run(&self, _cmd: &CommandSpec, timeout: Duration) -> Result<ProcessOutput, RunnerError> {
+            fn run(
+                &self,
+                _cmd: &CommandSpec,
+                timeout: Duration,
+            ) -> Result<ProcessOutput, RunnerError> {
                 Err(RunnerError::Timeout {
                     timeout_seconds: timeout.as_secs(),
                 })
@@ -2780,24 +2791,26 @@ null
         // Test that NativeRunner can execute a simple echo command
         // This verifies argv-style execution works correctly
         let runner = NativeRunner::new();
-        
+
         #[cfg(windows)]
         let cmd = CommandSpec::new("cmd")
             .arg("/C")
             .arg("echo")
             .arg("hello world");
-        
+
         #[cfg(not(windows))]
-        let cmd = CommandSpec::new("echo")
-            .arg("hello world");
+        let cmd = CommandSpec::new("echo").arg("hello world");
 
         let result = runner.run(&cmd, Duration::from_secs(10));
-        
+
         assert!(result.is_ok(), "Echo command should succeed: {:?}", result);
         let output = result.unwrap();
         assert!(output.success(), "Echo should exit with code 0");
-        assert!(output.stdout_string().contains("hello world"), 
-            "Output should contain 'hello world', got: {}", output.stdout_string());
+        assert!(
+            output.stdout_string().contains("hello world"),
+            "Output should contain 'hello world', got: {}",
+            output.stdout_string()
+        );
     }
 
     #[test]
@@ -2805,27 +2818,26 @@ null
         // Test that shell metacharacters are NOT interpreted
         // This is critical for security - verifies no shell injection
         let runner = NativeRunner::new();
-        
+
         // Use echo with shell metacharacters that should be passed literally
         #[cfg(windows)]
-        let cmd = CommandSpec::new("cmd")
-            .arg("/C")
-            .arg("echo")
-            .arg("$PATH");
-        
+        let cmd = CommandSpec::new("cmd").arg("/C").arg("echo").arg("$PATH");
+
         #[cfg(not(windows))]
-        let cmd = CommandSpec::new("echo")
-            .arg("$PATH");
+        let cmd = CommandSpec::new("echo").arg("$PATH");
 
         let result = runner.run(&cmd, Duration::from_secs(10));
-        
+
         assert!(result.is_ok(), "Command should succeed");
         let output = result.unwrap();
         // The literal string "$PATH" should appear in output, not the expanded PATH variable
         // Note: On Windows cmd /C echo $PATH will output "$PATH" literally
         // On Unix, echo "$PATH" will also output "$PATH" literally since we use argv
-        assert!(output.stdout_string().contains("$PATH") || output.stdout_string().contains("PATH"),
-            "Shell metacharacter should be preserved or echoed, got: {}", output.stdout_string());
+        assert!(
+            output.stdout_string().contains("$PATH") || output.stdout_string().contains("PATH"),
+            "Shell metacharacter should be preserved or echoed, got: {}",
+            output.stdout_string()
+        );
     }
 
     #[test]
@@ -2835,12 +2847,15 @@ null
         let cmd = CommandSpec::new("this_command_definitely_does_not_exist_12345");
 
         let result = runner.run(&cmd, Duration::from_secs(10));
-        
+
         assert!(result.is_err(), "Nonexistent command should fail");
         match result {
             Err(RunnerError::NativeExecutionFailed { reason }) => {
-                assert!(reason.contains("this_command_definitely_does_not_exist_12345"),
-                    "Error should mention the command name: {}", reason);
+                assert!(
+                    reason.contains("this_command_definitely_does_not_exist_12345"),
+                    "Error should mention the command name: {}",
+                    reason
+                );
             }
             _ => panic!("Expected NativeExecutionFailed error"),
         }
@@ -2850,21 +2865,19 @@ null
     fn test_native_runner_exit_code_propagation() {
         // Test that non-zero exit codes are properly propagated
         let runner = NativeRunner::new();
-        
+
         #[cfg(windows)]
-        let cmd = CommandSpec::new("cmd")
-            .arg("/C")
-            .arg("exit")
-            .arg("42");
-        
+        let cmd = CommandSpec::new("cmd").arg("/C").arg("exit").arg("42");
+
         #[cfg(not(windows))]
-        let cmd = CommandSpec::new("sh")
-            .arg("-c")
-            .arg("exit 42");
+        let cmd = CommandSpec::new("sh").arg("-c").arg("exit 42");
 
         let result = runner.run(&cmd, Duration::from_secs(10));
-        
-        assert!(result.is_ok(), "Command should complete (even with non-zero exit)");
+
+        assert!(
+            result.is_ok(),
+            "Command should complete (even with non-zero exit)"
+        );
         let output = result.unwrap();
         assert!(!output.success(), "Exit code 42 should not be success");
         assert_eq!(output.exit_code, Some(42), "Exit code should be 42");
@@ -2874,30 +2887,33 @@ null
     fn test_native_runner_stderr_capture() {
         // Test that stderr is properly captured
         let runner = NativeRunner::new();
-        
+
         #[cfg(windows)]
         let cmd = CommandSpec::new("cmd")
             .arg("/C")
             .arg("echo error message 1>&2");
-        
+
         #[cfg(not(windows))]
         let cmd = CommandSpec::new("sh")
             .arg("-c")
             .arg("echo 'error message' >&2");
 
         let result = runner.run(&cmd, Duration::from_secs(10));
-        
+
         assert!(result.is_ok(), "Command should succeed");
         let output = result.unwrap();
-        assert!(output.stderr_string().contains("error message"),
-            "Stderr should contain 'error message', got: {}", output.stderr_string());
+        assert!(
+            output.stderr_string().contains("error message"),
+            "Stderr should contain 'error message', got: {}",
+            output.stderr_string()
+        );
     }
 
     #[test]
     fn test_native_runner_implements_process_runner() {
         // Verify NativeRunner implements ProcessRunner trait
         fn assert_process_runner<T: ProcessRunner>(_: &T) {}
-        
+
         let runner = NativeRunner::new();
         assert_process_runner(&runner);
     }
@@ -2935,7 +2951,7 @@ null
     fn test_wsl_runner_implements_process_runner() {
         // Verify WslRunner implements ProcessRunner trait
         fn assert_process_runner<T: ProcessRunner>(_: &T) {}
-        
+
         let runner = WslRunner::new();
         assert_process_runner(&runner);
     }
@@ -2943,9 +2959,7 @@ null
     #[test]
     fn test_wsl_runner_build_command_basic() {
         let runner = WslRunner::new();
-        let cmd = CommandSpec::new("echo")
-            .arg("hello")
-            .arg("world");
+        let cmd = CommandSpec::new("echo").arg("hello").arg("world");
 
         let wsl_cmd = runner.build_wsl_command(&cmd).unwrap();
 
@@ -2961,8 +2975,7 @@ null
     #[test]
     fn test_wsl_runner_build_command_with_distro() {
         let runner = WslRunner::with_distro("Ubuntu-22.04");
-        let cmd = CommandSpec::new("echo")
-            .arg("test");
+        let cmd = CommandSpec::new("echo").arg("test");
 
         let wsl_cmd = runner.build_wsl_command(&cmd).unwrap();
 
@@ -2979,8 +2992,7 @@ null
     #[test]
     fn test_wsl_runner_build_command_preserves_cwd() {
         let runner = WslRunner::new();
-        let cmd = CommandSpec::new("ls")
-            .cwd("/home/user");
+        let cmd = CommandSpec::new("ls").cwd("/home/user");
 
         let wsl_cmd = runner.build_wsl_command(&cmd).unwrap();
 
@@ -2990,13 +3002,15 @@ null
     #[test]
     fn test_wsl_runner_build_command_preserves_env() {
         let runner = WslRunner::new();
-        let cmd = CommandSpec::new("env")
-            .env("MY_VAR", "my_value");
+        let cmd = CommandSpec::new("env").env("MY_VAR", "my_value");
 
         let wsl_cmd = runner.build_wsl_command(&cmd).unwrap();
 
         let env = wsl_cmd.env.as_ref().unwrap();
-        assert_eq!(env.get(&OsString::from("MY_VAR")), Some(&OsString::from("my_value")));
+        assert_eq!(
+            env.get(&OsString::from("MY_VAR")),
+            Some(&OsString::from("my_value"))
+        );
     }
 
     #[test]
@@ -3031,7 +3045,7 @@ null
         // Arguments with null bytes should be rejected
         let arg_with_null = OsString::from("hello\0world");
         let result = WslRunner::validate_argument(&arg_with_null);
-        
+
         assert!(result.is_err());
         match result {
             Err(RunnerError::WslExecutionFailed { reason }) => {
@@ -3074,7 +3088,7 @@ null
         let cmd = CommandSpec::new("echo\0bad");
 
         let result = runner.build_wsl_command(&cmd);
-        
+
         assert!(result.is_err());
         match result {
             Err(RunnerError::WslExecutionFailed { reason }) => {
@@ -3093,7 +3107,7 @@ null
             .arg("also valid");
 
         let result = runner.build_wsl_command(&cmd);
-        
+
         assert!(result.is_err());
         match result {
             Err(RunnerError::WslExecutionFailed { reason }) => {
@@ -3111,7 +3125,7 @@ null
         let cmd = CommandSpec::new("echo").arg("test");
 
         let result = runner.run(&cmd, Duration::from_secs(10));
-        
+
         assert!(result.is_err());
         match result {
             Err(RunnerError::WslNotAvailable { reason }) => {
@@ -3136,10 +3150,10 @@ null
         // Verify each argument is a discrete element
         // The command should be: wsl -d TestDistro --exec program arg1 "arg2 with spaces" "arg3;semicolon"
         // But stored as discrete OsString elements, not concatenated
-        
+
         // Count total args: -d, TestDistro, --exec, program, arg1, arg2 with spaces, arg3;semicolon
         assert_eq!(wsl_cmd.args.len(), 7);
-        
+
         // Each argument should be exactly what we passed, not concatenated
         assert_eq!(wsl_cmd.args[4], OsString::from("arg1"));
         assert_eq!(wsl_cmd.args[5], OsString::from("arg2 with spaces"));
@@ -3150,27 +3164,29 @@ null
     fn test_wsl_runner_command_construction() {
         // This test verifies that WslRunner correctly wraps commands with --exec
         // to bypass shell interpretation.
-        
+
         let runner = WslRunner::new();
-        let cmd = CommandSpec::new("echo")
-            .arg("hello")
-            .arg("world");
-            
-        let wsl_cmd = runner.build_wsl_command(&cmd).expect("Failed to build WSL command");
-        
+        let cmd = CommandSpec::new("echo").arg("hello").arg("world");
+
+        let wsl_cmd = runner
+            .build_wsl_command(&cmd)
+            .expect("Failed to build WSL command");
+
         // Verify program is wsl
         assert_eq!(wsl_cmd.program, OsString::from("wsl"));
-        
+
         // Verify arguments structure: --exec echo hello world
-        let args: Vec<String> = wsl_cmd.args.iter()
+        let args: Vec<String> = wsl_cmd
+            .args
+            .iter()
             .map(|s| s.to_string_lossy().to_string())
             .collect();
-            
+
         assert_eq!(args[0], "--exec");
         assert_eq!(args[1], "echo");
         assert_eq!(args[2], "hello");
         assert_eq!(args[3], "world");
-        
+
         // Verify no shell wrapping (sh -c, etc)
         for arg in &args {
             assert!(!arg.contains("sh -c"));
@@ -3182,13 +3198,17 @@ null
     fn test_wsl_runner_with_distro_command_construction() {
         let runner = WslRunner::with_distro("Ubuntu-22.04");
         let cmd = CommandSpec::new("ls").arg("-la");
-        
-        let wsl_cmd = runner.build_wsl_command(&cmd).expect("Failed to build WSL command");
-        
-        let args: Vec<String> = wsl_cmd.args.iter()
+
+        let wsl_cmd = runner
+            .build_wsl_command(&cmd)
+            .expect("Failed to build WSL command");
+
+        let args: Vec<String> = wsl_cmd
+            .args
+            .iter()
             .map(|s| s.to_string_lossy().to_string())
             .collect();
-            
+
         // Verify structure: -d Ubuntu-22.04 --exec ls -la
         assert_eq!(args[0], "-d");
         assert_eq!(args[1], "Ubuntu-22.04");
@@ -3201,13 +3221,13 @@ null
     fn test_wsl_runner_argument_validation() {
         // Verify that arguments with null bytes are rejected
         let runner = WslRunner::new();
-        
+
         // Create a string with a null byte
         let cmd = CommandSpec::new("echo").arg("hello\0world");
-        
+
         let result = runner.build_wsl_command(&cmd);
         assert!(result.is_err());
-        
+
         if let Err(RunnerError::WslExecutionFailed { reason }) = result {
             assert!(reason.contains("null byte"));
         } else {
@@ -3225,22 +3245,22 @@ null
         ) {
             // Property 17: WSL runner safety
             // Validates: Requirements FR-SEC-4
-            
+
             let mut runner = WslRunner::new();
             if let Some(ref d) = distro {
                 runner = WslRunner::with_distro(d.clone());
             }
-            
+
             let mut cmd = CommandSpec::new(&program);
             for arg in &args {
                 cmd = cmd.arg(arg);
             }
-            
+
             let result = runner.build_wsl_command(&cmd);
-            
+
             // Check for null bytes in inputs
             let has_null = program.contains('\0') || args.iter().any(|a| a.contains('\0'));
-            
+
             if has_null {
                 // Must fail if null bytes are present
                 prop_assert!(result.is_err());
@@ -3248,13 +3268,13 @@ null
                 // Must succeed if no null bytes
                 prop_assert!(result.is_ok());
                 let wsl_cmd = result.unwrap();
-                
+
                 // Verify structure
                 prop_assert_eq!(wsl_cmd.program, OsString::from("wsl"));
-                
+
                 let mut expected_args_len = 1; // --exec
                 let mut arg_idx = 0;
-                
+
                 // Check distro args
                 if let Some(ref d) = runner.distro {
                     prop_assert_eq!(&wsl_cmd.args[arg_idx], &OsString::from("-d"));
@@ -3262,25 +3282,24 @@ null
                     arg_idx += 2;
                     expected_args_len += 2;
                 }
-                
+
                 // Check --exec
                 prop_assert_eq!(&wsl_cmd.args[arg_idx], &OsString::from("--exec"));
                 arg_idx += 1;
-                
+
                 // Check program
                 prop_assert_eq!(&wsl_cmd.args[arg_idx], &OsString::from(&program));
                 arg_idx += 1;
                 expected_args_len += 1;
-                
+
                 // Check args
                 for (i, arg) in args.iter().enumerate() {
                     prop_assert_eq!(&wsl_cmd.args[arg_idx + i], &OsString::from(arg));
                 }
                 expected_args_len += args.len();
-                
+
                 prop_assert_eq!(wsl_cmd.args.len(), expected_args_len);
             }
         }
     }
 }
-

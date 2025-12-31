@@ -1,8 +1,8 @@
 use anyhow::Result;
 use tempfile::TempDir;
-use xchecker::artifact::{Artifact, ArtifactType};
-use xchecker::fixup::{FixupMode, FixupParser, UnifiedDiff, DiffHunk};
 use xchecker::OrchestratorHandle;
+use xchecker::artifact::{Artifact, ArtifactType};
+use xchecker::fixup::{DiffHunk, FixupMode, FixupParser, UnifiedDiff};
 
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
@@ -18,7 +18,10 @@ impl CwdGuard {
     fn new() -> Self {
         let lock = CWD_LOCK.lock().unwrap();
         let original = std::env::current_dir().unwrap();
-        Self { _lock: lock, original }
+        Self {
+            _lock: lock,
+            original,
+        }
     }
 }
 
@@ -87,11 +90,11 @@ fn test_artifact_path_traversal_rejection() -> Result<()> {
 #[test]
 fn test_fixup_path_traversal_rejection() -> Result<()> {
     let env = SecurityTestEnvironment::new("fixup-traversal")?;
-    
+
     // Get the base path from the artifact manager to initialize FixupParser
     // This simulates the environment the FixupPhase would run in
     let base_path = env.handle.artifact_manager().base_path().to_path_buf();
-    
+
     // Initialize FixupParser in Apply mode
     let parser = FixupParser::new(FixupMode::Apply, base_path.into_std_path_buf())
         .expect("Failed to create FixupParser");
@@ -110,15 +113,18 @@ fn test_fixup_path_traversal_rejection() -> Result<()> {
     let result_traversal = parser.apply_changes(&[traversal_diff]);
     assert!(result_traversal.is_ok());
     let fixup_result_traversal = result_traversal.unwrap();
-    
+
     assert!(fixup_result_traversal.applied_files.is_empty());
     assert_eq!(fixup_result_traversal.failed_files.len(), 1);
     assert_eq!(fixup_result_traversal.failed_files[0], "../evil.txt");
-    
+
     let warnings_traversal = fixup_result_traversal.warnings.join("\n");
     assert!(
-        warnings_traversal.contains("Path validation failed") || warnings_traversal.contains("traversal") || warnings_traversal.contains("parent"),
-        "Warnings should mention path validation failure: {}", warnings_traversal
+        warnings_traversal.contains("Path validation failed")
+            || warnings_traversal.contains("traversal")
+            || warnings_traversal.contains("parent"),
+        "Warnings should mention path validation failure: {}",
+        warnings_traversal
     );
 
     // Case 2: Absolute path
@@ -147,8 +153,11 @@ fn test_fixup_path_traversal_rejection() -> Result<()> {
 
     let warnings_abs = fixup_result_abs.warnings.join("\n");
     assert!(
-        warnings_abs.contains("Path validation failed") || warnings_abs.contains("Absolute") || warnings_abs.contains("absolute"),
-        "Warnings should mention absolute path rejection: {}", warnings_abs
+        warnings_abs.contains("Path validation failed")
+            || warnings_abs.contains("Absolute")
+            || warnings_abs.contains("absolute"),
+        "Warnings should mention absolute path rejection: {}",
+        warnings_abs
     );
 
     Ok(())

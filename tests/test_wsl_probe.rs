@@ -22,7 +22,10 @@ fn test_wsl_probe() {
     println!("Probing for WSL availability on Windows...");
 
     // Try to run `wsl --version` to check if WSL is installed
-    let version_result = CommandSpec::new("wsl").arg("--version").to_command().output();
+    let version_result = CommandSpec::new("wsl")
+        .arg("--version")
+        .to_command()
+        .output();
 
     match version_result {
         Ok(output) => {
@@ -32,7 +35,10 @@ fn test_wsl_probe() {
                 println!("{}", version_output);
 
                 // Try to list distributions
-                let list_result = CommandSpec::new("wsl").args(["-l", "-v"]).to_command().output();
+                let list_result = CommandSpec::new("wsl")
+                    .args(["-l", "-v"])
+                    .to_command()
+                    .output();
 
                 if let Ok(list_output) = list_result
                     && list_output.status.success()

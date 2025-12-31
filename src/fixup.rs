@@ -451,8 +451,9 @@ impl FixupParser {
     /// Returns an error if the base directory cannot be used as a sandbox root
     /// (e.g., doesn't exist, isn't a directory, or can't be canonicalized).
     pub fn new(mode: FixupMode, base_dir: PathBuf) -> Result<Self, FixupError> {
-        let sandbox_root = SandboxRoot::new(&base_dir, SandboxConfig::default())
-            .map_err(|e| FixupError::CanonicalizationError(format!("Failed to create sandbox root: {e}")))?;
+        let sandbox_root = SandboxRoot::new(&base_dir, SandboxConfig::default()).map_err(|e| {
+            FixupError::CanonicalizationError(format!("Failed to create sandbox root: {e}"))
+        })?;
         Ok(Self { mode, sandbox_root })
     }
 
@@ -467,9 +468,14 @@ impl FixupParser {
     /// # Errors
     ///
     /// Returns an error if the base directory cannot be used as a sandbox root.
-    pub fn with_config(mode: FixupMode, base_dir: PathBuf, config: SandboxConfig) -> Result<Self, FixupError> {
-        let sandbox_root = SandboxRoot::new(&base_dir, config)
-            .map_err(|e| FixupError::CanonicalizationError(format!("Failed to create sandbox root: {e}")))?;
+    pub fn with_config(
+        mode: FixupMode,
+        base_dir: PathBuf,
+        config: SandboxConfig,
+    ) -> Result<Self, FixupError> {
+        let sandbox_root = SandboxRoot::new(&base_dir, config).map_err(|e| {
+            FixupError::CanonicalizationError(format!("Failed to create sandbox root: {e}"))
+        })?;
         Ok(Self { mode, sandbox_root })
     }
 
@@ -498,16 +504,26 @@ impl FixupParser {
     fn validate_target_path(&self, target_file: &str) -> Result<SandboxPath, FixupError> {
         self.sandbox_root.join(target_file).map_err(|e| match e {
             SandboxError::AbsolutePath { path } => FixupError::AbsolutePath(PathBuf::from(path)),
-            SandboxError::ParentTraversal { path } => FixupError::ParentDirEscape(PathBuf::from(path)),
-            SandboxError::EscapeAttempt { path, .. } => FixupError::OutsideRepo(PathBuf::from(path)),
-            SandboxError::SymlinkNotAllowed { path } => FixupError::SymlinkNotAllowed(PathBuf::from(path)),
-            SandboxError::HardlinkNotAllowed { path } => FixupError::HardlinkNotAllowed(PathBuf::from(path)),
+            SandboxError::ParentTraversal { path } => {
+                FixupError::ParentDirEscape(PathBuf::from(path))
+            }
+            SandboxError::EscapeAttempt { path, .. } => {
+                FixupError::OutsideRepo(PathBuf::from(path))
+            }
+            SandboxError::SymlinkNotAllowed { path } => {
+                FixupError::SymlinkNotAllowed(PathBuf::from(path))
+            }
+            SandboxError::HardlinkNotAllowed { path } => {
+                FixupError::HardlinkNotAllowed(PathBuf::from(path))
+            }
             SandboxError::RootNotFound { path } | SandboxError::RootNotDirectory { path } => {
                 FixupError::CanonicalizationError(format!("Invalid sandbox root: {path}"))
             }
-            SandboxError::RootCanonicalizationFailed { path, reason } |
-            SandboxError::PathCanonicalizationFailed { path, reason } => {
-                FixupError::CanonicalizationError(format!("Failed to canonicalize {path}: {reason}"))
+            SandboxError::RootCanonicalizationFailed { path, reason }
+            | SandboxError::PathCanonicalizationFailed { path, reason } => {
+                FixupError::CanonicalizationError(format!(
+                    "Failed to canonicalize {path}: {reason}"
+                ))
             }
         })
     }

@@ -419,12 +419,8 @@ fn ensure_minimal_config() -> Result<()> {
 
     // Create .xchecker directory if needed
     if !config_dir.exists() {
-        crate::paths::ensure_dir_all(config_dir).with_context(|| {
-            format!(
-                "Failed to create config directory: {}",
-                config_dir
-            )
-        })?;
+        crate::paths::ensure_dir_all(config_dir)
+            .with_context(|| format!("Failed to create config directory: {}", config_dir))?;
     }
 
     let config_content = r#"# xchecker configuration

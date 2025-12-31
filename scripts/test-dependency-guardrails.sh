@@ -43,6 +43,7 @@ if "$PYTHON_BIN" - <<'PY'
 from pathlib import Path
 import re
 import sys
+from typing import Optional, Tuple
 
 try:
     import tomllib
@@ -100,11 +101,14 @@ for name, expected in SECURITY_CRITICAL.items():
     else:
         print(f"  ✅ {name}: exact version {expected}")
 
-def parse_major_minor(s: str) -> tuple[int, int] | None:
+def parse_major_minor(s: str) -> Optional[Tuple[int, int]]:
     parts = s.split(".")
     if len(parts) < 2:
         return None
-    return int(parts[0]), int(parts[1])
+    try:
+        return int(parts[0]), int(parts[1])
+    except ValueError:
+        return None
 
 print("  Checking core dependency coarse minima...")
 for name, minimum in CORE_DEPS.items():

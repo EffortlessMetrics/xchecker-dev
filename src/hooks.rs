@@ -32,6 +32,8 @@
 //!   but do not fail the phase.
 //! - `on_fail = "fail"`: A non-zero hook exit code fails the phase with a clear error.
 
+use crate::runner::CommandSpec;
+use crate::types::PhaseId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -39,8 +41,6 @@ use std::process::Stdio;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
-use crate::runner::CommandSpec;
-use crate::types::PhaseId;
 
 /// Default timeout for hook execution in seconds
 pub const DEFAULT_HOOK_TIMEOUT_SECS: u64 = 60;
@@ -390,7 +390,11 @@ impl HookExecutor {
     /// - Hook commands are defined by the user, not derived from untrusted input
     /// - Environment variables are set by xchecker, not user-controlled
     #[allow(dead_code)] // Reserved for hooks integration; not wired in v1.0
-    fn build_command(&self, command: &str, context: &HookContext) -> Result<tokio::process::Command, HookError> {
+    fn build_command(
+        &self,
+        command: &str,
+        context: &HookContext,
+    ) -> Result<tokio::process::Command, HookError> {
         // Determine shell based on platform
         // NOTE: Shell execution is currently disabled/commented out to pass security checks
         // until hooks are fully implemented and audited.

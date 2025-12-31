@@ -3,8 +3,8 @@
 //! This module provides smoke tests and validation to ensure all systems
 //! are properly integrated and working as expected.
 
-use anyhow::{Context, Result};
 use crate::runner::CommandSpec;
+use anyhow::{Context, Result};
 use tempfile::TempDir;
 
 /// Run basic smoke tests to validate integration

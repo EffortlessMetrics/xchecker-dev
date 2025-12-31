@@ -4,9 +4,9 @@
 //! concurrent execution. The locking is advisory and coordinates xchecker processes
 //! but is not a security boundary.
 
+use crate::atomic_write::write_file_atomic;
 use crate::error::{ErrorCategory, UserFriendlyError};
 use crate::types::{DriftPair, LockDrift};
-use crate::atomic_write::write_file_atomic;
 use anyhow::Result;
 use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
@@ -138,8 +138,7 @@ impl XCheckerLock {
         let json = serde_json::to_string_pretty(self)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-        write_file_atomic(&lock_path, &json)
-            .map_err(io::Error::other)?;
+        write_file_atomic(&lock_path, &json).map_err(io::Error::other)?;
 
         Ok(())
     }
