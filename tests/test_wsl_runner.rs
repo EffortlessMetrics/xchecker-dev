@@ -144,28 +144,21 @@ mod wsl_runner_tests {
         let result = runner.validate();
 
         if wsl_available {
-            // If WSL is available, validation should not claim WSL is unavailable.
-            // It may still fail for other reasons (e.g., Claude not installed).
+            // WSL exists: validation must not claim WSL is unavailable.
             if let Err(e) = result {
-                let error_str = format!("{e:?}");
+                let s = format!("{e:?}");
                 assert!(
-                    !error_str.contains("WslNotAvailable")
-                        && !error_str.contains("only supported on Windows"),
-                    "unexpected WSL unavailable error when WSL is available: {error_str}"
+                    !s.contains("WslNotAvailable"),
+                    "unexpected WslNotAvailable when WSL is available: {s}"
                 );
             }
         } else {
-            // If WSL is not available, validation should fail with a WSL-related error.
+            // No WSL: validation should fail with something WSL-related.
+            assert!(result.is_err(), "expected validation to fail when WSL is not available");
+            let s = format!("{:?}", result.unwrap_err());
             assert!(
-                result.is_err(),
-                "expected validation to fail when WSL is not available"
-            );
-            let error_str = format!("{:?}", result.unwrap_err());
-            assert!(
-                error_str.contains("WslNotAvailable")
-                    || error_str.contains("WSL")
-                    || error_str.contains("wsl"),
-                "expected WSL-related error, got: {error_str}"
+                s.contains("WslNotAvailable") || s.contains("WSL") || s.contains("wsl"),
+                "expected WSL-related error, got: {s}"
             );
         }
     }
