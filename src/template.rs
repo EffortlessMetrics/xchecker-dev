@@ -12,7 +12,6 @@
 use crate::atomic_write::write_file_atomic;
 use anyhow::{Context, Result};
 use camino::Utf8Path;
-use std::path::Path;
 
 /// Built-in template identifiers
 pub const TEMPLATE_FULLSTACK_NEXTJS: &str = "fullstack-nextjs";
@@ -420,12 +419,8 @@ fn ensure_minimal_config() -> Result<()> {
 
     // Create .xchecker directory if needed
     if !config_dir.exists() {
-        crate::paths::ensure_dir_all(config_dir).with_context(|| {
-            format!(
-                "Failed to create config directory: {}",
-                config_dir
-            )
-        })?;
+        crate::paths::ensure_dir_all(config_dir)
+            .with_context(|| format!("Failed to create config directory: {}", config_dir))?;
     }
 
     let config_content = r#"# xchecker configuration

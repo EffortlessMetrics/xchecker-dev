@@ -132,6 +132,37 @@ mod wsl_runner_tests {
         }
     }
 
+    /// Test that WSL runner validation behaves correctly on Windows
+    ///
+    /// When WSL is available, validation should not claim "WSL unavailable".
+    /// When WSL is not available, validation should fail with a WSL-related error.
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn test_wsl_runner_validation_on_windows() {
+        let runner = Runner::new(RunnerMode::Wsl, WslOptions::default());
+        let wsl_available = is_wsl_available().unwrap_or(false);
+        let result = runner.validate();
+
+        if wsl_available {
+            // WSL exists: validation must not claim WSL is unavailable.
+            if let Err(e) = result {
+                let s = format!("{e:?}");
+                assert!(
+                    !s.contains("WslNotAvailable"),
+                    "unexpected WslNotAvailable when WSL is available: {s}"
+                );
+            }
+        } else {
+            // No WSL: validation should fail with something WSL-related.
+            assert!(result.is_err(), "expected validation to fail when WSL is not available");
+            let s = format!("{:?}", result.unwrap_err());
+            assert!(
+                s.contains("WslNotAvailable") || s.contains("WSL") || s.contains("wsl"),
+                "expected WSL-related error, got: {s}"
+            );
+        }
+    }
+
     /// Test that `get_wsl_distro_name` returns configured distro
     #[test]
     fn test_get_wsl_distro_name_from_config() {

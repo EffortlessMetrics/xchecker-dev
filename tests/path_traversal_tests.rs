@@ -1,6 +1,6 @@
 use anyhow::Result;
-use xchecker::artifact::{Artifact, ArtifactManager, ArtifactType};
 use xchecker::OrchestratorHandle;
+use xchecker::artifact::{Artifact, ArtifactManager, ArtifactType};
 
 /// Test that OrchestratorHandle rejects path traversal in spec_id
 ///
@@ -12,19 +12,19 @@ fn test_orchestrator_handle_spec_id_traversal() {
     // Note: OrchestratorHandle::new might succeed if it doesn't validate immediately,
     // but operations should fail or it should be sanitized.
     // Actually, if it's not sanitized, it might create directories outside specs/.
-    
+
     // We use a relative path that tries to go up
     let malicious_id = "../malicious_spec";
-    
+
     // If sanitization is in place, this will become ".._malicious_spec" or similar
     // If not, it might be accepted.
-    
+
     // Let's check what happens.
     // We use a temporary home to avoid messing up the real environment.
     let _temp_home = xchecker::paths::with_isolated_home();
-    
+
     let handle_result = OrchestratorHandle::new(malicious_id);
-    
+
     // If it succeeds, we check the spec_id.
     if let Ok(handle) = handle_result {
         let id = handle.spec_id();
@@ -47,21 +47,21 @@ fn test_orchestrator_handle_spec_id_traversal() {
 fn test_artifact_manager_path_traversal() -> Result<()> {
     let _temp_home = xchecker::paths::with_isolated_home();
     let manager = ArtifactManager::new("test-spec")?;
-    
+
     // Attempt to store an artifact with path traversal in the name
     let artifact = Artifact::new(
         "../../evil.md".to_string(),
         "malicious content".to_string(),
         ArtifactType::Markdown,
     );
-    
+
     let result = manager.store_artifact(&artifact);
-    
+
     // Should fail
     assert!(result.is_err());
     let err = result.unwrap_err();
     assert!(err.to_string().contains("traversal") || err.to_string().contains("parent"));
-    
+
     Ok(())
 }
 
@@ -73,21 +73,21 @@ fn test_artifact_manager_path_traversal() -> Result<()> {
 fn test_artifact_manager_absolute_path() -> Result<()> {
     let _temp_home = xchecker::paths::with_isolated_home();
     let manager = ArtifactManager::new("test-spec")?;
-    
+
     // Attempt to store an artifact with absolute path
     #[cfg(unix)]
     let abs_path = "/tmp/evil.md";
     #[cfg(windows)]
     let abs_path = "C:\\Windows\\Temp\\evil.md";
-    
+
     let artifact = Artifact::new(
         abs_path.to_string(),
         "malicious content".to_string(),
         ArtifactType::Markdown,
     );
-    
+
     let result = manager.store_artifact(&artifact);
-    
+
     // Should fail
     // Note: ArtifactManager prepends "artifacts/", so absolute paths become relative paths
     // (e.g. "artifacts//tmp/evil.md" or "artifacts/C:\...").
@@ -99,6 +99,6 @@ fn test_artifact_manager_absolute_path() -> Result<()> {
     // So the failure comes from filesystem or other validation.
     // In any case, it should not succeed in writing to the absolute path.
     assert!(result.is_err());
-    
+
     Ok(())
 }

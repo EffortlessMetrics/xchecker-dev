@@ -2,8 +2,6 @@ use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
 use chrono::Utc;
 use std::fs;
-use std::io::Write;
-use tempfile::NamedTempFile;
 
 use crate::atomic_write::write_file_atomic;
 use crate::canonicalization::Canonicalizer;
@@ -346,11 +344,12 @@ impl ReceiptManager {
             .with_context(|| "Failed to convert canonical JSON to UTF-8 string")?;
 
         // Write using atomic operation (tempfile → fsync → rename)
-        write_file_atomic(&receipt_path, &json_content)
-            .map_err(|e| XCheckerError::ReceiptWriteFailed {
+        write_file_atomic(&receipt_path, &json_content).map_err(|e| {
+            XCheckerError::ReceiptWriteFailed {
                 path: receipt_path.to_string(),
                 reason: e.to_string(),
-            })?;
+            }
+        })?;
 
         Ok(receipt_path)
     }

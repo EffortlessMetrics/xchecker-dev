@@ -218,7 +218,11 @@ impl DoctorCommand {
     /// Check claude version
     fn check_claude_version(&self) -> DoctorCheck {
         // Use CommandSpec for secure argv-style execution
-        match CommandSpec::new("claude").arg("--version").to_command().output() {
+        match CommandSpec::new("claude")
+            .arg("--version")
+            .to_command()
+            .output()
+        {
             Ok(output) if output.status.success() => {
                 let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 DoctorCheck {
@@ -382,7 +386,11 @@ impl DoctorCommand {
         }
 
         // Use CommandSpec for secure argv-style execution
-        match CommandSpec::new("wsl").args(["-l", "-v"]).to_command().output() {
+        match CommandSpec::new("wsl")
+            .args(["-l", "-v"])
+            .to_command()
+            .output()
+        {
             Ok(output) if output.status.success() => {
                 // Normalize WSL output (may be UTF-16LE on some Windows locales)
                 let distros = Self::normalize_wsl_output(&output.stdout);
@@ -453,7 +461,11 @@ impl DoctorCommand {
         }
 
         // Get list of all WSL distros using CommandSpec for secure argv-style execution
-        match CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output() {
+        match CommandSpec::new("wsl")
+            .args(["-l", "-q"])
+            .to_command()
+            .output()
+        {
             Ok(output) if output.status.success() => {
                 match wsl::parse_distro_list(&output.stdout) {
                     Ok(distros) if !distros.is_empty() => {
@@ -706,7 +718,11 @@ impl DoctorCommand {
         #[cfg(target_os = "windows")]
         {
             // On Windows, use 'where' command
-            match CommandSpec::new("where").arg("claude").to_command().output() {
+            match CommandSpec::new("where")
+                .arg("claude")
+                .to_command()
+                .output()
+            {
                 Ok(output) if output.status.success() => {
                     let path = String::from_utf8_lossy(&output.stdout)
                         .lines()
