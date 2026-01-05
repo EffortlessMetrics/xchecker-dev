@@ -148,12 +148,13 @@ impl SandboxRoot {
         }
 
         // Canonicalize to get absolute path with symlinks resolved
-        let canonical = root_path.canonicalize().map_err(|e| {
-            SandboxError::RootCanonicalizationFailed {
-                path: root_path.display().to_string(),
-                reason: e.to_string(),
-            }
-        })?;
+        let canonical =
+            root_path
+                .canonicalize()
+                .map_err(|e| SandboxError::RootCanonicalizationFailed {
+                    path: root_path.display().to_string(),
+                    reason: e.to_string(),
+                })?;
 
         Ok(Self {
             root: canonical,
@@ -212,12 +213,13 @@ impl SandboxRoot {
 
         // If the path exists, canonicalize and verify it's within the root
         if full_path.exists() {
-            let canonical = full_path.canonicalize().map_err(|e| {
-                SandboxError::PathCanonicalizationFailed {
-                    path: full_path.display().to_string(),
-                    reason: e.to_string(),
-                }
-            })?;
+            let canonical =
+                full_path
+                    .canonicalize()
+                    .map_err(|e| SandboxError::PathCanonicalizationFailed {
+                        path: full_path.display().to_string(),
+                        reason: e.to_string(),
+                    })?;
 
             // Verify the canonical path is within the sandbox root
             if !canonical.starts_with(&self.root) {
@@ -257,7 +259,11 @@ impl SandboxRoot {
             // Only check if the path exists
             if current.exists() {
                 // Check if this component is a symlink
-                if current.symlink_metadata().map(|m| m.is_symlink()).unwrap_or(false) {
+                if current
+                    .symlink_metadata()
+                    .map(|m| m.is_symlink())
+                    .unwrap_or(false)
+                {
                     return Err(SandboxError::SymlinkNotAllowed {
                         path: current.display().to_string(),
                     });
@@ -461,9 +467,15 @@ mod tests {
 
     #[test]
     fn test_sandbox_root_new_nonexistent_path() {
-        let result = SandboxRoot::new("/nonexistent/path/that/does/not/exist", SandboxConfig::default());
+        let result = SandboxRoot::new(
+            "/nonexistent/path/that/does/not/exist",
+            SandboxConfig::default(),
+        );
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::RootNotFound { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::RootNotFound { .. }
+        ));
     }
 
     #[test]
@@ -474,7 +486,10 @@ mod tests {
 
         let result = SandboxRoot::new(&file_path, SandboxConfig::default());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::RootNotDirectory { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::RootNotDirectory { .. }
+        ));
     }
 
     #[test]
@@ -524,7 +539,10 @@ mod tests {
 
         let result = root.join("../escape");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::ParentTraversal { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::ParentTraversal { .. }
+        ));
     }
 
     #[test]
@@ -534,7 +552,10 @@ mod tests {
 
         let result = root.join("subdir/../../../escape");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::ParentTraversal { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::ParentTraversal { .. }
+        ));
     }
 
     #[test]
@@ -544,7 +565,10 @@ mod tests {
 
         let result = root.join("subdir/..");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::ParentTraversal { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::ParentTraversal { .. }
+        ));
     }
 
     // ========================================================================
@@ -562,7 +586,10 @@ mod tests {
         let result = root.join("C:\\Windows\\System32");
 
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::AbsolutePath { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::AbsolutePath { .. }
+        ));
     }
 
     // ========================================================================
@@ -582,7 +609,10 @@ mod tests {
         let root = SandboxRoot::new_default(temp.path()).unwrap();
         let result = root.join("link.txt");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::SymlinkNotAllowed { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::SymlinkNotAllowed { .. }
+        ));
     }
 
     #[cfg(unix)]
@@ -618,7 +648,10 @@ mod tests {
         let root = SandboxRoot::new(temp.path(), config).unwrap();
         let result = root.join("escape_link");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::EscapeAttempt { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::EscapeAttempt { .. }
+        ));
     }
 
     // ========================================================================
@@ -638,7 +671,10 @@ mod tests {
         let root = SandboxRoot::new_default(temp.path()).unwrap();
         let result = root.join("hardlink.txt");
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), SandboxError::HardlinkNotAllowed { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::HardlinkNotAllowed { .. }
+        ));
     }
 
     #[cfg(unix)]

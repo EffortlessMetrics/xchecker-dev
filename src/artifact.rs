@@ -128,7 +128,9 @@ impl ArtifactManager {
         // Create sandbox root for path validation
         // Use permissive config since we're operating within our own state directory
         let sandbox_root = SandboxRoot::new(base_path.as_std_path(), SandboxConfig::permissive())
-            .map_err(|e| anyhow::anyhow!("Failed to create sandbox root for spec directory: {e}"))?;
+            .map_err(|e| {
+            anyhow::anyhow!("Failed to create sandbox root for spec directory: {e}")
+        })?;
 
         let manager = Self {
             base_path,
@@ -164,8 +166,9 @@ impl ArtifactManager {
         // Read-only managers may be created for non-existent specs (e.g., status check)
         let sandbox_root = if base_path.exists() {
             Some(
-                SandboxRoot::new(base_path.as_std_path(), SandboxConfig::permissive())
-                    .map_err(|e| anyhow::anyhow!("Failed to create sandbox root for spec directory: {e}"))?
+                SandboxRoot::new(base_path.as_std_path(), SandboxConfig::permissive()).map_err(
+                    |e| anyhow::anyhow!("Failed to create sandbox root for spec directory: {e}"),
+                )?,
             )
         } else {
             None
@@ -214,7 +217,8 @@ impl ArtifactManager {
     /// Returns an error if the path validation fails (e.g., path escape attempt).
     fn validate_path(&self, rel_path: &str) -> Result<std::path::PathBuf> {
         if let Some(ref sandbox) = self.sandbox_root {
-            let sandbox_path = sandbox.join(rel_path)
+            let sandbox_path = sandbox
+                .join(rel_path)
                 .map_err(|e| anyhow::anyhow!("Path validation failed for '{}': {}", rel_path, e))?;
             Ok(sandbox_path.to_path_buf())
         } else {
@@ -256,8 +260,12 @@ impl ArtifactManager {
     ) -> Result<ArtifactStoreResult> {
         // Validate the .partial directory path
         let partial_dir = self.validate_path(".partial")?;
-        crate::paths::ensure_dir_all(&partial_dir)
-            .with_context(|| format!("Failed to create .partial directory: {}", partial_dir.display()))?;
+        crate::paths::ensure_dir_all(&partial_dir).with_context(|| {
+            format!(
+                "Failed to create .partial directory: {}",
+                partial_dir.display()
+            )
+        })?;
 
         // Validate the full artifact path within .partial
         let rel_path = format!(".partial/{}", artifact.name);
@@ -283,13 +291,17 @@ impl ArtifactManager {
         let final_path = self.validate_path(&final_rel)?;
 
         if !partial_path.exists() {
-            anyhow::bail!("Partial artifact does not exist: {}", partial_path.display());
+            anyhow::bail!(
+                "Partial artifact does not exist: {}",
+                partial_path.display()
+            );
         }
 
         // Ensure parent directory exists
         if let Some(parent) = final_path.parent() {
-            crate::paths::ensure_dir_all(parent)
-                .with_context(|| format!("Failed to create parent directory: {}", parent.display()))?;
+            crate::paths::ensure_dir_all(parent).with_context(|| {
+                format!("Failed to create parent directory: {}", parent.display())
+            })?;
         }
 
         // Atomic rename from .partial/ to artifacts/
@@ -359,14 +371,6 @@ impl ArtifactManager {
         content.replace("\r\n", "\n").replace('\r', "\n")
     }
 
-    /// Get the full path for an artifact (non-validated, for existence checks)
-    fn get_artifact_path(&self, name: &str, artifact_type: ArtifactType) -> Utf8PathBuf {
-        match artifact_type {
-            ArtifactType::Context => self.base_path.join("context").join(name),
-            _ => self.base_path.join("artifacts").join(name),
-        }
-    }
-
     /// Get the full path for an artifact with sandbox validation
     ///
     /// # Security
@@ -375,7 +379,11 @@ impl ArtifactManager {
     /// - The path doesn't escape the spec root
     /// - No `..` traversal components
     /// - No absolute paths
-    fn get_artifact_path_validated(&self, name: &str, artifact_type: ArtifactType) -> Result<Utf8PathBuf> {
+    fn get_artifact_path_validated(
+        &self,
+        name: &str,
+        artifact_type: ArtifactType,
+    ) -> Result<Utf8PathBuf> {
         let rel_path = match artifact_type {
             ArtifactType::Context => format!("context/{}", name),
             _ => format!("artifacts/{}", name),
@@ -432,11 +440,17 @@ impl ArtifactManager {
         self.base_path.join("context")
     }
 
-    /// Check if an artifact exists
+    /// Check if an artifact exists.
+    ///
+    /// Returns `false` if:
+    /// - the artifact does not exist, or
+    /// - path validation fails (e.g., traversal attempt or invalid name)
     #[must_use]
     pub fn artifact_exists(&self, name: &str, artifact_type: ArtifactType) -> bool {
-        let path = self.get_artifact_path(name, artifact_type);
-        path.exists()
+        match self.get_artifact_path_validated(name, artifact_type) {
+            Ok(path) => path.exists(),
+            Err(_) => false,
+        }
     }
 
     /// Read an existing artifact
@@ -464,7 +478,8 @@ impl ArtifactManager {
     /// Delete a partial artifact for a phase
     pub fn delete_partial_artifact(&self, phase: PhaseId) -> Result<()> {
         let partial_name = self.get_phase_filename(phase, ArtifactType::Partial);
-        let partial_path = self.get_artifact_path_validated(&partial_name, ArtifactType::Partial)?;
+        let partial_path =
+            self.get_artifact_path_validated(&partial_name, ArtifactType::Partial)?;
 
         if partial_path.exists() {
             fs::remove_file(partial_path.as_std_path())
@@ -485,7 +500,8 @@ impl ArtifactManager {
         let final_name = self.get_phase_filename(phase, artifact_type);
 
         // Validate both paths through sandbox
-        let partial_path = self.get_artifact_path_validated(&partial_name, ArtifactType::Partial)?;
+        let partial_path =
+            self.get_artifact_path_validated(&partial_name, ArtifactType::Partial)?;
         let final_path = self.get_artifact_path_validated(&final_name, artifact_type)?;
 
         if !partial_path.exists() {
@@ -827,8 +843,11 @@ mod tests {
         let result = manager.validate_path("../escape.txt");
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
-        assert!(err_msg.contains("traversal") || err_msg.contains("parent"),
-            "Expected error about traversal or parent, got: {}", err_msg);
+        assert!(
+            err_msg.contains("traversal") || err_msg.contains("parent"),
+            "Expected error about traversal or parent, got: {}",
+            err_msg
+        );
 
         let result = manager.validate_path("artifacts/../../escape.txt");
         assert!(result.is_err());
@@ -840,10 +859,18 @@ mod tests {
 
         // Store some artifacts
         manager
-            .store_phase_artifact(PhaseId::Requirements, "# Requirements", ArtifactType::Markdown)
+            .store_phase_artifact(
+                PhaseId::Requirements,
+                "# Requirements",
+                ArtifactType::Markdown,
+            )
             .unwrap();
         manager
-            .store_phase_artifact(PhaseId::Requirements, "spec_id: test", ArtifactType::CoreYaml)
+            .store_phase_artifact(
+                PhaseId::Requirements,
+                "spec_id: test",
+                ArtifactType::CoreYaml,
+            )
             .unwrap();
 
         // List should work and return the artifacts

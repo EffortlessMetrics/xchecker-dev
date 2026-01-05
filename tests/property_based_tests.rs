@@ -3117,7 +3117,6 @@ fn prop_redaction_preserves_structure() {
     });
 }
 
-
 // ============================================================================
 // Property 14: Path Sandbox Enforcement
 // ============================================================================
@@ -3134,8 +3133,8 @@ fn prop_redaction_preserves_structure() {
 /// **Validates: Requirements FR-SEC-3**
 #[test]
 fn prop_path_sandbox_enforcement() {
-    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
     let config = proptest_config(None);
 
@@ -3156,17 +3155,17 @@ fn prop_path_sandbox_enforcement() {
         {
             // Build a path with ".." components
             let mut path_parts: Vec<String> = path_segments.iter().take(traversal_position.min(path_segments.len())).cloned().collect();
-            
+
             // Add traversal components
             for _ in 0..traversal_depth {
                 path_parts.push("..".to_string());
             }
-            
+
             // Add remaining segments
             path_parts.extend(path_segments.iter().skip(traversal_position.min(path_segments.len())).cloned());
-            
+
             let traversal_path = path_parts.join("/");
-            
+
             if !traversal_path.is_empty() && traversal_path.contains("..") {
                 let result = root.join(&traversal_path);
                 prop_assert!(
@@ -3174,7 +3173,7 @@ fn prop_path_sandbox_enforcement() {
                     "Path with '..' traversal should be rejected: {}",
                     traversal_path
                 );
-                
+
                 if let Err(err) = result {
                     prop_assert!(
                         matches!(err, SandboxError::ParentTraversal { .. }),
@@ -3205,7 +3204,7 @@ fn prop_path_sandbox_enforcement() {
                     "/tmp/test".to_string(),
                     format!("/home/{}", path_segments.first().unwrap_or(&"user".to_string())),
                 ];
-                
+
                 for abs_path in abs_paths {
                     let result = root.join(&abs_path);
                     prop_assert!(
@@ -3213,7 +3212,7 @@ fn prop_path_sandbox_enforcement() {
                         "Absolute path should be rejected: {}",
                         abs_path
                     );
-                    
+
                     if let Err(err) = result {
                         prop_assert!(
                             matches!(err, SandboxError::AbsolutePath { .. }),
@@ -3223,7 +3222,7 @@ fn prop_path_sandbox_enforcement() {
                     }
                 }
             }
-            
+
             #[cfg(windows)]
             {
                 let abs_paths = vec![
@@ -3231,7 +3230,7 @@ fn prop_path_sandbox_enforcement() {
                     "D:\\test".to_string(),
                     format!("C:\\Users\\{}", path_segments.first().unwrap_or(&"user".to_string())),
                 ];
-                
+
                 for abs_path in abs_paths {
                     let result = root.join(&abs_path);
                     prop_assert!(
@@ -3239,7 +3238,7 @@ fn prop_path_sandbox_enforcement() {
                         "Absolute path should be rejected: {}",
                         abs_path
                     );
-                    
+
                     if let Err(err) = result {
                         prop_assert!(
                             matches!(err, SandboxError::AbsolutePath { .. }),
@@ -3263,7 +3262,7 @@ fn prop_path_sandbox_enforcement() {
                         "Valid relative path should be accepted: {}",
                         valid_path
                     );
-                    
+
                     if let Ok(sandbox_path) = result {
                         // Verify the relative path is preserved
                         prop_assert_eq!(
@@ -3287,15 +3286,15 @@ fn prop_path_sandbox_enforcement() {
 /// **Validates: Requirements FR-SEC-3**
 #[test]
 fn prop_path_sandbox_escape_patterns() {
-    use xchecker::paths::{SandboxConfig, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxRoot};
 
     let config = proptest_config(None);
 
     proptest!(config, |(
         // Generate random prefix segments
         prefix in prop::collection::vec("[a-zA-Z0-9_]{1,10}", 0..3),
-        // Generate random suffix segments  
+        // Generate random suffix segments
         suffix in prop::collection::vec("[a-zA-Z0-9_]{1,10}", 0..3),
         // Number of parent traversals
         num_traversals in 1usize..5,
@@ -3311,7 +3310,7 @@ fn prop_path_sandbox_escape_patterns() {
                 parts.push("..".to_string());
             }
             parts.extend(suffix.clone());
-            
+
             let escape_path = parts.join("/");
             if escape_path.contains("..") {
                 let result = root.join(&escape_path);
@@ -3330,7 +3329,7 @@ fn prop_path_sandbox_escape_patterns() {
                 parts.push("..".to_string());
             }
             parts.push("escape".to_string());
-            
+
             let escape_path = parts.join("/");
             let result = root.join(&escape_path);
             prop_assert!(
@@ -3348,7 +3347,7 @@ fn prop_path_sandbox_escape_patterns() {
                 parts.push("..".to_string());
             }
             parts.push("escape".to_string());
-            
+
             let escape_path = parts.join("/");
             if escape_path.contains("..") {
                 let result = root.join(&escape_path);
@@ -3371,8 +3370,8 @@ fn prop_path_sandbox_escape_patterns() {
 /// **Validates: Requirements FR-SEC-3**
 #[test]
 fn prop_sandbox_root_validation() {
-    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
     let config = proptest_config(None);
 
@@ -3389,7 +3388,7 @@ fn prop_sandbox_root_validation() {
                 "Nonexistent path should fail: {}",
                 nonexistent_path
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::RootNotFound { .. }),
@@ -3404,13 +3403,13 @@ fn prop_sandbox_root_validation() {
             let temp_dir = TempDir::new().expect("Failed to create temp dir");
             let file_path = temp_dir.path().join("file.txt");
             std::fs::write(&file_path, "content").expect("Failed to write file");
-            
+
             let result = SandboxRoot::new(&file_path, SandboxConfig::default());
             prop_assert!(
                 result.is_err(),
                 "File path should fail as sandbox root"
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::RootNotDirectory { .. }),
@@ -3428,7 +3427,7 @@ fn prop_sandbox_root_validation() {
                 result.is_ok(),
                 "Valid directory should succeed as sandbox root"
             );
-            
+
             if let Ok(root) = result {
                 // Root path should be absolute after canonicalization
                 prop_assert!(
@@ -3463,8 +3462,8 @@ fn prop_sandbox_root_validation() {
 #[cfg(unix)]
 #[test]
 fn prop_symlink_rejection() {
-    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
     let config = proptest_config(None);
 
@@ -3479,36 +3478,36 @@ fn prop_symlink_rejection() {
     )| {
         // Create a temporary directory for the sandbox root
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Create subdirectories if needed
         let mut target_dir = temp_dir.path().to_path_buf();
         for i in 0..subdir_depth {
             target_dir = target_dir.join(format!("subdir{}", i));
         }
         std::fs::create_dir_all(&target_dir).expect("Failed to create subdirs");
-        
+
         // Create a target file
         let target_file = target_dir.join(format!("{}.txt", target_name));
         std::fs::write(&target_file, &file_content).expect("Failed to write target file");
-        
+
         // Create a symlink to the target file
         let link_file = temp_dir.path().join(format!("{}_link.txt", link_name));
         std::os::unix::fs::symlink(&target_file, &link_file).expect("Failed to create symlink");
-        
+
         // Test 1: Symlinks should be rejected with default config
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::default())
                 .expect("Failed to create sandbox root");
-            
+
             let link_relative = format!("{}_link.txt", link_name);
             let result = root.join(&link_relative);
-            
+
             prop_assert!(
                 result.is_err(),
                 "Symlink should be rejected with default config: {}",
                 link_relative
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::SymlinkNotAllowed { .. }),
@@ -3517,43 +3516,43 @@ fn prop_symlink_rejection() {
                 );
             }
         }
-        
+
         // Test 2: Symlinks should be allowed with permissive config
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::permissive())
                 .expect("Failed to create sandbox root");
-            
+
             let link_relative = format!("{}_link.txt", link_name);
             let result = root.join(&link_relative);
-            
+
             prop_assert!(
                 result.is_ok(),
                 "Symlink should be allowed with permissive config: {}",
                 link_relative
             );
         }
-        
+
         // Test 3: Symlinks pointing outside sandbox should always be rejected (escape attempt)
         {
             let outside_dir = TempDir::new().expect("Failed to create outside dir");
             let outside_file = outside_dir.path().join("secret.txt");
             std::fs::write(&outside_file, "secret content").expect("Failed to write outside file");
-            
+
             // Create a symlink inside sandbox pointing outside
             let escape_link = temp_dir.path().join("escape_link.txt");
             std::os::unix::fs::symlink(&outside_file, &escape_link).expect("Failed to create escape symlink");
-            
+
             // Even with permissive config, escape should be detected
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::permissive())
                 .expect("Failed to create sandbox root");
-            
+
             let result = root.join("escape_link.txt");
-            
+
             prop_assert!(
                 result.is_err(),
                 "Symlink escape attempt should be rejected even with permissive config"
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::EscapeAttempt { .. }),
@@ -3576,8 +3575,8 @@ fn prop_symlink_rejection() {
 #[cfg(unix)]
 #[test]
 fn prop_hardlink_rejection() {
-    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
     let config = proptest_config(None);
 
@@ -3590,29 +3589,29 @@ fn prop_hardlink_rejection() {
     )| {
         // Create a temporary directory for the sandbox root
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Create an original file
         let original_file = temp_dir.path().join(format!("{}.txt", original_name));
         std::fs::write(&original_file, &file_content).expect("Failed to write original file");
-        
+
         // Create a hardlink to the original file
         let hardlink_file = temp_dir.path().join(format!("{}_hardlink.txt", hardlink_name));
         std::fs::hard_link(&original_file, &hardlink_file).expect("Failed to create hardlink");
-        
+
         // Test 1: Hardlinks should be rejected with default config
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::default())
                 .expect("Failed to create sandbox root");
-            
+
             let hardlink_relative = format!("{}_hardlink.txt", hardlink_name);
             let result = root.join(&hardlink_relative);
-            
+
             prop_assert!(
                 result.is_err(),
                 "Hardlink should be rejected with default config: {}",
                 hardlink_relative
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::HardlinkNotAllowed { .. }),
@@ -3621,37 +3620,37 @@ fn prop_hardlink_rejection() {
                 );
             }
         }
-        
+
         // Test 2: Hardlinks should be allowed with permissive config
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::permissive())
                 .expect("Failed to create sandbox root");
-            
+
             let hardlink_relative = format!("{}_hardlink.txt", hardlink_name);
             let result = root.join(&hardlink_relative);
-            
+
             prop_assert!(
                 result.is_ok(),
                 "Hardlink should be allowed with permissive config: {}",
                 hardlink_relative
             );
         }
-        
+
         // Test 3: Original file (link count = 1 initially, now = 2) should also be rejected
         // because it now has multiple links
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::default())
                 .expect("Failed to create sandbox root");
-            
+
             let original_relative = format!("{}.txt", original_name);
             let result = root.join(&original_relative);
-            
+
             prop_assert!(
                 result.is_err(),
                 "Original file with hardlink should be rejected with default config: {}",
                 original_relative
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::HardlinkNotAllowed { .. }),
@@ -3674,8 +3673,8 @@ fn prop_hardlink_rejection() {
 #[cfg(unix)]
 #[test]
 fn prop_symlink_in_path_components() {
-    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
     let config = proptest_config(None);
 
@@ -3688,33 +3687,33 @@ fn prop_symlink_in_path_components() {
     )| {
         // Create a temporary directory for the sandbox root
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Create a real directory with a file
         let real_dir = temp_dir.path().join(&real_dir_name);
         std::fs::create_dir(&real_dir).expect("Failed to create real dir");
-        
+
         let real_file = real_dir.join(format!("{}.txt", file_name));
         std::fs::write(&real_file, &file_content).expect("Failed to write file");
-        
+
         // Create a symlink directory pointing to the real directory
         let link_dir = temp_dir.path().join(&link_dir_name);
         std::os::unix::fs::symlink(&real_dir, &link_dir).expect("Failed to create symlink dir");
-        
+
         // Test: Accessing file through symlink directory should be rejected
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::default())
                 .expect("Failed to create sandbox root");
-            
+
             // Try to access the file through the symlink directory
             let path_through_symlink = format!("{}/{}.txt", link_dir_name, file_name);
             let result = root.join(&path_through_symlink);
-            
+
             prop_assert!(
                 result.is_err(),
                 "Path through symlink directory should be rejected: {}",
                 path_through_symlink
             );
-            
+
             if let Err(err) = result {
                 prop_assert!(
                     matches!(err, SandboxError::SymlinkNotAllowed { .. }),
@@ -3723,30 +3722,30 @@ fn prop_symlink_in_path_components() {
                 );
             }
         }
-        
+
         // Test: Same path should work with permissive config
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::permissive())
                 .expect("Failed to create sandbox root");
-            
+
             let path_through_symlink = format!("{}/{}.txt", link_dir_name, file_name);
             let result = root.join(&path_through_symlink);
-            
+
             prop_assert!(
                 result.is_ok(),
                 "Path through symlink directory should be allowed with permissive config: {}",
                 path_through_symlink
             );
         }
-        
+
         // Test: Direct path to real file should work with default config
         {
             let root = SandboxRoot::new(temp_dir.path(), SandboxConfig::default())
                 .expect("Failed to create sandbox root");
-            
+
             let direct_path = format!("{}/{}.txt", real_dir_name, file_name);
             let result = root.join(&direct_path);
-            
+
             prop_assert!(
                 result.is_ok(),
                 "Direct path to real file should be allowed: {}",
@@ -3767,8 +3766,8 @@ fn prop_symlink_in_path_components() {
 #[cfg(unix)]
 #[test]
 fn prop_symlink_hardlink_independent_config() {
-    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
     use tempfile::TempDir;
+    use xchecker::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
     let config = proptest_config(None);
 
@@ -3781,23 +3780,23 @@ fn prop_symlink_hardlink_independent_config() {
     )| {
         // Create a temporary directory for the sandbox root
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        
+
         // Create a target file for symlink
         let symlink_target = temp_dir.path().join(format!("{}_target.txt", target_name));
         std::fs::write(&symlink_target, &file_content).expect("Failed to write symlink target");
-        
+
         // Create a separate file for hardlink (to avoid link count issues)
         let hardlink_original = temp_dir.path().join(format!("{}_original.txt", target_name));
         std::fs::write(&hardlink_original, &file_content).expect("Failed to write hardlink original");
-        
+
         // Create symlink
         let symlink_file = temp_dir.path().join(format!("{}_symlink.txt", symlink_name));
         std::os::unix::fs::symlink(&symlink_target, &symlink_file).expect("Failed to create symlink");
-        
+
         // Create hardlink
         let hardlink_file = temp_dir.path().join(format!("{}_hardlink.txt", hardlink_name));
         std::fs::hard_link(&hardlink_original, &hardlink_file).expect("Failed to create hardlink");
-        
+
         // Test 1: Allow symlinks only
         {
             let config = SandboxConfig {
@@ -3806,7 +3805,7 @@ fn prop_symlink_hardlink_independent_config() {
             };
             let root = SandboxRoot::new(temp_dir.path(), config)
                 .expect("Failed to create sandbox root");
-            
+
             // Symlink should be allowed
             let symlink_relative = format!("{}_symlink.txt", symlink_name);
             let symlink_result = root.join(&symlink_relative);
@@ -3814,7 +3813,7 @@ fn prop_symlink_hardlink_independent_config() {
                 symlink_result.is_ok(),
                 "Symlink should be allowed when allow_symlinks=true"
             );
-            
+
             // Hardlink should be rejected
             let hardlink_relative = format!("{}_hardlink.txt", hardlink_name);
             let hardlink_result = root.join(&hardlink_relative);
@@ -3829,7 +3828,7 @@ fn prop_symlink_hardlink_independent_config() {
                 );
             }
         }
-        
+
         // Test 2: Allow hardlinks only
         {
             let config = SandboxConfig {
@@ -3838,7 +3837,7 @@ fn prop_symlink_hardlink_independent_config() {
             };
             let root = SandboxRoot::new(temp_dir.path(), config)
                 .expect("Failed to create sandbox root");
-            
+
             // Symlink should be rejected
             let symlink_relative = format!("{}_symlink.txt", symlink_name);
             let symlink_result = root.join(&symlink_relative);
@@ -3852,7 +3851,7 @@ fn prop_symlink_hardlink_independent_config() {
                     "Error should be SymlinkNotAllowed"
                 );
             }
-            
+
             // Hardlink should be allowed
             let hardlink_relative = format!("{}_hardlink.txt", hardlink_name);
             let hardlink_result = root.join(&hardlink_relative);
@@ -3877,10 +3876,10 @@ fn prop_symlink_hardlink_independent_config() {
 /// 4. Parent directories are created automatically
 #[test]
 fn prop_atomic_writes_for_state_files() {
-    use xchecker::atomic_write::write_file_atomic;
     use camino::Utf8Path;
-    use tempfile::TempDir;
     use std::fs;
+    use tempfile::TempDir;
+    use xchecker::atomic_write::write_file_atomic;
 
     let config = proptest_config(None);
 
@@ -3894,33 +3893,33 @@ fn prop_atomic_writes_for_state_files() {
     )| {
         let temp_dir = TempDir::new().unwrap();
         let mut file_path_buf = temp_dir.path().to_path_buf();
-        
+
         if let Some(ref sub) = subdir {
             file_path_buf.push(sub);
         }
         file_path_buf.push(&filename);
-        
+
         let file_path = Utf8Path::from_path(file_path_buf.as_path()).unwrap();
 
         // 1. Write content atomically
         let result = write_file_atomic(file_path, &content);
-        
+
         prop_assert!(result.is_ok(), "Atomic write should succeed");
         prop_assert!(file_path.exists(), "File should exist after write");
-        
+
         // 2. Verify content
         let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
-        
+
         // Normalize expected content (atomic write normalizes line endings)
         let expected_content = content.replace("\r\n", "\n").replace('\r', "\n");
         prop_assert_eq!(read_content, expected_content, "File content should match written content (normalized)");
-        
+
         // 3. Verify overwrite
         let new_content = format!("updated: {}", content);
         let result_overwrite = write_file_atomic(file_path, &new_content);
-        
+
         prop_assert!(result_overwrite.is_ok(), "Atomic overwrite should succeed");
-        
+
         let read_new_content = fs::read_to_string(file_path.as_std_path()).unwrap();
         let expected_new_content = new_content.replace("\r\n", "\n").replace('\r', "\n");
         prop_assert_eq!(read_new_content, expected_new_content, "Overwritten content should match");

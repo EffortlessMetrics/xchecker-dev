@@ -33,7 +33,11 @@ pub fn is_wsl_available() -> Result<bool, RunnerError> {
     }
 
     // Try to execute `wsl.exe -l -q` to list distributions using CommandSpec
-    match CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output() {
+    match CommandSpec::new("wsl")
+        .args(["-l", "-q"])
+        .to_command()
+        .output()
+    {
         Ok(output) => {
             if !output.status.success() {
                 return Ok(false);
@@ -609,7 +613,10 @@ mod tests {
         // If WSL is available, we should get at least one distro
         if matches!(result, Ok(true)) {
             // Try to get the distro list
-            let output = CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output();
+            let output = CommandSpec::new("wsl")
+                .args(["-l", "-q"])
+                .to_command()
+                .output();
             if let Ok(output) = output {
                 let distros = parse_distro_list(&output.stdout);
                 assert!(distros.is_ok());
@@ -623,7 +630,10 @@ mod tests {
     #[cfg(target_os = "windows")]
     fn test_parse_distro_list_integration() {
         // Try to get actual WSL distro list
-        if let Ok(output) = CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output()
+        if let Ok(output) = CommandSpec::new("wsl")
+            .args(["-l", "-q"])
+            .to_command()
+            .output()
             && output.status.success()
         {
             let distros = parse_distro_list(&output.stdout);
@@ -682,7 +692,10 @@ mod tests {
     #[cfg(target_os = "windows")]
     fn test_validate_claude_in_wsl_specific_distro_integration() {
         // First, check if WSL is available and get distro list
-        if let Ok(output) = CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output()
+        if let Ok(output) = CommandSpec::new("wsl")
+            .args(["-l", "-q"])
+            .to_command()
+            .output()
             && output.status.success()
             && let Ok(distros) = parse_distro_list(&output.stdout)
             && !distros.is_empty()
@@ -752,7 +765,10 @@ mod tests {
     #[cfg(target_os = "windows")]
     fn test_validate_claude_in_wsl_multiple_distros() {
         // Test Claude validation across all available distros
-        if let Ok(output) = CommandSpec::new("wsl").args(["-l", "-q"]).to_command().output()
+        if let Ok(output) = CommandSpec::new("wsl")
+            .args(["-l", "-q"])
+            .to_command()
+            .output()
             && output.status.success()
             && let Ok(distros) = parse_distro_list(&output.stdout)
         {
