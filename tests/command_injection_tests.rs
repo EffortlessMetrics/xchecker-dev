@@ -76,7 +76,7 @@ fn test_wsl_runner_command_construction() -> Result<()> {
 async fn test_tokio_command_argv_style() {
     let cmd = CommandSpec::new("echo").arg("hello; echo injected");
 
-    let tokio_cmd = cmd.to_tokio_command();
+    let mut tokio_cmd = cmd.to_tokio_command();
     let debug_str = format!("{:?}", tokio_cmd);
 
     assert!(debug_str.contains("hello; echo injected"));

@@ -102,13 +102,18 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Update dependencies and test
+        shell: bash
         run: |
-          # Back up Cargo.lock to restore after test (keeps repo clean)
+          set -euo pipefail
           cp Cargo.lock Cargo.lock.bak
+          restore_lock() { rm -f Cargo.lock; mv -f Cargo.lock.bak Cargo.lock; }
+          trap restore_lock EXIT
+
           cargo update
           cargo test --all-features
-          # Restore original lockfile and assert cleanliness
-          mv Cargo.lock.bak Cargo.lock
+
+          restore_lock
+          trap - EXIT
           git diff --exit-code
 
   # ============================================================================
