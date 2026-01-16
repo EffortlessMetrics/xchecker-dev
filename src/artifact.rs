@@ -376,14 +376,34 @@ impl ArtifactManager {
     /// # Security
     ///
     /// This method validates the artifact path through the sandbox to ensure:
-    /// - The path doesn't escape the spec root
-    /// - No `..` traversal components
-    /// - No absolute paths
+    /// - The artifact name is a relative path (not absolute)
+    /// - The artifact name has no `..` traversal components
+    /// - The final path doesn't escape the spec root
     fn get_artifact_path_validated(
         &self,
         name: &str,
         artifact_type: ArtifactType,
     ) -> Result<Utf8PathBuf> {
+        // Validate artifact name BEFORE prefixing with "artifacts/" or "context/"
+        // This prevents absolute paths from being "contained" after prefixing
+        // (e.g., "/tmp/evil.md" becoming "artifacts//tmp/evil.md" -> "artifacts/tmp/evil.md")
+        let name_path = Path::new(name);
+        if name_path.is_absolute() {
+            anyhow::bail!(
+                "Artifact name must be a relative path, got absolute path: {}",
+                name
+            );
+        }
+        if name_path
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            anyhow::bail!(
+                "Artifact name contains parent directory traversal: {}",
+                name
+            );
+        }
+
         let rel_path = match artifact_type {
             ArtifactType::Context => format!("context/{}", name),
             _ => format!("artifacts/{}", name),

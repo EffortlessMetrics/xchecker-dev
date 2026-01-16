@@ -8,9 +8,10 @@
 //! once tests migrate to the new backend.
 
 use crate::error::ClaudeError;
-use crate::runner::Runner;
+use crate::runner::{CommandSpec, Runner};
 use crate::types::{OutputFormat, PermissionMode, RunnerMode};
 use serde::{Deserialize, Serialize};
+use std::process::Stdio;
 use std::time::Duration;
 
 /// Wrapper around Claude CLI with controlled surface and fallback handling
@@ -159,29 +160,31 @@ impl ClaudeWrapper {
     }
 
     /// Get Claude CLI version by running `claude --version` using the specified runner
-    fn get_claude_version(runner: &Runner) -> Result<String, ClaudeError> {
-        let args = vec!["--version".to_string()];
+    ///
+    /// Uses synchronous execution to avoid nested Tokio runtime issues when called
+    /// from async contexts (e.g., async tests).
+    fn get_claude_version(_runner: &Runner) -> Result<String, ClaudeError> {
+        // Use synchronous execution via std::process::Command to avoid nested runtime
+        // issues when this function is called from within an async context
+        let mut cmd = CommandSpec::new("claude").arg("--version").to_command();
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
-        // Use tokio runtime to execute async function synchronously
-        let runtime = tokio::runtime::Runtime::new().map_err(|e| ClaudeError::ExecutionFailed {
-            stderr: format!("Failed to create tokio runtime: {e}"),
+        let output = cmd.output().map_err(|e| ClaudeError::ExecutionFailed {
+            stderr: format!("Failed to execute claude --version: {e}"),
         })?;
 
-        let response = runtime
-            .block_on(async { runner.execute_claude(&args, "", None).await })
-            .map_err(|e| ClaudeError::ExecutionFailed {
-                stderr: format!("Failed to get Claude version: {e}"),
-            })?;
-
-        if response.exit_code != 0 {
+        if !output.status.success() {
             return Err(ClaudeError::ExecutionFailed {
-                stderr: response.stderr,
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
             });
         }
 
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
         // Extract version from output like "claude 0.8.1"
-        let version = response
-            .stdout
+        let version = stdout
             .split_whitespace()
             .last()
             .unwrap_or("unknown")
@@ -232,21 +235,24 @@ impl ClaudeWrapper {
     /// This is a best-effort validation that attempts to check if the model
     /// is available. If the validation fails, we'll still allow the model
     /// and let Claude CLI handle the final validation during execution.
+    ///
+    /// Uses synchronous execution to avoid nested Tokio runtime issues when called
+    /// from async contexts (e.g., async tests).
     #[allow(dead_code)] // Legacy/test-only; will be removed in V19+
-    fn validate_model_name(model_name: &str, runner: &Runner) -> Result<(), ClaudeError> {
+    fn validate_model_name(model_name: &str, _runner: &Runner) -> Result<(), ClaudeError> {
         // Try to query available models to validate the model exists
         // This is a best-effort check - if it fails, we'll still proceed
-        let args = vec!["models".to_string()];
+        // Use synchronous execution to avoid nested runtime issues
+        let mut cmd = CommandSpec::new("claude").arg("models").to_command();
+        cmd.stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
-        // Use tokio runtime to execute async function synchronously
-        let runtime = tokio::runtime::Runtime::new().map_err(|e| ClaudeError::ExecutionFailed {
-            stderr: format!("Failed to create tokio runtime: {e}"),
-        })?;
-
-        match runtime.block_on(async { runner.execute_claude(&args, "", None).await }) {
-            Ok(response) if response.exit_code == 0 => {
+        match cmd.output() {
+            Ok(output) if output.status.success() => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
                 // Check if the model name appears in the output
-                if response.stdout.contains(model_name) {
+                if stdout.contains(model_name) {
                     Ok(())
                 } else {
                     // Model not found in available models, but we'll still allow it
@@ -254,14 +260,16 @@ impl ClaudeWrapper {
                     Ok(())
                 }
             }
-            Ok(_) | Err(_) => {
-                // If we can't query models (e.g., authentication issues, network problems),
-                // we'll still allow the model and let Claude CLI handle validation later
+            _ => {
+                // If we can't validate, assume the model is valid
+                // Claude CLI will provide the final error during execution
                 Ok(())
             }
         }
     }
+}
 
+impl ClaudeWrapper {
     /// Execute a prompt with Claude CLI, trying stream-json first with text fallback
     #[allow(dead_code)] // Legacy/test-only; follow-up spec (V19+) to delete once tests migrate
     pub async fn execute(

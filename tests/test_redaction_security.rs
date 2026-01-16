@@ -14,6 +14,7 @@
 
 use anyhow::Result;
 use camino::Utf8PathBuf;
+use serial_test::serial;
 use std::env;
 use std::fs;
 use tempfile::TempDir;
@@ -272,6 +273,7 @@ fn test_receipts_packet_evidence_no_content_leak() -> Result<()> {
 
 /// Test that status outputs never include environment variables
 #[test]
+#[serial]
 fn test_status_no_environment_variables() -> Result<()> {
     // Set some test environment variables
     unsafe {
