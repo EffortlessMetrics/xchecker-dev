@@ -369,6 +369,13 @@ impl PhaseOrchestrator {
 
         let warnings = vec![format!("phase_timeout:{}", timeout_seconds)];
 
+        // Use config values for truthful failure receipts (no hard-coded metadata)
+        let configured_model = config.config.get("model").map_or("unknown", |s| s.as_str());
+        let configured_runner = config
+            .config
+            .get("runner_mode")
+            .map_or("unknown", |s| s.as_str());
+
         let receipt = self.receipt_manager().create_receipt_with_redactor(
             config.redactor.as_ref(),
             self.spec_id(),
@@ -376,17 +383,17 @@ impl PhaseOrchestrator {
             exit_codes::codes::PHASE_TIMEOUT, // Exit code 10
             vec![],                           // No successful outputs
             env!("CARGO_PKG_VERSION"),
-            "0.8.1", // Default Claude CLI version
-            "haiku", // Default model
-            None,    // No model alias
+            "unknown", // Claude may have been running but we don't have metadata
+            configured_model,
+            None, // No model alias
             flags,
             packet_evidence,
             None, // No stderr_tail
             None, // No stderr_redacted
             warnings,
-            None,     // No fallback
-            "native", // Default runner
-            None,     // No runner distro
+            None, // No fallback
+            configured_runner,
+            None, // No runner distro
             Some(ErrorKind::PhaseTimeout),
             Some(format!("Phase timed out after {timeout_seconds} seconds")),
             None, // No diff_context,
@@ -693,6 +700,14 @@ impl PhaseOrchestrator {
                         flags.insert("phase".to_string(), phase_id.as_str().to_string());
                         flags.insert("hook_failure".to_string(), "pre_phase".to_string());
 
+                        // Use config values for truthful failure receipts (no hard-coded metadata)
+                        let configured_model =
+                            config.config.get("model").map_or("unknown", |s| s.as_str());
+                        let configured_runner = config
+                            .config
+                            .get("runner_mode")
+                            .map_or("unknown", |s| s.as_str());
+
                         let receipt = self.receipt_manager().create_receipt_with_redactor(
                             config.redactor.as_ref(),
                             self.spec_id(),
@@ -700,8 +715,8 @@ impl PhaseOrchestrator {
                             exit_codes::codes::CLAUDE_FAILURE,
                             vec![], // No outputs
                             env!("CARGO_PKG_VERSION"),
-                            "0.8.1",
-                            "haiku",
+                            "unknown", // Claude hasn't run yet, so version is unknown
+                            configured_model,
                             None,
                             flags,
                             packet_evidence,
@@ -709,7 +724,7 @@ impl PhaseOrchestrator {
                             None,
                             hook_warnings.clone(),
                             None,
-                            "native",
+                            configured_runner,
                             None,
                             Some(ErrorKind::ClaudeFailure),
                             Some(error_reason.clone()),
@@ -743,6 +758,14 @@ impl PhaseOrchestrator {
                     flags.insert("phase".to_string(), phase_id.as_str().to_string());
                     flags.insert("hook_error".to_string(), "pre_phase".to_string());
 
+                    // Use config values for truthful failure receipts (no hard-coded metadata)
+                    let configured_model =
+                        config.config.get("model").map_or("unknown", |s| s.as_str());
+                    let configured_runner = config
+                        .config
+                        .get("runner_mode")
+                        .map_or("unknown", |s| s.as_str());
+
                     let receipt = self.receipt_manager().create_receipt_with_redactor(
                         config.redactor.as_ref(),
                         self.spec_id(),
@@ -750,8 +773,8 @@ impl PhaseOrchestrator {
                         exit_codes::codes::CLAUDE_FAILURE,
                         vec![], // No outputs
                         env!("CARGO_PKG_VERSION"),
-                        "0.8.1",
-                        "haiku",
+                        "unknown", // Claude hasn't run yet, so version is unknown
+                        configured_model,
                         None,
                         flags,
                         packet_evidence,
@@ -759,7 +782,7 @@ impl PhaseOrchestrator {
                         None,
                         vec![format!("hook_error:pre_phase:{}", e)],
                         None,
-                        "native",
+                        configured_runner,
                         None,
                         Some(ErrorKind::ClaudeFailure),
                         Some(error_reason.clone()),
@@ -927,6 +950,14 @@ impl PhaseOrchestrator {
                         let mut flags = HashMap::new();
                         flags.insert("phase".to_string(), phase_id.as_str().to_string());
 
+                        // Use config values for truthful failure receipts (no hard-coded metadata)
+                        let configured_model =
+                            config.config.get("model").map_or("unknown", |s| s.as_str());
+                        let configured_runner = config
+                            .config
+                            .get("runner_mode")
+                            .map_or("unknown", |s| s.as_str());
+
                         let mut receipt = self.receipt_manager().create_receipt_with_redactor(
                             config.redactor.as_ref(),
                             self.spec_id(),
@@ -934,17 +965,17 @@ impl PhaseOrchestrator {
                             exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
                             vec![],                            // No successful outputs
                             env!("CARGO_PKG_VERSION"),
-                            "0.8.1",   // Default Claude CLI version
-                            "unknown", // Model unknown for budget exhaustion
-                            None,      // No model alias
+                            "unknown", // Claude hasn't completed, so version is unknown
+                            configured_model,
+                            None, // No model alias
                             flags,
                             packet_evidence,
                             None, // No stderr_tail
                             None, // No stderr_redacted
                             vec![format!("LLM budget exhausted: {}", llm_err)],
-                            None,     // No fallback
-                            "native", // Default runner
-                            None,     // No runner distro
+                            None, // No fallback
+                            configured_runner,
+                            None, // No runner distro
                             Some(ErrorKind::ClaudeFailure),
                             Some(llm_err.to_string()),
                             None, // No diff_context
