@@ -14,6 +14,7 @@
 //! - Edge cases
 
 use anyhow::Result;
+use serial_test::serial;
 use std::env;
 use std::fs;
 use std::path::PathBuf;
@@ -268,6 +269,7 @@ mode = "native"
 
 /// Test FR-CFG-004: XCHECKER_HOME override
 #[test]
+#[serial]
 fn test_xchecker_home_override() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let custom_home = temp_dir.path().join("custom_xchecker");

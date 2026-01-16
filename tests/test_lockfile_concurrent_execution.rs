@@ -8,6 +8,7 @@
 //! actual child processes to test real concurrent execution scenarios.
 
 use anyhow::Result;
+use serial_test::serial;
 use std::sync::Arc;
 use std::thread;
 use tempfile::TempDir;
@@ -172,6 +173,7 @@ fn test_lock_file_contains_correct_info() -> Result<()> {
 /// Note: Uses XCHECKER_HOME env var instead of TLS-based with_isolated_home
 /// because spawned threads don't inherit TLS state. Env vars are shared.
 #[test]
+#[serial]
 fn test_concurrent_threads_same_process() -> Result<()> {
     // Create temp dir and set XCHECKER_HOME env var (shared across threads)
     let temp_dir = TempDir::new()?;
