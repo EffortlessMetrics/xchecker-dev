@@ -2475,6 +2475,7 @@ fn build_orchestrator_config(
         selectors: Some(config.selectors.clone()),
         strict_validation: config.strict_validation(),
         redactor,
+        hooks: Some(config.hooks.clone()),
     }
 }
 

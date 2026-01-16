@@ -23,6 +23,7 @@ fn dry_run_config() -> xchecker::orchestrator::OrchestratorConfig {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     }
 }
 

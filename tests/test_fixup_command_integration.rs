@@ -53,6 +53,7 @@ async fn test_fixup_command_parsing() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Create dummy artifacts for dependencies

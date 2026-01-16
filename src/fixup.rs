@@ -1523,19 +1523,44 @@ pub fn validate_fixup_target(
 
         #[cfg(windows)]
         {
-            // On Windows, we use a different approach to detect hardlinks
-            // We check if the file has multiple names by comparing the file index
-            // This is a best-effort check; hardlinks are less common on Windows
-            // For now, we'll use a workaround: try to get file metadata via different APIs
-            // If the file exists and is not a symlink, we'll allow it unless we can prove it's a hardlink
+            // Use Win32 API to detect hardlinks via GetFileInformationByHandle
+            // If nNumberOfLinks > 1, the file has multiple hard links
+            use std::fs::File;
+            use std::os::windows::io::AsRawHandle;
+            use windows::Win32::Foundation::HANDLE;
+            use windows::Win32::Storage::FileSystem::{
+                BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+            };
 
-            // Note: Windows hardlink detection is complex and requires Win32 API calls
-            // For the MVP, we'll document this limitation and rely on the symlink check
-            // A full implementation would use GetFileInformationByHandle to check nNumberOfLinks
+            // Only check regular files (not directories)
+            if metadata.is_file() {
+                // Open the file to get a handle
+                let file = match File::open(&full_path) {
+                    Ok(f) => f,
+                    Err(_) => {
+                        // Fail closed: if we can't open the file, assume it might be a hardlink
+                        return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
+                    }
+                };
 
-            // TODO: Implement proper Windows hardlink detection using Win32 API
-            // For now, we skip hardlink detection on Windows as it requires unsafe code
-            // and Win32 API calls. This is documented as a known limitation.
+                let handle = HANDLE(file.as_raw_handle());
+                let mut file_info = BY_HANDLE_FILE_INFORMATION::default();
+
+                // Get file information including nNumberOfLinks
+                let result = unsafe { GetFileInformationByHandle(handle, &mut file_info) };
+
+                match result {
+                    Ok(()) => {
+                        if file_info.nNumberOfLinks > 1 {
+                            return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
+                        }
+                    }
+                    Err(_) => {
+                        // Fail closed: if we can't get file info, assume it might be a hardlink
+                        return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
+                    }
+                }
+            }
         }
     }
 
@@ -1829,10 +1854,19 @@ The following changes are needed:
             let hardlink_path = repo_root.join("hardlink_to_target");
             // Try to create hardlink, skip if it fails (requires permissions)
             if hard_link(&target_file, &hardlink_path).is_ok() {
-                // Note: Windows hardlink detection is not fully implemented yet
-                // This test documents the expected behavior once implemented
-                // For now, we skip this test on Windows
-                println!("Skipping hardlink rejection test on Windows (not yet implemented)");
+                // Test that hardlink is rejected by default
+                let result = validate_fixup_target(
+                    std::path::Path::new("hardlink_to_target"),
+                    repo_root,
+                    false,
+                );
+                assert!(result.is_err());
+                assert!(matches!(
+                    result.unwrap_err(),
+                    FixupError::HardlinkNotAllowed(_)
+                ));
+            } else {
+                println!("Skipping hardlink rejection test on Windows (creating hardlink requires elevated permissions)");
             }
         }
     }
@@ -1864,10 +1898,15 @@ The following changes are needed:
             let hardlink_path = repo_root.join("hardlink_to_target");
             // Try to create hardlink, skip if it fails (requires permissions)
             if hard_link(&target_file, &hardlink_path).is_ok() {
-                // Note: Windows hardlink detection is not fully implemented yet
-                // This test documents the expected behavior once implemented
-                // For now, we skip this test on Windows
-                println!("Skipping hardlink allow test on Windows (not yet implemented)");
+                // Test that hardlink is allowed with allow_links=true
+                let result = validate_fixup_target(
+                    std::path::Path::new("hardlink_to_target"),
+                    repo_root,
+                    true,
+                );
+                assert!(result.is_ok());
+            } else {
+                println!("Skipping hardlink allow test on Windows (creating hardlink requires elevated permissions)");
             }
         }
     }

@@ -396,15 +396,10 @@ impl HookExecutor {
         context: &HookContext,
     ) -> Result<tokio::process::Command, HookError> {
         // Determine shell based on platform
-        // NOTE: Shell execution is currently disabled/commented out to pass security checks
-        // until hooks are fully implemented and audited.
-        /*
         #[cfg(windows)]
         let (shell, shell_arg) = ("cmd", "/C");
         #[cfg(not(windows))]
         let (shell, shell_arg) = ("sh", "-c");
-        */
-        let (shell, shell_arg) = ("placeholder_shell", "placeholder_arg");
 
         // Use CommandSpec to construct the command, even though we are invoking a shell
         // This ensures consistent command construction patterns

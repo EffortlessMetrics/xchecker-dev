@@ -19,6 +19,7 @@ fn dry_run_config() -> xchecker::orchestrator::OrchestratorConfig {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     }
 }
 
@@ -512,6 +513,7 @@ async fn test_packet_construction_in_execute_phase_core() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let mut handle =
@@ -890,6 +892,7 @@ async fn test_packet_evidence_round_trip_validation() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let mut handle =

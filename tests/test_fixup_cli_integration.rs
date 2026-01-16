@@ -137,6 +137,7 @@ async fn test_fixup_phase_preview_mode() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute fixup phase
@@ -182,6 +183,7 @@ async fn test_fixup_phase_apply_mode() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute fixup phase
@@ -231,6 +233,7 @@ async fn test_fixup_phase_validates_dependencies() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Try to execute fixup without dependencies - should fail
@@ -263,6 +266,7 @@ async fn test_fixup_phase_creates_artifacts() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute fixup phase

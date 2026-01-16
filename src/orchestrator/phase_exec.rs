@@ -11,6 +11,9 @@ use crate::artifact::{Artifact, ArtifactType};
 use crate::error::{PhaseError, XCheckerError};
 use crate::exit_codes;
 use crate::fixup::FixupMode;
+use crate::hooks::{
+    execute_and_process_hook, HookContext, HookExecutor, HookType,
+};
 use crate::packet::PacketBuilder;
 use crate::phase::{Phase, PhaseContext};
 use crate::phases::{DesignPhase, FixupPhase, RequirementsPhase, ReviewPhase, TasksPhase};
@@ -651,6 +654,67 @@ impl PhaseOrchestrator {
         // Check dependencies (Requirements phase has no deps)
         self.check_phase_dependencies(phase)?;
 
+        // Execute pre-phase hook if configured
+        let mut hook_warnings: Vec<String> = Vec::new();
+        if let Some(ref hooks_config) = config.hooks
+            && let Some(hook_config) = hooks_config.get_pre_phase_hook(phase_id)
+        {
+                let executor = HookExecutor::new(
+                    self.artifact_manager()
+                        .base_path()
+                        .clone()
+                        .into_std_path_buf()
+                        .parent()
+                        .unwrap_or(std::path::Path::new("."))
+                        .to_path_buf(),
+                );
+                let context = HookContext::new(self.spec_id(), phase_id, HookType::PrePhase);
+
+                match execute_and_process_hook(
+                    &executor,
+                    hook_config,
+                    &context,
+                    HookType::PrePhase,
+                    phase_id,
+                )
+                .await
+                {
+                    Ok(outcome) => {
+                        if let Some(warning) = outcome.warning() {
+                            hook_warnings.push(warning.to_warning_string());
+                        }
+                        if !outcome.should_continue() {
+                            // Pre-hook failed with on_fail=fail - abort phase
+                            return Ok(ExecutionResult {
+                                phase: phase_id,
+                                success: false,
+                                exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                                artifact_paths: vec![],
+                                receipt_path: None,
+                                error: Some(format!(
+                                    "Pre-phase hook failed: {}",
+                                    outcome
+                                        .error()
+                                        .map(|e| e.to_string())
+                                        .unwrap_or_default()
+                                )),
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        // Hook execution error - treat as failure
+                        return Ok(ExecutionResult {
+                            phase: phase_id,
+                            success: false,
+                            exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                            artifact_paths: vec![],
+                            receipt_path: None,
+                            error: Some(format!("Pre-phase hook error: {}", e)),
+                        });
+                    }
+            }
+        }
+
         // Generate prompt
         let prompt = phase.prompt(&phase_context);
 
@@ -1037,9 +1101,13 @@ impl PhaseOrchestrator {
             model_alias,
             flags,
             packet_evidence,
-            None,                  // No stderr_tail for successful execution
-            None,                  // No stderr_redacted for successful execution
-            atomic_write_warnings, // Include atomic write warnings from artifact storage
+            None, // No stderr_tail for successful execution
+            None, // No stderr_redacted for successful execution
+            // Merge hook warnings with atomic write warnings
+            atomic_write_warnings
+                .into_iter()
+                .chain(hook_warnings.iter().cloned())
+                .collect(), // Include atomic write warnings and hook warnings
             claude_metadata.as_ref().map(|m| m.fallback_used),
             claude_metadata
                 .as_ref()
@@ -1061,6 +1129,36 @@ impl PhaseOrchestrator {
             .receipt_manager()
             .write_receipt(&receipt)
             .with_context(|| format!("Failed to write receipt for phase: {}", phase_id.as_str()))?;
+
+        // Execute post-phase hook if configured (runs on success)
+        if let Some(ref hooks_config) = config.hooks
+            && let Some(hook_config) = hooks_config.get_post_phase_hook(phase_id)
+        {
+            let executor = HookExecutor::new(
+                self.artifact_manager()
+                    .base_path()
+                    .clone()
+                    .into_std_path_buf()
+                    .parent()
+                    .unwrap_or(std::path::Path::new("."))
+                    .to_path_buf(),
+            );
+            let context = HookContext::new(self.spec_id(), phase_id, HookType::PostPhase);
+
+            if let Ok(outcome) = execute_and_process_hook(
+                &executor,
+                hook_config,
+                &context,
+                HookType::PostPhase,
+                phase_id,
+            )
+            .await
+                && let Some(warning) = outcome.warning()
+            {
+                // Log warning but don't fail - post-hook failures are warnings only on success path
+                tracing::warn!("Post-phase hook warning: {}", warning.to_warning_string());
+            }
+        }
 
         Ok(ExecutionResult {
             phase: phase_id,

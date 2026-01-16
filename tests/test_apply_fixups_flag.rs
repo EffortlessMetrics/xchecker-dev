@@ -22,6 +22,7 @@ fn test_apply_fixups_config_handling() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Simulate how orchestrator determines fixup mode
@@ -48,6 +49,7 @@ fn test_apply_fixups_config_handling() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let apply_fixups_apply = orchestrator_config_apply

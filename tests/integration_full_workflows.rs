@@ -90,6 +90,7 @@ impl WorkflowTestEnvironment {
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),
+            hooks: None,
         }
     }
 
@@ -100,6 +101,7 @@ impl WorkflowTestEnvironment {
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),
+            hooks: None,
         }
     }
 }
@@ -352,6 +354,7 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements phase in both environments

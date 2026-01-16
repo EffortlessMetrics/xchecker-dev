@@ -211,6 +211,7 @@ async fn test_complete_multi_phase_flow() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Phase 1: Execute Requirements phase
@@ -416,6 +417,7 @@ async fn test_resume_functionality_from_intermediate_phases() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Step 1: Execute Requirements phase only
@@ -534,6 +536,7 @@ async fn test_generated_core_yaml_canonicalization() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements phase to generate actual *.core.yaml
@@ -609,6 +612,7 @@ async fn test_resume_dependency_validation() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Try to resume from Design phase without completing Requirements first
@@ -685,6 +689,7 @@ async fn test_canonicalization_metadata_in_receipts() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements phase
