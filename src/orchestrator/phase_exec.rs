@@ -11,9 +11,7 @@ use crate::artifact::{Artifact, ArtifactType};
 use crate::error::{PhaseError, XCheckerError};
 use crate::exit_codes;
 use crate::fixup::FixupMode;
-use crate::hooks::{
-    execute_and_process_hook, HookContext, HookExecutor, HookType,
-};
+use crate::hooks::{HookContext, HookExecutor, HookType, execute_and_process_hook};
 use crate::packet::PacketBuilder;
 use crate::phase::{Phase, PhaseContext};
 use crate::phases::{DesignPhase, FixupPhase, RequirementsPhase, ReviewPhase, TasksPhase};
@@ -659,59 +657,56 @@ impl PhaseOrchestrator {
         if let Some(ref hooks_config) = config.hooks
             && let Some(hook_config) = hooks_config.get_pre_phase_hook(phase_id)
         {
-                let executor = HookExecutor::new(
-                    self.artifact_manager()
-                        .base_path()
-                        .clone()
-                        .into_std_path_buf()
-                        .parent()
-                        .unwrap_or(std::path::Path::new("."))
-                        .to_path_buf(),
-                );
-                let context = HookContext::new(self.spec_id(), phase_id, HookType::PrePhase);
+            let executor = HookExecutor::new(
+                self.artifact_manager()
+                    .base_path()
+                    .clone()
+                    .into_std_path_buf()
+                    .parent()
+                    .unwrap_or(std::path::Path::new("."))
+                    .to_path_buf(),
+            );
+            let context = HookContext::new(self.spec_id(), phase_id, HookType::PrePhase);
 
-                match execute_and_process_hook(
-                    &executor,
-                    hook_config,
-                    &context,
-                    HookType::PrePhase,
-                    phase_id,
-                )
-                .await
-                {
-                    Ok(outcome) => {
-                        if let Some(warning) = outcome.warning() {
-                            hook_warnings.push(warning.to_warning_string());
-                        }
-                        if !outcome.should_continue() {
-                            // Pre-hook failed with on_fail=fail - abort phase
-                            return Ok(ExecutionResult {
-                                phase: phase_id,
-                                success: false,
-                                exit_code: exit_codes::codes::CLAUDE_FAILURE,
-                                artifact_paths: vec![],
-                                receipt_path: None,
-                                error: Some(format!(
-                                    "Pre-phase hook failed: {}",
-                                    outcome
-                                        .error()
-                                        .map(|e| e.to_string())
-                                        .unwrap_or_default()
-                                )),
-                            });
-                        }
+            match execute_and_process_hook(
+                &executor,
+                hook_config,
+                &context,
+                HookType::PrePhase,
+                phase_id,
+            )
+            .await
+            {
+                Ok(outcome) => {
+                    if let Some(warning) = outcome.warning() {
+                        hook_warnings.push(warning.to_warning_string());
                     }
-                    Err(e) => {
-                        // Hook execution error - treat as failure
+                    if !outcome.should_continue() {
+                        // Pre-hook failed with on_fail=fail - abort phase
                         return Ok(ExecutionResult {
                             phase: phase_id,
                             success: false,
                             exit_code: exit_codes::codes::CLAUDE_FAILURE,
                             artifact_paths: vec![],
                             receipt_path: None,
-                            error: Some(format!("Pre-phase hook error: {}", e)),
+                            error: Some(format!(
+                                "Pre-phase hook failed: {}",
+                                outcome.error().map(|e| e.to_string()).unwrap_or_default()
+                            )),
                         });
                     }
+                }
+                Err(e) => {
+                    // Hook execution error - treat as failure
+                    return Ok(ExecutionResult {
+                        phase: phase_id,
+                        success: false,
+                        exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                        artifact_paths: vec![],
+                        receipt_path: None,
+                        error: Some(format!("Pre-phase hook error: {}", e)),
+                    });
+                }
             }
         }
 

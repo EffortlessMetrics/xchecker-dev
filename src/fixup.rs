@@ -1513,52 +1513,18 @@ pub fn validate_fixup_target(
         }
 
         // Check if it's a hardlink (more than one hard link to the same inode)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::MetadataExt;
-            if metadata.nlink() > 1 {
-                return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
-            }
-        }
-
-        #[cfg(windows)]
-        {
-            // Use Win32 API to detect hardlinks via GetFileInformationByHandle
-            // If nNumberOfLinks > 1, the file has multiple hard links
-            use std::fs::File;
-            use std::os::windows::io::AsRawHandle;
-            use windows::Win32::Foundation::HANDLE;
-            use windows::Win32::Storage::FileSystem::{
-                BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
-            };
-
-            // Only check regular files (not directories)
-            if metadata.is_file() {
-                // Open the file to get a handle
-                let file = match File::open(&full_path) {
-                    Ok(f) => f,
-                    Err(_) => {
-                        // Fail closed: if we can't open the file, assume it might be a hardlink
-                        return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
-                    }
-                };
-
-                let handle = HANDLE(file.as_raw_handle());
-                let mut file_info = BY_HANDLE_FILE_INFORMATION::default();
-
-                // Get file information including nNumberOfLinks
-                let result = unsafe { GetFileInformationByHandle(handle, &mut file_info) };
-
-                match result {
-                    Ok(()) => {
-                        if file_info.nNumberOfLinks > 1 {
-                            return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
-                        }
-                    }
-                    Err(_) => {
-                        // Fail closed: if we can't get file info, assume it might be a hardlink
-                        return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
-                    }
+        // Only check regular files (not directories)
+        if metadata.is_file() {
+            match crate::paths::link_count(&full_path) {
+                Ok(count) if count > 1 => {
+                    return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
+                }
+                Ok(_) => {
+                    // Link count is 1, not a hardlink
+                }
+                Err(_) => {
+                    // Fail closed: if we can't determine link count, assume it might be a hardlink
+                    return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
                 }
             }
         }
@@ -1591,6 +1557,118 @@ pub fn validate_fixup_target(
     }
 
     Ok(())
+}
+
+// ============================================================================
+// Inspection: Pending Fixups Stats
+// ============================================================================
+
+/// Summary of pending fixups for a spec
+#[derive(Debug, Clone, Default)]
+pub struct PendingFixupsStats {
+    /// Number of target files with pending changes
+    pub targets: u32,
+    /// Estimated lines to be added
+    pub est_added: u32,
+    /// Estimated lines to be removed
+    pub est_removed: u32,
+}
+
+/// Count pending fixups for a spec by ID
+///
+/// This function reads the review artifact (`30-review.md`) for the given spec,
+/// parses any fixup markers, and returns statistics about pending changes.
+///
+/// # Arguments
+///
+/// * `spec_id` - The spec identifier to check for pending fixups
+///
+/// # Returns
+///
+/// Returns `PendingFixupsStats` with the number of target files and estimated
+/// line changes. Returns `Default` (all zeros) if no fixups are pending or
+/// if the review artifact doesn't exist.
+#[must_use]
+pub fn pending_fixups_for_spec(spec_id: &str) -> PendingFixupsStats {
+    let base_path = crate::paths::spec_root(spec_id);
+    pending_fixups_impl(base_path.as_std_path())
+}
+
+/// Count pending fixups using an `OrchestratorHandle`
+///
+/// This function uses the handle's artifact manager to locate the review artifact
+/// and parse fixup statistics.
+///
+/// # Arguments
+///
+/// * `handle` - A reference to an `OrchestratorHandle` for the spec
+///
+/// # Returns
+///
+/// Returns `PendingFixupsStats` with the number of target files and estimated
+/// line changes. Returns `Default` (all zeros) if no fixups are pending or
+/// if the review artifact doesn't exist.
+#[must_use]
+pub fn pending_fixups_from_handle(
+    handle: &crate::orchestrator::OrchestratorHandle,
+) -> PendingFixupsStats {
+    let base_path = handle.artifact_manager().base_path();
+    pending_fixups_impl(base_path.as_std_path())
+}
+
+/// Internal implementation for counting pending fixups
+fn pending_fixups_impl(base_path: &std::path::Path) -> PendingFixupsStats {
+    let review_md_path = base_path.join("artifacts").join("30-review.md");
+
+    if !review_md_path.exists() {
+        return PendingFixupsStats::default(); // No review phase completed yet
+    }
+
+    // Read the review content
+    let review_content = match std::fs::read_to_string(&review_md_path) {
+        Ok(content) => content,
+        Err(_) => return PendingFixupsStats::default(), // Can't read review file, assume no fixups
+    };
+
+    // Create fixup parser in preview mode to check for targets
+    let fixup_parser = match FixupParser::new(FixupMode::Preview, base_path.to_path_buf()) {
+        Ok(parser) => parser,
+        Err(_) => return PendingFixupsStats::default(), // Can't create parser, assume no fixups
+    };
+
+    // Check if there are fixup markers
+    if !fixup_parser.has_fixup_markers(&review_content) {
+        return PendingFixupsStats::default(); // No fixups needed
+    }
+
+    // Parse diffs to get intended targets and stats
+    match fixup_parser.parse_diffs(&review_content) {
+        Ok(diffs) => {
+            let targets = diffs.len() as u32;
+            let mut est_added: u32 = 0;
+            let mut est_removed: u32 = 0;
+
+            // Count added/removed lines from all hunks
+            for diff in &diffs {
+                for hunk in &diff.hunks {
+                    for line in hunk.content.lines() {
+                        if line.starts_with('+') && !line.starts_with("+++") {
+                            est_added = est_added.saturating_add(1);
+                        } else if line.starts_with('-') && !line.starts_with("---") {
+                            est_removed = est_removed.saturating_add(1);
+                        }
+                    }
+                }
+            }
+
+            PendingFixupsStats {
+                targets,
+                est_added,
+                est_removed,
+            }
+        }
+        Err(_) => PendingFixupsStats::default(), // Failed to parse diffs, assume no fixups
+    }
 }
 
 #[cfg(test)]
@@ -1866,7 +1944,9 @@ The following changes are needed:
                     FixupError::HardlinkNotAllowed(_)
                 ));
             } else {
-                println!("Skipping hardlink rejection test on Windows (creating hardlink requires elevated permissions)");
+                println!(
+                    "Skipping hardlink rejection test on Windows (creating hardlink requires elevated permissions)"
+                );
             }
         }
     }
@@ -1906,7 +1986,9 @@ The following changes are needed:
                 );
                 assert!(result.is_ok());
             } else {
-                println!("Skipping hardlink allow test on Windows (creating hardlink requires elevated permissions)");
+                println!(
+                    "Skipping hardlink allow test on Windows (creating hardlink requires elevated permissions)"
+                );
             }
         }
     }

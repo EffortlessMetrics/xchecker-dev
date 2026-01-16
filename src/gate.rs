@@ -335,38 +335,7 @@ impl GateCommand {
 
 /// Count pending fixups for a spec
 fn count_pending_fixups(handle: &OrchestratorHandle) -> u32 {
-    use crate::fixup::{FixupMode, FixupParser};
-
-    // Check if Review phase is completed and has fixup markers
-    let base_path = handle.artifact_manager().base_path();
-    let review_md_path = base_path.join("artifacts").join("30-review.md");
-
-    if !review_md_path.exists() {
-        return 0; // No review phase completed yet
-    }
-
-    // Read the review content
-    let review_content = match std::fs::read_to_string(&review_md_path) {
-        Ok(content) => content,
-        Err(_) => return 0, // Can't read review file, assume no fixups
-    };
-
-    // Create fixup parser in preview mode to check for targets
-    let fixup_parser = match FixupParser::new(FixupMode::Preview, base_path.clone().into()) {
-        Ok(parser) => parser,
-        Err(_) => return 0, // Can't create parser, assume no fixups
-    };
-
-    // Check if there are fixup markers
-    if !fixup_parser.has_fixup_markers(&review_content) {
-        return 0; // No fixups needed
-    }
-
-    // Parse diffs to get intended targets
-    match fixup_parser.parse_diffs(&review_content) {
-        Ok(diffs) => diffs.len() as u32,
-        Err(_) => 0, // Failed to parse diffs, assume no fixups
-    }
+    crate::fixup::pending_fixups_from_handle(handle).targets
 }
 
 /// Format a duration in a human-readable way
