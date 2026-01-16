@@ -64,6 +64,7 @@ fn test_phase_timeout_from_config() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), 300);
@@ -77,6 +78,7 @@ fn test_phase_timeout_from_config() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::MIN_SECS);
@@ -88,6 +90,7 @@ fn test_phase_timeout_from_config() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -101,6 +104,7 @@ fn test_phase_timeout_from_config() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
     let timeout = PhaseTimeout::from_config(&config);
     assert_eq!(timeout.duration.as_secs(), PhaseTimeout::DEFAULT_SECS);
@@ -123,6 +127,7 @@ async fn test_timeout_creates_partial_and_receipt() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Note: This test would need a way to simulate a slow Claude response

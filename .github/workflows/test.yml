@@ -188,7 +188,7 @@ jobs:
             ubuntu-cargo-
 
       - name: Build claude-stub
-        run: cargo build --bin claude-stub
+        run: cargo build --bin claude-stub --features dev-tools
 
       - name: Add claude-stub to PATH as claude
         run: |

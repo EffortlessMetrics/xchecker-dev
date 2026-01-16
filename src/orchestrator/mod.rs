@@ -26,6 +26,7 @@ use std::time::Duration;
 use crate::artifact::ArtifactManager;
 use crate::config::Selectors;
 use crate::error::{PhaseError, XCheckerError};
+use crate::hooks::HooksConfig;
 use crate::receipt::ReceiptManager;
 use crate::redaction::SecretRedactor;
 use crate::types::PhaseId;
@@ -103,6 +104,8 @@ pub struct OrchestratorConfig {
     ///
     /// Used for both secret scanning and final-pass redaction of user-facing output (FR-SEC-19).
     pub redactor: Arc<SecretRedactor>,
+    /// Hooks configuration for pre/post phase scripts.
+    pub hooks: Option<HooksConfig>,
 }
 
 /// Phase timeout configuration with sensible defaults.
@@ -562,6 +565,7 @@ mod tests {
             selectors: None,
             strict_validation: false,
             redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
+            hooks: None,
         };
 
         let result = orchestrator.execute_requirements_phase(&config).await;
@@ -848,6 +852,7 @@ This is a generated requirements document for spec {}. The system will provide c
             selectors: None,
             strict_validation: false,
             redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
+            hooks: None,
         };
 
         // Execute the phase

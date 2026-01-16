@@ -283,6 +283,7 @@ async fn test_status_command_shows_complete_phase_information() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements and Design phases to create artifacts and receipts
@@ -422,6 +423,7 @@ async fn test_verbose_logging_provides_debugging_information() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Capture logging output during phase execution
@@ -630,6 +632,7 @@ async fn test_review_phase_integration_with_fixup_detection() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements, Design, and Tasks phases first

@@ -81,6 +81,7 @@ async fn test_complete_requirements_phase_with_claude_integration() -> Result<()
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements phase
@@ -170,6 +171,7 @@ async fn test_receipt_metadata_completeness() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute phase
@@ -450,6 +452,7 @@ async fn test_error_handling_and_partial_outputs() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute phase - this should fail
@@ -508,6 +511,7 @@ async fn test_end_to_end_m1_gate_validation() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute complete Requirements phase

@@ -11,6 +11,7 @@ use crate::artifact::{Artifact, ArtifactType};
 use crate::error::{PhaseError, XCheckerError};
 use crate::exit_codes;
 use crate::fixup::FixupMode;
+use crate::hooks::{HookContext, HookExecutor, HookType, execute_and_process_hook};
 use crate::packet::PacketBuilder;
 use crate::phase::{Phase, PhaseContext};
 use crate::phases::{DesignPhase, FixupPhase, RequirementsPhase, ReviewPhase, TasksPhase};
@@ -368,6 +369,13 @@ impl PhaseOrchestrator {
 
         let warnings = vec![format!("phase_timeout:{}", timeout_seconds)];
 
+        // Use config values for truthful failure receipts (no hard-coded metadata)
+        let configured_model = config.config.get("model").map_or("unknown", |s| s.as_str());
+        let configured_runner = config
+            .config
+            .get("runner_mode")
+            .map_or("unknown", |s| s.as_str());
+
         let receipt = self.receipt_manager().create_receipt_with_redactor(
             config.redactor.as_ref(),
             self.spec_id(),
@@ -375,17 +383,17 @@ impl PhaseOrchestrator {
             exit_codes::codes::PHASE_TIMEOUT, // Exit code 10
             vec![],                           // No successful outputs
             env!("CARGO_PKG_VERSION"),
-            "0.8.1", // Default Claude CLI version
-            "haiku", // Default model
-            None,    // No model alias
+            "unknown", // Claude may have been running but we don't have metadata
+            configured_model,
+            None, // No model alias
             flags,
             packet_evidence,
             None, // No stderr_tail
             None, // No stderr_redacted
             warnings,
-            None,     // No fallback
-            "native", // Default runner
-            None,     // No runner distro
+            None, // No fallback
+            configured_runner,
+            None, // No runner distro
             Some(ErrorKind::PhaseTimeout),
             Some(format!("Phase timed out after {timeout_seconds} seconds")),
             None, // No diff_context,
@@ -651,6 +659,151 @@ impl PhaseOrchestrator {
         // Check dependencies (Requirements phase has no deps)
         self.check_phase_dependencies(phase)?;
 
+        // Execute pre-phase hook if configured
+        // Hooks run from invocation CWD so relative paths like ./scripts/... work
+        let mut hook_warnings: Vec<String> = Vec::new();
+        if let Some(ref hooks_config) = config.hooks
+            && let Some(hook_config) = hooks_config.get_pre_phase_hook(phase_id)
+        {
+            let executor = HookExecutor::new(
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            );
+            let context = HookContext::new(self.spec_id(), phase_id, HookType::PrePhase);
+
+            match execute_and_process_hook(
+                &executor,
+                hook_config,
+                &context,
+                HookType::PrePhase,
+                phase_id,
+            )
+            .await
+            {
+                Ok(outcome) => {
+                    if let Some(warning) = outcome.warning() {
+                        hook_warnings.push(warning.to_warning_string());
+                    }
+                    if !outcome.should_continue() {
+                        // Pre-hook failed with on_fail=fail - abort phase but still create receipt
+                        let error_reason = format!(
+                            "Pre-phase hook failed: {}",
+                            outcome.error().map(|e| e.to_string()).unwrap_or_default()
+                        );
+
+                        // Create failure receipt for hook failure (audit trail requirement)
+                        let packet_evidence = PacketEvidence {
+                            files: vec![],
+                            max_bytes: 65536,
+                            max_lines: 1200,
+                        };
+                        let mut flags = HashMap::new();
+                        flags.insert("phase".to_string(), phase_id.as_str().to_string());
+                        flags.insert("hook_failure".to_string(), "pre_phase".to_string());
+
+                        // Use config values for truthful failure receipts (no hard-coded metadata)
+                        let configured_model =
+                            config.config.get("model").map_or("unknown", |s| s.as_str());
+                        let configured_runner = config
+                            .config
+                            .get("runner_mode")
+                            .map_or("unknown", |s| s.as_str());
+
+                        let receipt = self.receipt_manager().create_receipt_with_redactor(
+                            config.redactor.as_ref(),
+                            self.spec_id(),
+                            phase_id,
+                            exit_codes::codes::CLAUDE_FAILURE,
+                            vec![], // No outputs
+                            env!("CARGO_PKG_VERSION"),
+                            "unknown", // Claude hasn't run yet, so version is unknown
+                            configured_model,
+                            None,
+                            flags,
+                            packet_evidence,
+                            None,
+                            None,
+                            hook_warnings.clone(),
+                            None,
+                            configured_runner,
+                            None,
+                            Some(ErrorKind::ClaudeFailure),
+                            Some(error_reason.clone()),
+                            None,
+                            None,
+                        );
+
+                        let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
+
+                        return Ok(ExecutionResult {
+                            phase: phase_id,
+                            success: false,
+                            exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                            artifact_paths: vec![],
+                            receipt_path: Some(receipt_path.into_std_path_buf()),
+                            error: Some(error_reason),
+                        });
+                    }
+                }
+                Err(e) => {
+                    // Hook execution error - treat as failure but still create receipt
+                    let error_reason = format!("Pre-phase hook error: {}", e);
+
+                    // Create failure receipt for hook error (audit trail requirement)
+                    let packet_evidence = PacketEvidence {
+                        files: vec![],
+                        max_bytes: 65536,
+                        max_lines: 1200,
+                    };
+                    let mut flags = HashMap::new();
+                    flags.insert("phase".to_string(), phase_id.as_str().to_string());
+                    flags.insert("hook_error".to_string(), "pre_phase".to_string());
+
+                    // Use config values for truthful failure receipts (no hard-coded metadata)
+                    let configured_model =
+                        config.config.get("model").map_or("unknown", |s| s.as_str());
+                    let configured_runner = config
+                        .config
+                        .get("runner_mode")
+                        .map_or("unknown", |s| s.as_str());
+
+                    let receipt = self.receipt_manager().create_receipt_with_redactor(
+                        config.redactor.as_ref(),
+                        self.spec_id(),
+                        phase_id,
+                        exit_codes::codes::CLAUDE_FAILURE,
+                        vec![], // No outputs
+                        env!("CARGO_PKG_VERSION"),
+                        "unknown", // Claude hasn't run yet, so version is unknown
+                        configured_model,
+                        None,
+                        flags,
+                        packet_evidence,
+                        None,
+                        None,
+                        vec![format!("hook_error:pre_phase:{}", e)],
+                        None,
+                        configured_runner,
+                        None,
+                        Some(ErrorKind::ClaudeFailure),
+                        Some(error_reason.clone()),
+                        None,
+                        None,
+                    );
+
+                    let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
+
+                    return Ok(ExecutionResult {
+                        phase: phase_id,
+                        success: false,
+                        exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                        artifact_paths: vec![],
+                        receipt_path: Some(receipt_path.into_std_path_buf()),
+                        error: Some(error_reason),
+                    });
+                }
+            }
+        }
+
         // Generate prompt
         let prompt = phase.prompt(&phase_context);
 
@@ -797,6 +950,14 @@ impl PhaseOrchestrator {
                         let mut flags = HashMap::new();
                         flags.insert("phase".to_string(), phase_id.as_str().to_string());
 
+                        // Use config values for truthful failure receipts (no hard-coded metadata)
+                        let configured_model =
+                            config.config.get("model").map_or("unknown", |s| s.as_str());
+                        let configured_runner = config
+                            .config
+                            .get("runner_mode")
+                            .map_or("unknown", |s| s.as_str());
+
                         let mut receipt = self.receipt_manager().create_receipt_with_redactor(
                             config.redactor.as_ref(),
                             self.spec_id(),
@@ -804,17 +965,17 @@ impl PhaseOrchestrator {
                             exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
                             vec![],                            // No successful outputs
                             env!("CARGO_PKG_VERSION"),
-                            "0.8.1",   // Default Claude CLI version
-                            "unknown", // Model unknown for budget exhaustion
-                            None,      // No model alias
+                            "unknown", // Claude hasn't completed, so version is unknown
+                            configured_model,
+                            None, // No model alias
                             flags,
                             packet_evidence,
                             None, // No stderr_tail
                             None, // No stderr_redacted
                             vec![format!("LLM budget exhausted: {}", llm_err)],
-                            None,     // No fallback
-                            "native", // Default runner
-                            None,     // No runner distro
+                            None, // No fallback
+                            configured_runner,
+                            None, // No runner distro
                             Some(ErrorKind::ClaudeFailure),
                             Some(llm_err.to_string()),
                             None, // No diff_context
@@ -1037,9 +1198,13 @@ impl PhaseOrchestrator {
             model_alias,
             flags,
             packet_evidence,
-            None,                  // No stderr_tail for successful execution
-            None,                  // No stderr_redacted for successful execution
-            atomic_write_warnings, // Include atomic write warnings from artifact storage
+            None, // No stderr_tail for successful execution
+            None, // No stderr_redacted for successful execution
+            // Merge hook warnings with atomic write warnings
+            atomic_write_warnings
+                .into_iter()
+                .chain(hook_warnings.iter().cloned())
+                .collect(), // Include atomic write warnings and hook warnings
             claude_metadata.as_ref().map(|m| m.fallback_used),
             claude_metadata
                 .as_ref()
@@ -1061,6 +1226,57 @@ impl PhaseOrchestrator {
             .receipt_manager()
             .write_receipt(&receipt)
             .with_context(|| format!("Failed to write receipt for phase: {}", phase_id.as_str()))?;
+
+        // Execute post-phase hook if configured (runs on success)
+        // Hooks run from invocation CWD so relative paths like ./scripts/... work
+        // Note: Post-hook failures are treated as warnings, not phase failures
+        // (artifacts have already been created and receipt written)
+        if let Some(ref hooks_config) = config.hooks
+            && let Some(hook_config) = hooks_config.get_post_phase_hook(phase_id)
+        {
+            let executor = HookExecutor::new(
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
+            );
+            let context = HookContext::new(self.spec_id(), phase_id, HookType::PostPhase);
+
+            match execute_and_process_hook(
+                &executor,
+                hook_config,
+                &context,
+                HookType::PostPhase,
+                phase_id,
+            )
+            .await
+            {
+                Ok(outcome) => {
+                    // Log any warnings from successful or failed hooks
+                    if let Some(warning) = outcome.warning() {
+                        tracing::warn!(
+                            phase = %phase_id.as_str(),
+                            "Post-phase hook warning: {}",
+                            warning.to_warning_string()
+                        );
+                    }
+                    // Check if hook wanted to fail but we treat it as warning
+                    // (post-hooks run after artifacts are created, so we don't fail the phase)
+                    if !outcome.should_continue() {
+                        tracing::warn!(
+                            phase = %phase_id.as_str(),
+                            "Post-phase hook had on_fail=fail but phase artifacts already created; treating as warning"
+                        );
+                    }
+                }
+                Err(e) => {
+                    // Log hook execution errors but don't fail the phase
+                    // (artifacts are already created at this point)
+                    tracing::warn!(
+                        phase = %phase_id.as_str(),
+                        error = %e,
+                        "Post-phase hook execution error (treated as warning)"
+                    );
+                }
+            }
+        }
 
         Ok(ExecutionResult {
             phase: phase_id,

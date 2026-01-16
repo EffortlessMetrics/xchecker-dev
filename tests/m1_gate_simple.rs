@@ -45,6 +45,7 @@ async fn test_m1_gate_requirements_phase_integration() -> Result<()> {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     // Execute Requirements phase

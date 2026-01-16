@@ -29,6 +29,7 @@ fn dry_run_config() -> OrchestratorConfig {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     }
 }
 
@@ -176,6 +177,7 @@ async fn test_single_phase_vs_workflow_receipt_parity() -> Result<()> {
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),
+            hooks: None,
         },
         false,
     )?;

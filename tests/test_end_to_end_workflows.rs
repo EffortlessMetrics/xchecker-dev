@@ -56,6 +56,7 @@ fn create_success_config() -> OrchestratorConfig {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     }
 }
 

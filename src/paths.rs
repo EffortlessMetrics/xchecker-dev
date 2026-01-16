@@ -9,6 +9,69 @@ thread_local! {
 }
 
 // ============================================================================
+// Platform-Specific Hardlink Detection
+// ============================================================================
+
+/// Get the link count for a file.
+///
+/// Returns the number of hard links pointing to the file. A regular file
+/// without hardlinks has a link count of 1. A link count > 1 indicates
+/// the file has hard links.
+///
+/// # Fail-Closed Behavior
+///
+/// If the link count cannot be determined (e.g., permission denied, file
+/// cannot be opened), this function returns `Err`. Callers should treat
+/// errors as potential hardlinks for security (fail closed).
+///
+/// # Platform Behavior
+///
+/// - **Unix**: Uses `metadata.nlink()` via `MetadataExt`
+/// - **Windows**: Uses `GetFileInformationByHandle` Win32 API to get `nNumberOfLinks`
+///
+/// # Arguments
+///
+/// * `path` - The path to check. Must be a regular file (not a directory).
+///
+/// # Returns
+///
+/// * `Ok(n)` - The file has `n` hard links
+/// * `Err(e)` - Could not determine link count (treat as potential hardlink)
+#[cfg(unix)]
+pub(crate) fn link_count(path: &Path) -> Result<u32, std::io::Error> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = path.metadata()?;
+    // nlink() returns u64 on Unix, but link counts > u32::MAX are unrealistic
+    Ok(metadata.nlink() as u32)
+}
+
+#[cfg(windows)]
+pub(crate) fn link_count(path: &Path) -> Result<u32, std::io::Error> {
+    use std::fs::File;
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
+
+    // Open the file to get a handle
+    let file = File::open(path)?;
+
+    let handle = HANDLE(file.as_raw_handle());
+    let mut file_info = BY_HANDLE_FILE_INFORMATION::default();
+
+    // Get file information including nNumberOfLinks
+    let result = unsafe { GetFileInformationByHandle(handle, &mut file_info) };
+
+    match result {
+        Ok(()) => Ok(file_info.nNumberOfLinks),
+        Err(e) => Err(std::io::Error::other(format!(
+            "GetFileInformationByHandle failed: {e}"
+        ))),
+    }
+}
+
+// ============================================================================
 // Sandbox Error Types
 // ============================================================================
 
@@ -275,27 +338,27 @@ impl SandboxRoot {
     }
 
     /// Check if a file is a hardlink (has link count > 1).
+    ///
+    /// Uses fail-closed behavior: if link count cannot be determined,
+    /// treats the file as a potential hardlink and rejects it.
     fn check_hardlink(&self, path: &Path) -> Result<(), SandboxError> {
         // Only check files, not directories
         if path.is_file() {
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::MetadataExt;
-                if let Ok(metadata) = path.metadata() {
-                    if metadata.nlink() > 1 {
-                        return Err(SandboxError::HardlinkNotAllowed {
-                            path: path.display().to_string(),
-                        });
-                    }
+            match link_count(path) {
+                Ok(count) if count > 1 => {
+                    return Err(SandboxError::HardlinkNotAllowed {
+                        path: path.display().to_string(),
+                    });
                 }
-            }
-
-            #[cfg(windows)]
-            {
-                // On Windows, we can check the number of links using GetFileInformationByHandle
-                // For now, we'll skip this check on Windows as it requires more complex code
-                // and hardlinks are less common on Windows
-                let _ = path;
+                Ok(_) => {
+                    // Link count is 1, not a hardlink
+                }
+                Err(_) => {
+                    // Fail closed: if we can't determine link count, assume it might be a hardlink
+                    return Err(SandboxError::HardlinkNotAllowed {
+                        path: path.display().to_string(),
+                    });
+                }
             }
         }
 

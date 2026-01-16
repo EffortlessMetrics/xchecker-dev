@@ -253,6 +253,7 @@ async fn test_dry_run_receipt_has_llm_metadata() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let spec_id = format!("test-dry-run-metadata-{}", std::process::id());
@@ -340,6 +341,7 @@ async fn test_dry_run_receipt_has_full_llm_metadata() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let spec_id = format!("test-dry-run-full-metadata-{}", std::process::id());

@@ -41,6 +41,7 @@ fn create_config_with_timeout(timeout_secs: u64, dry_run: bool) -> OrchestratorC
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     }
 }
 
@@ -342,6 +343,7 @@ fn test_timeout_invalid_config_uses_default() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let timeout = PhaseTimeout::from_config(&config);
@@ -364,6 +366,7 @@ fn test_timeout_negative_config_uses_default() {
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
+        hooks: None,
     };
 
     let timeout = PhaseTimeout::from_config(&config);
