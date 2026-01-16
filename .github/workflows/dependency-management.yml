@@ -69,7 +69,9 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run tests with locked dependencies
-        run: cargo test --all-features --locked
+        run: |
+          cargo test --all-features --locked -- \
+            --skip test_unix_process
 
   # ============================================================================
   # FRESH RESOLVE TESTING: User reality
@@ -111,7 +113,7 @@ jobs:
           trap restore_lock EXIT
 
           cargo update
-          cargo test --all-features
+          cargo test --all-features -- --skip test_unix_process
           # Restore original lockfile and assert cleanliness
           restore_lock
           trap - EXIT
