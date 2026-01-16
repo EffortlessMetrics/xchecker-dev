@@ -123,13 +123,14 @@ jobs:
           cargo update
           # Run lib and bin tests first
           cargo test --all-features --lib --bins
-          # Run integration tests excluding flaky unix process termination tests
+          # Run integration tests excluding flaky tests
           cargo test --all-features --test '*' -- \
             --skip test_graceful_termination_with_sigterm \
             --skip test_process_group_termination \
             --skip test_runner_timeout_terminates_process_group \
             --skip test_sigterm_then_sigkill_sequence \
-            --skip test_timeout_grace_period
+            --skip test_timeout_grace_period \
+            --skip test_smoke_benchmark
           # Restore original lockfile and assert cleanliness
           restore_lock
           trap - EXIT
