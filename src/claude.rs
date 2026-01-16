@@ -159,38 +159,17 @@ impl ClaudeWrapper {
         self
     }
 
-    /// Get Claude CLI version by running `claude --version` using the specified runner
+    /// Get Claude CLI version using the specified runner
     ///
-    /// Uses synchronous execution to avoid nested Tokio runtime issues when called
-    /// from async contexts (e.g., async tests).
-    fn get_claude_version(_runner: &Runner) -> Result<String, ClaudeError> {
-        // Use synchronous execution via std::process::Command to avoid nested runtime
-        // issues when this function is called from within an async context
-        let mut cmd = CommandSpec::new("claude").arg("--version").to_command();
-        cmd.stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        let output = cmd.output().map_err(|e| ClaudeError::ExecutionFailed {
-            stderr: format!("Failed to execute claude --version: {e}"),
-        })?;
-
-        if !output.status.success() {
-            return Err(ClaudeError::ExecutionFailed {
-                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            });
-        }
-
-        let stdout = String::from_utf8_lossy(&output.stdout);
-
-        // Extract version from output like "claude 0.8.1"
-        let version = stdout
-            .split_whitespace()
-            .last()
-            .unwrap_or("unknown")
-            .to_string();
-
-        Ok(version)
+    /// Uses synchronous execution via Runner to avoid nested Tokio runtime issues
+    /// when called from async contexts (e.g., async tests). Correctly routes through
+    /// WSL when the runner is configured for WSL mode.
+    fn get_claude_version(runner: &Runner) -> Result<String, ClaudeError> {
+        runner
+            .get_claude_version_sync()
+            .map_err(|e| ClaudeError::ExecutionFailed {
+                stderr: format!("Failed to get Claude version: {e}"),
+            })
     }
 
     /// Resolve model alias to a model name for Claude CLI
@@ -267,9 +246,7 @@ impl ClaudeWrapper {
             }
         }
     }
-}
 
-impl ClaudeWrapper {
     /// Execute a prompt with Claude CLI, trying stream-json first with text fallback
     #[allow(dead_code)] // Legacy/test-only; follow-up spec (V19+) to delete once tests migrate
     pub async fn execute(
