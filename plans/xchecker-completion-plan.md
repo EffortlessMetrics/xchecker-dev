@@ -21,7 +21,7 @@ xchecker is a Rust-based CLI tool that orchestrates spec generation workflows us
 4. **Runner System** - Cross-platform process execution (Native, WSL, Auto modes)
 5. **Packet Builder** - Deterministic context assembly with budget enforcement
 6. **Fixup Engine** - Safe file modification with fuzzy matching and atomic writes
-7. **Hooks System** - Pre/post-phase hook execution (implemented but not wired)
+7. **Hooks System** - Pre/post-phase hook execution (opt-in, runs from invocation CWD)
 8. **Workspace System** - Multi-spec orchestration with registry
 9. **Template System** - Built-in templates for quick spec bootstrapping
 10. **Gate System** - CI/CD policy enforcement
@@ -70,17 +70,22 @@ xchecker is a Rust-based CLI tool that orchestrates spec generation workflows us
 ### ⚠️ Partially Implemented / Not Wired
 
 | Feature | Status | Evidence | Notes |
-|---------|--------|----------|
-| **Hooks Integration** | ⚠️ Implemented but not wired | `src/hooks.rs` fully implemented, but `src/orchestrator/phase_exec.rs` has no hook calls |
+|---------|--------|----------|-------|
 | **ExecutionStrategy** | ⚠️ Controlled only | ExternalTool reserved for V15+ |
 | **Fallback Provider** | ⚠️ Config parsing supports it | `src/llm/mod.rs` has `fallback_provider: None` comment |
 | **Prompt Templates** | ⚠️ Config parsing supports it | `src/llm/mod.rs` has `prompt_template: None` comment |
 | **Gemini CLI Flags** | ⚠️ Config parsing incomplete | `src/cli.rs` has `llm_gemini_binary: None` TODO |
 | **TODO Items Found** | | |
-| - Windows hardlink detection | `src/fixup.rs:1536` - "TODO: Implement proper Windows hardlink detection" |
 | - Claude CLI version extraction | `src/orchestrator/llm.rs:219` - "TODO: Extract from extensions if available" |
 | - Runner distro extraction | `src/orchestrator/llm.rs:221` - "TODO: Extract from extensions if available" |
 | - Config test isolation issues | `src/config.rs:1864, 1962, 2008, 2036` - Tests marked with environment isolation issues |
+
+### ✅ Recently Completed
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Hooks Integration** | ✅ Wired | `src/orchestrator/phase_exec.rs` executes pre/post-phase hooks; CWD is invocation directory |
+| **Windows Hardlink Detection** | ✅ Complete | `src/paths.rs` `link_count()` uses `GetFileInformationByHandle` |
 
 ---
 
@@ -88,28 +93,23 @@ xchecker is a Rust-based CLI tool that orchestrates spec generation workflows us
 
 ### Blockers
 
-1. **Hooks Not Wired in Orchestrator**
-   - Impact: Users cannot use pre/post-phase hooks despite full implementation
-   - Resolution: Wire `HookExecutor` into `execute_phase_core()` in `phase_exec.rs`
-   - Complexity: Medium - Requires understanding orchestrator execution flow
-
-2. **ExecutionStrategy Limited to Controlled**
+1. **ExecutionStrategy Limited to Controlled**
    - Impact: ExternalTool/agentic mode reserved for V15+
    - Resolution: This is intentional for V11-V14; no action needed
 
-3. **Fallback Provider Not Active**
+2. **Fallback Provider Not Active**
    - Impact: Config supports `fallback_provider` but factory doesn't use it
    - Resolution: Implement fallback logic in `LlmBackend::from_config()` or document as unsupported
 
-4. **Prompt Templates Not Active**
+3. **Prompt Templates Not Active**
    - Impact: Config supports `prompt_template` but not used
    - Resolution: Implement template selection in backend factory or document as unsupported
 
-5. **Gemini CLI Binary Flag Missing**
+4. **Gemini CLI Binary Flag Missing**
    - Impact: No CLI flag for `--llm-gemini-binary`
    - Resolution: Add flag to `src/cli.rs` and wire through config
 
-6. **Environment Isolation in Config Tests**
+5. **Environment Isolation in Config Tests**
    - Impact: Some tests have environment isolation issues
    - Resolution: Fix tests or document as expected behavior
 
@@ -124,18 +124,12 @@ xchecker is a Rust-based CLI tool that orchestrates spec generation workflows us
 
 ### Phase 1: Immediate Cleanup (High Priority)
 
-1. **Wire Hooks into Orchestrator**
-   - Add hook execution calls in `execute_phase_core()` before and after phase execution
-   - Record hook warnings in receipts
-   - Test pre/post-phase hook execution
-
-2. **Remove TODO Comments and Dead Code**
-   - Remove or implement Windows hardlink detection in `src/fixup.rs:1536`
+1. **Remove TODO Comments and Dead Code**
    - Remove or implement Claude CLI version extraction in `src/orchestrator/llm.rs:219`
    - Remove or implement runner distro extraction in `src/orchestrator/llm.rs:221`
    - Fix or document environment isolation issues in config tests
 
-3. **Add Gemini CLI Binary Flag**
+2. **Add Gemini CLI Binary Flag**
    - Add `--llm-gemini-binary` flag to `src/cli.rs`
    - Wire through config system to `LlmConfig.gemini.binary`
 
@@ -153,7 +147,7 @@ xchecker is a Rust-based CLI tool that orchestrates spec generation workflows us
 
 3. **Update README with Current State**
    - Clarify V11-V14 features are complete
-   - Document hooks as implemented but not yet wired
+   - Document hooks as wired and opt-in
    - Document that ExternalTool is reserved for V15+
 
 ### Phase 3: Enhanced LLM Backend (Low Priority)

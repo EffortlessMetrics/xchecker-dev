@@ -653,18 +653,13 @@ impl PhaseOrchestrator {
         self.check_phase_dependencies(phase)?;
 
         // Execute pre-phase hook if configured
+        // Hooks run from invocation CWD so relative paths like ./scripts/... work
         let mut hook_warnings: Vec<String> = Vec::new();
         if let Some(ref hooks_config) = config.hooks
             && let Some(hook_config) = hooks_config.get_pre_phase_hook(phase_id)
         {
             let executor = HookExecutor::new(
-                self.artifact_manager()
-                    .base_path()
-                    .clone()
-                    .into_std_path_buf()
-                    .parent()
-                    .unwrap_or(std::path::Path::new("."))
-                    .to_path_buf(),
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             );
             let context = HookContext::new(self.spec_id(), phase_id, HookType::PrePhase);
 
@@ -1126,17 +1121,12 @@ impl PhaseOrchestrator {
             .with_context(|| format!("Failed to write receipt for phase: {}", phase_id.as_str()))?;
 
         // Execute post-phase hook if configured (runs on success)
+        // Hooks run from invocation CWD so relative paths like ./scripts/... work
         if let Some(ref hooks_config) = config.hooks
             && let Some(hook_config) = hooks_config.get_post_phase_hook(phase_id)
         {
             let executor = HookExecutor::new(
-                self.artifact_manager()
-                    .base_path()
-                    .clone()
-                    .into_std_path_buf()
-                    .parent()
-                    .unwrap_or(std::path::Path::new("."))
-                    .to_path_buf(),
+                std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")),
             );
             let context = HookContext::new(self.spec_id(), phase_id, HookType::PostPhase);
 

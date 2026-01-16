@@ -69,21 +69,23 @@ let cmd = CommandSpec::new("claude")
     .arg("json");
 ```
 
-### Hooks (Reserved for Future)
+### Hooks
 
-Hooks are implemented but **not wired into the orchestrator in v1.0**. When enabled in a future release:
+Hooks are **opt-in and wired into the orchestrator**. When configured, they execute before and after each phase:
 
 - Hooks intentionally use shell execution (`sh -c` / `cmd /C`) because they are user-defined shell commands
+- Hooks run from the **invocation working directory** (typically the repository root), so relative paths like `./scripts/...` work as expected
 - Context is passed via environment variables (`XCHECKER_SPEC_ID`, `XCHECKER_PHASE`, `XCHECKER_HOOK_TYPE`)
 - Additional context is passed via stdin as JSON, not shell interpolation
 - Users explicitly opt in by adding hook configuration
-- Hook failures can be configured to warn or fail the phase
+- Pre-hook failures can be configured to warn or abort the phase (`on_fail = "warn"` or `on_fail = "fail"`)
+- Post-hook failures are logged as warnings (non-fatal)
 
-Security recommendations for hooks (when enabled):
+Security recommendations for hooks:
 - Only enable hooks in trusted environments
 - Disable hooks in CI for untrusted repositories
 - Review hook commands before execution
-- Use `on_fail = "fail"` to catch unexpected hook behavior
+- Use `on_fail = "fail"` for pre-hooks to catch unexpected behavior
 
 ## State Isolation
 
