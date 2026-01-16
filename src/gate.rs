@@ -270,19 +270,36 @@ impl GateCommand {
 
     /// Evaluate the pending fixups condition
     fn evaluate_pending_fixups(&self, handle: &OrchestratorHandle) -> GateCondition {
-        let pending_count = count_pending_fixups(handle);
-        let passed = pending_count == 0;
+        use crate::fixup::PendingFixupsResult;
 
-        GateCondition {
-            name: "pending_fixups".to_string(),
-            passed,
-            description: if passed {
-                "No pending fixups".to_string()
-            } else {
-                format!("{} pending fixup(s) found", pending_count)
+        let result = crate::fixup::pending_fixups_result_from_handle(handle);
+
+        match result {
+            PendingFixupsResult::None => GateCondition {
+                name: "pending_fixups".to_string(),
+                passed: true,
+                description: "No pending fixups".to_string(),
+                actual: Some("0".to_string()),
+                expected: Some("0".to_string()),
             },
-            actual: Some(pending_count.to_string()),
-            expected: Some("0".to_string()),
+            PendingFixupsResult::Some(stats) => GateCondition {
+                name: "pending_fixups".to_string(),
+                passed: false,
+                description: format!("{} pending fixup(s) found", stats.targets),
+                actual: Some(stats.targets.to_string()),
+                expected: Some("0".to_string()),
+            },
+            PendingFixupsResult::Unknown { reason } => {
+                // Treat unknown/error state conservatively as failure
+                // This prevents gates from passing with corrupted review artifacts
+                GateCondition {
+                    name: "pending_fixups".to_string(),
+                    passed: false,
+                    description: format!("Unable to determine pending fixups: {}", reason),
+                    actual: Some("unknown".to_string()),
+                    expected: Some("0".to_string()),
+                }
+            }
         }
     }
 
@@ -331,11 +348,6 @@ impl GateCommand {
             },
         }
     }
-}
-
-/// Count pending fixups for a spec
-fn count_pending_fixups(handle: &OrchestratorHandle) -> u32 {
-    crate::fixup::pending_fixups_from_handle(handle).targets
 }
 
 /// Format a duration in a human-readable way

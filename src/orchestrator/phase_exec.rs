@@ -677,29 +677,105 @@ impl PhaseOrchestrator {
                         hook_warnings.push(warning.to_warning_string());
                     }
                     if !outcome.should_continue() {
-                        // Pre-hook failed with on_fail=fail - abort phase
+                        // Pre-hook failed with on_fail=fail - abort phase but still create receipt
+                        let error_reason = format!(
+                            "Pre-phase hook failed: {}",
+                            outcome.error().map(|e| e.to_string()).unwrap_or_default()
+                        );
+
+                        // Create failure receipt for hook failure (audit trail requirement)
+                        let packet_evidence = PacketEvidence {
+                            files: vec![],
+                            max_bytes: 65536,
+                            max_lines: 1200,
+                        };
+                        let mut flags = HashMap::new();
+                        flags.insert("phase".to_string(), phase_id.as_str().to_string());
+                        flags.insert("hook_failure".to_string(), "pre_phase".to_string());
+
+                        let receipt = self.receipt_manager().create_receipt_with_redactor(
+                            config.redactor.as_ref(),
+                            self.spec_id(),
+                            phase_id,
+                            exit_codes::codes::CLAUDE_FAILURE,
+                            vec![], // No outputs
+                            env!("CARGO_PKG_VERSION"),
+                            "0.8.1",
+                            "haiku",
+                            None,
+                            flags,
+                            packet_evidence,
+                            None,
+                            None,
+                            hook_warnings.clone(),
+                            None,
+                            "native",
+                            None,
+                            Some(ErrorKind::ClaudeFailure),
+                            Some(error_reason.clone()),
+                            None,
+                            None,
+                        );
+
+                        let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
+
                         return Ok(ExecutionResult {
                             phase: phase_id,
                             success: false,
                             exit_code: exit_codes::codes::CLAUDE_FAILURE,
                             artifact_paths: vec![],
-                            receipt_path: None,
-                            error: Some(format!(
-                                "Pre-phase hook failed: {}",
-                                outcome.error().map(|e| e.to_string()).unwrap_or_default()
-                            )),
+                            receipt_path: Some(receipt_path.into_std_path_buf()),
+                            error: Some(error_reason),
                         });
                     }
                 }
                 Err(e) => {
-                    // Hook execution error - treat as failure
+                    // Hook execution error - treat as failure but still create receipt
+                    let error_reason = format!("Pre-phase hook error: {}", e);
+
+                    // Create failure receipt for hook error (audit trail requirement)
+                    let packet_evidence = PacketEvidence {
+                        files: vec![],
+                        max_bytes: 65536,
+                        max_lines: 1200,
+                    };
+                    let mut flags = HashMap::new();
+                    flags.insert("phase".to_string(), phase_id.as_str().to_string());
+                    flags.insert("hook_error".to_string(), "pre_phase".to_string());
+
+                    let receipt = self.receipt_manager().create_receipt_with_redactor(
+                        config.redactor.as_ref(),
+                        self.spec_id(),
+                        phase_id,
+                        exit_codes::codes::CLAUDE_FAILURE,
+                        vec![], // No outputs
+                        env!("CARGO_PKG_VERSION"),
+                        "0.8.1",
+                        "haiku",
+                        None,
+                        flags,
+                        packet_evidence,
+                        None,
+                        None,
+                        vec![format!("hook_error:pre_phase:{}", e)],
+                        None,
+                        "native",
+                        None,
+                        Some(ErrorKind::ClaudeFailure),
+                        Some(error_reason.clone()),
+                        None,
+                        None,
+                    );
+
+                    let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
+
                     return Ok(ExecutionResult {
                         phase: phase_id,
                         success: false,
                         exit_code: exit_codes::codes::CLAUDE_FAILURE,
                         artifact_paths: vec![],
-                        receipt_path: None,
-                        error: Some(format!("Pre-phase hook error: {}", e)),
+                        receipt_path: Some(receipt_path.into_std_path_buf()),
+                        error: Some(error_reason),
                     });
                 }
             }
@@ -1122,6 +1198,8 @@ impl PhaseOrchestrator {
 
         // Execute post-phase hook if configured (runs on success)
         // Hooks run from invocation CWD so relative paths like ./scripts/... work
+        // Note: Post-hook failures are treated as warnings, not phase failures
+        // (artifacts have already been created and receipt written)
         if let Some(ref hooks_config) = config.hooks
             && let Some(hook_config) = hooks_config.get_post_phase_hook(phase_id)
         {
@@ -1130,7 +1208,7 @@ impl PhaseOrchestrator {
             );
             let context = HookContext::new(self.spec_id(), phase_id, HookType::PostPhase);
 
-            if let Ok(outcome) = execute_and_process_hook(
+            match execute_and_process_hook(
                 &executor,
                 hook_config,
                 &context,
@@ -1138,10 +1216,34 @@ impl PhaseOrchestrator {
                 phase_id,
             )
             .await
-                && let Some(warning) = outcome.warning()
             {
-                // Log warning but don't fail - post-hook failures are warnings only on success path
-                tracing::warn!("Post-phase hook warning: {}", warning.to_warning_string());
+                Ok(outcome) => {
+                    // Log any warnings from successful or failed hooks
+                    if let Some(warning) = outcome.warning() {
+                        tracing::warn!(
+                            phase = %phase_id.as_str(),
+                            "Post-phase hook warning: {}",
+                            warning.to_warning_string()
+                        );
+                    }
+                    // Check if hook wanted to fail but we treat it as warning
+                    // (post-hooks run after artifacts are created, so we don't fail the phase)
+                    if !outcome.should_continue() {
+                        tracing::warn!(
+                            phase = %phase_id.as_str(),
+                            "Post-phase hook had on_fail=fail but phase artifacts already created; treating as warning"
+                        );
+                    }
+                }
+                Err(e) => {
+                    // Log hook execution errors but don't fail the phase
+                    // (artifacts are already created at this point)
+                    tracing::warn!(
+                        phase = %phase_id.as_str(),
+                        error = %e,
+                        "Post-phase hook execution error (treated as warning)"
+                    );
+                }
             }
         }
 
