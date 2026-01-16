@@ -69,9 +69,8 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run tests with locked dependencies
-        run: |
-          cargo test --all-features --locked -- \
-            --skip test_unix_process
+        shell: bash
+        run: cargo test --all-features --locked -- --skip test_unix_process
 
   # ============================================================================
   # FRESH RESOLVE TESTING: User reality
