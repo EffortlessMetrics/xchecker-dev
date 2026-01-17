@@ -1,4 +1,11 @@
-use super::claude::NdjsonResult;
+/// Result of NDJSON parsing from stdout
+#[derive(Debug, Clone)]
+pub enum NdjsonResult {
+    /// Successfully found at least one valid JSON object (returns the last one)
+    ValidJson(String),
+    /// No valid JSON found, includes a tail excerpt for error reporting
+    NoValidJson { tail_excerpt: String },
+}
 
 pub(crate) fn parse_ndjson(stdout: &str) -> NdjsonResult {
     let mut last_valid_json: Option<String> = None;
