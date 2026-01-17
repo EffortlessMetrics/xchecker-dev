@@ -63,18 +63,18 @@ impl Config {
         let mut security = SecurityConfig::default();
 
         // Track default sources
-        source_attribution.insert("max_turns".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("output_format".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("verbose".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("runner_mode".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("phase_timeout".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("stdout_cap_bytes".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("stderr_cap_bytes".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("lock_ttl_seconds".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("debug_packet".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("allow_links".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("max_turns".to_string(), ConfigSource::Default);
+        source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Default);
+        source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Default);
+        source_attribution.insert("output_format".to_string(), ConfigSource::Default);
+        source_attribution.insert("verbose".to_string(), ConfigSource::Default);
+        source_attribution.insert("runner_mode".to_string(), ConfigSource::Default);
+        source_attribution.insert("phase_timeout".to_string(), ConfigSource::Default);
+        source_attribution.insert("stdout_cap_bytes".to_string(), ConfigSource::Default);
+        source_attribution.insert("stderr_cap_bytes".to_string(), ConfigSource::Default);
+        source_attribution.insert("lock_ttl_seconds".to_string(), ConfigSource::Default);
+        source_attribution.insert("debug_packet".to_string(), ConfigSource::Default);
+        source_attribution.insert("allow_links".to_string(), ConfigSource::Default);
 
         // Discover and load config file (if not explicitly provided)
         let config_path = if let Some(explicit_path) = &cli_args.config_path {
@@ -86,7 +86,7 @@ impl Config {
         if let Some(path) = &config_path {
             let file_config = Self::load_config_file(path)?;
 
-            let config_source = ConfigSource::ConfigFile(path.clone());
+            let config_source = ConfigSource::Config;
 
             // Apply config file values (override defaults)
             if let Some(file_defaults) = file_config.defaults {
@@ -321,7 +321,7 @@ impl Config {
             && !env_provider.is_empty()
         {
             llm.provider = Some(env_provider);
-            source_attribution.insert("llm_provider".to_string(), ConfigSource::Cli);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Programmatic);
         }
 
         // CLI flag overrides environment variable
@@ -333,7 +333,7 @@ impl Config {
         // Default to "claude-cli" if no provider is set
         if llm.provider.is_none() {
             llm.provider = Some("claude-cli".to_string());
-            source_attribution.insert("llm_provider".to_string(), ConfigSource::Defaults);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Default);
         }
 
         // Apply Claude binary configuration
@@ -368,7 +368,10 @@ impl Config {
             && !env_strategy.is_empty()
         {
             llm.execution_strategy = Some(env_strategy);
-            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Cli);
+            source_attribution.insert(
+                "execution_strategy".to_string(),
+                ConfigSource::Programmatic,
+            );
         }
 
         // CLI flag overrides everything
@@ -380,7 +383,7 @@ impl Config {
         // Default to "controlled" if not specified
         if llm.execution_strategy.is_none() {
             llm.execution_strategy = Some("controlled".to_string());
-            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Defaults);
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Default);
         }
 
         let config = Self {

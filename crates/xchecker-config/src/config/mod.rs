@@ -15,7 +15,7 @@ mod validation;
 pub use builder::ConfigBuilder;
 pub use cli_args::CliArgs;
 pub use model::*;
-pub use sources::ConfigSource;
+pub use crate::types::ConfigSource;
 
 use anyhow::Result;
 
@@ -760,11 +760,11 @@ max_turns = 10
         );
         assert!(matches!(
             config.source_attribution.get("model"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert_eq!(
             config.source_attribution.get("packet_max_bytes"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
     }
 
@@ -799,7 +799,7 @@ max_turns = 10
         ));
         assert!(matches!(
             config.source_attribution.get("max_turns"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert!(matches!(
             config.source_attribution.get("packet_max_bytes"),
@@ -820,7 +820,7 @@ max_turns = 10
         assert_eq!(config.llm.provider, Some("claude-cli".to_string()));
         assert_eq!(
             config.source_attribution.get("llm_provider"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
     }
 
@@ -838,7 +838,7 @@ max_turns = 10
         );
         assert_eq!(
             config.source_attribution.get("execution_strategy"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
     }
 
@@ -1056,11 +1056,11 @@ execution_strategy = "controlled"
         // Verify source attribution
         assert!(matches!(
             config.source_attribution.get("llm_provider"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert!(matches!(
             config.source_attribution.get("execution_strategy"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
     }
 
@@ -1998,11 +1998,11 @@ strict_validation = false
         // Source attribution should be defaults
         assert_eq!(
             config.source_attribution.get("max_turns"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
         assert_eq!(
             config.source_attribution.get("llm_provider"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
     }
 
@@ -2013,7 +2013,7 @@ strict_validation = false
 
         // Create a config file in a temp directory's .xchecker folder
         // (simulating a project with a config file)
-        let config_path = create_test_config_file(
+        let _config_path = create_test_config_file(
             temp_dir.path(),
             r#"
 [defaults]
@@ -2037,22 +2037,17 @@ packet_max_bytes = 32768
         // Source attribution should reflect config file for overridden values
         assert!(matches!(
             config.source_attribution.get("model"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert!(matches!(
             config.source_attribution.get("max_turns"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
-        // Default values should have Defaults source
+        // Default values should have Default source
         assert_eq!(
             config.source_attribution.get("packet_max_lines"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
-
-        // Verify the config path matches what we created
-        if let Some(ConfigSource::ConfigFile(path)) = config.source_attribution.get("model") {
-            assert_eq!(path, &config_path);
-        }
     }
 
     #[test]
@@ -2155,7 +2150,7 @@ ignore_secret_patterns = ["github_pat", "aws_access_key"]
         // Source attribution should be config file
         assert!(matches!(
             config.source_attribution.get("security"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
     }
 

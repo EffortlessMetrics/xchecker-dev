@@ -128,25 +128,25 @@ distro = "Ubuntu-22.04"
     {
         assert!(matches!(
             config_file_only.source_attribution.get("model"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert!(matches!(
             config_file_only.source_attribution.get("max_turns"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert!(matches!(
             config_file_only.source_attribution.get("packet_max_bytes"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
     } else {
         // Using defaults - verify default source attribution
         assert_eq!(
             config_file_only.source_attribution.get("max_turns"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
         assert_eq!(
             config_file_only.source_attribution.get("packet_max_bytes"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
     }
 
@@ -225,11 +225,11 @@ distro = "Ubuntu-22.04"
             config_cli_override
                 .source_attribution
                 .get("packet_max_bytes"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
         assert!(matches!(
             config_cli_override.source_attribution.get("runner_distro"),
-            Some(ConfigSource::ConfigFile(_))
+            Some(ConfigSource::Config)
         ));
     } else {
         // Using defaults
@@ -237,7 +237,7 @@ distro = "Ubuntu-22.04"
             config_cli_override
                 .source_attribution
                 .get("packet_max_bytes"),
-            Some(&ConfigSource::Defaults)
+            Some(&ConfigSource::Default)
         );
     }
 

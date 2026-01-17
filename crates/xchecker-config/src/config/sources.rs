@@ -1,48 +1,22 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+
+use crate::types::ConfigSource;
 
 use super::Config;
 
-/// Source of a configuration value for attribution
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConfigSource {
-    Cli,
-    ConfigFile(PathBuf),
-    Defaults,
-    Programmatic,
-}
-
-impl std::fmt::Display for ConfigSource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Cli => write!(f, "CLI"),
-            Self::ConfigFile(path) => write!(f, "config file ({})", path.display()),
-            Self::Defaults => write!(f, "defaults"),
-            Self::Programmatic => write!(f, "programmatic"),
-        }
+fn stable_source_label(source: &ConfigSource) -> &'static str {
+    match source {
+        ConfigSource::Cli => "cli",
+        ConfigSource::Config => "config",
+        ConfigSource::Programmatic => "programmatic",
+        ConfigSource::Default => "default",
     }
 }
 
-impl ConfigSource {
-    #[must_use]
-    pub const fn stable(&self) -> &'static str {
-        match self {
-            Self::Cli => "cli",
-            Self::ConfigFile(_) => "config",
-            Self::Defaults => "default",
-            Self::Programmatic => "programmatic",
-        }
-    }
-}
-
-impl From<ConfigSource> for crate::types::ConfigSource {
-    fn from(source: ConfigSource) -> Self {
-        match source {
-            ConfigSource::Cli => crate::types::ConfigSource::Cli,
-            ConfigSource::ConfigFile(_) => crate::types::ConfigSource::Config,
-            ConfigSource::Defaults => crate::types::ConfigSource::Default,
-            ConfigSource::Programmatic => crate::types::ConfigSource::Programmatic,
-        }
+fn source_label(source: Option<&ConfigSource>) -> String {
+    match source {
+        Some(src) => stable_source_label(src).to_string(),
+        None => stable_source_label(&ConfigSource::Default).to_string(),
     }
 }
 
@@ -55,12 +29,7 @@ impl Config {
         // Helper to add config value with source
         let mut add_config = |key: &str, value: Option<&str>| {
             if let Some(val) = value {
-                let source = self
-                    .source_attribution
-                    .get(key)
-                    .map_or_else(|| ConfigSource::Defaults.stable().to_string(), |src| {
-                        src.stable().to_string()
-                    });
+                let source = source_label(self.source_attribution.get(key));
                 config.insert(key.to_string(), (val.to_string(), source));
             }
         };
@@ -94,18 +63,8 @@ impl Config {
         let include_patterns = self.selectors.include.join(", ");
         let exclude_patterns = self.selectors.exclude.join(", ");
 
-        let include_source = self
-            .source_attribution
-            .get("selectors_include")
-            .map_or_else(|| ConfigSource::Defaults.stable().to_string(), |src| {
-                src.stable().to_string()
-            });
-        let exclude_source = self
-            .source_attribution
-            .get("selectors_exclude")
-            .map_or_else(|| ConfigSource::Defaults.stable().to_string(), |src| {
-                src.stable().to_string()
-            });
+        let include_source = source_label(self.source_attribution.get("selectors_include"));
+        let exclude_source = source_label(self.source_attribution.get("selectors_exclude"));
 
         config.insert(
             "selectors_include".to_string(),

@@ -364,18 +364,18 @@ impl ConfigBuilder {
         let hooks = HooksConfig::default();
 
         // Track default sources
-        source_attribution.insert("max_turns".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("output_format".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("verbose".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("runner_mode".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("phase_timeout".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("stdout_cap_bytes".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("stderr_cap_bytes".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("lock_ttl_seconds".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("debug_packet".to_string(), ConfigSource::Defaults);
-        source_attribution.insert("allow_links".to_string(), ConfigSource::Defaults);
+        source_attribution.insert("max_turns".to_string(), ConfigSource::Default);
+        source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Default);
+        source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Default);
+        source_attribution.insert("output_format".to_string(), ConfigSource::Default);
+        source_attribution.insert("verbose".to_string(), ConfigSource::Default);
+        source_attribution.insert("runner_mode".to_string(), ConfigSource::Default);
+        source_attribution.insert("phase_timeout".to_string(), ConfigSource::Default);
+        source_attribution.insert("stdout_cap_bytes".to_string(), ConfigSource::Default);
+        source_attribution.insert("stderr_cap_bytes".to_string(), ConfigSource::Default);
+        source_attribution.insert("lock_ttl_seconds".to_string(), ConfigSource::Default);
+        source_attribution.insert("debug_packet".to_string(), ConfigSource::Default);
+        source_attribution.insert("allow_links".to_string(), ConfigSource::Default);
 
         // Apply builder values (all attributed to Programmatic source).
         if let Some(bytes) = self.packet_max_bytes {
@@ -419,7 +419,7 @@ impl ConfigBuilder {
             source_attribution.insert("llm_provider".to_string(), ConfigSource::Programmatic);
         } else {
             llm.provider = Some("claude-cli".to_string());
-            source_attribution.insert("llm_provider".to_string(), ConfigSource::Defaults);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Default);
         }
 
         // Apply execution strategy (default to controlled if not set)
@@ -428,7 +428,7 @@ impl ConfigBuilder {
             source_attribution.insert("execution_strategy".to_string(), ConfigSource::Programmatic);
         } else {
             llm.execution_strategy = Some("controlled".to_string());
-            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Defaults);
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Default);
         }
 
         // Note: state_dir is stored but not directly used in Config struct

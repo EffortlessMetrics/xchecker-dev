@@ -229,19 +229,19 @@ mode = "native"
     );
     assert_eq!(
         config.source_attribution.get("max_turns"),
-        Some(&ConfigSource::ConfigFile(config_path.clone()))
+        Some(&ConfigSource::Config)
     );
     assert_eq!(
         config.source_attribution.get("packet_max_bytes"),
-        Some(&ConfigSource::ConfigFile(config_path.clone()))
+        Some(&ConfigSource::Config)
     );
     assert_eq!(
         config.source_attribution.get("packet_max_lines"),
-        Some(&ConfigSource::Defaults)
+        Some(&ConfigSource::Default)
     );
     assert_eq!(
         config.source_attribution.get("runner_mode"),
-        Some(&ConfigSource::ConfigFile(config_path))
+        Some(&ConfigSource::Config)
     );
 
     // Test effective_config includes source attribution
@@ -319,10 +319,10 @@ max_turns = 10
     assert_eq!(config.defaults.model, Some("opus".to_string()));
     assert_eq!(config.defaults.max_turns, Some(15));
 
-    // Source attribution should point to explicit path
+    // Source attribution should point to the config file
     assert_eq!(
         config.source_attribution.get("model"),
-        Some(&ConfigSource::ConfigFile(custom_config_path.clone()))
+        Some(&ConfigSource::Config)
     );
 
     Ok(())
