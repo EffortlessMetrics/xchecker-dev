@@ -1,9 +1,9 @@
 # xchecker Modularization Report
 
-**Document Version**: 2.0  
-**Date**: 2026-01-16  
-**Project**: xchecker  
-**Current Version**: 1.0.0  
+**Document Version**: 3.0
+**Date**: 2026-01-17
+**Project**: xchecker
+**Current Version**: 1.0.0
 **Rust Edition**: 2024
 
 ---
@@ -12,7 +12,14 @@
 
 xchecker is a Rust-based CLI tool for orchestrating spec generation workflows with AI language models. Currently implemented as a single-crate architecture with both library and binary targets, the project has reached a scale where modularization would provide significant benefits for maintainability, testing, and potential future extraction of reusable components.
 
-This report synthesizes findings from previous analysis and provides an enhanced roadmap for transforming xchecker from a single-crate to a multi-crate workspace architecture. The proposed transformation introduces a workspace with 6 core crates plus shared utilities, organized around clear domain boundaries while preserving the existing public API surface.
+This report synthesizes findings from previous analysis (version 2.0) and provides additional modularization opportunities identified through comprehensive codebase analysis. The proposed transformation introduces a workspace with 6 core crates plus shared utilities, organized around clear domain boundaries while preserving the existing public API surface.
+
+**New Findings in Version 3.0:**
+- Identified additional opportunities for splitting large modules beyond those in version 2.0
+- Found code duplication patterns in runner modules
+- Identified scattered test utilities that could be consolidated
+- Discovered configuration-related code that could be better organized
+- Found type definitions that could be centralized
 
 ---
 
@@ -31,7 +38,7 @@ xchecker is currently implemented as a single crate (`xchecker`) with the follow
 
 **Module Organization:**
 - **~40 single-file modules** in `src/` directory
-- **2 subdirectories**: `src/orchestrator/` (4 files), `src/llm/` (7 files)
+- **3 subdirectories**: `src/orchestrator/` (4 files), `src/llm/` (7 files), `src/runner/` (6 files)
 - **Public API surface**: Defined in [`lib.rs`](../src/lib.rs:1) with stable types
 
 ### 1.2 Module Inventory
@@ -47,7 +54,7 @@ The following table categorizes all modules by functional area:
 | **Core Infrastructure** | `error.rs`, `exit_codes.rs`, `types.rs`, `paths.rs`, `logging.rs`, `canonicalization.rs`, `redaction.rs`, `atomic_write.rs`, `lock.rs`, `cache.rs`, `ring_buffer.rs`, `process_memory.rs` | Error handling, path utilities, logging, security primitives |
 | **Phase-Specific Modules** | `phase.rs`, `phases.rs` | Phase trait definition and implementations |
 | **Workspace & Project Management** | `workspace.rs`, `template.rs`, `gate.rs` | Multi-spec orchestration, templates, CI/CD gate enforcement |
-| **Supporting Modules** | `artifact.rs`, `receipt.rs`, `status.rs`, `doctor.rs`, `runner.rs`, `source.rs`, `extraction.rs`, `fixup.rs`, `hooks.rs`, `validation.rs`, `example_generators.rs`, `benchmark.rs`, `integration_tests.rs`, `spec_id.rs`, `wsl.rs`, `claude.rs` (legacy) | Artifact management, receipts, status queries, diagnostics, process execution, file operations |
+| **Supporting Modules** | `artifact.rs`, `receipt.rs`, `status.rs`, `runner.rs`, `source.rs`, `extraction.rs`, `fixup.rs`, `hooks.rs`, `validation.rs`, `example_generators.rs`, `benchmark.rs`, `integration_tests.rs`, `spec_id.rs`, `wsl.rs`, `claude.rs` (legacy), `test_support.rs` | Artifact management, receipts, status queries, diagnostics, process execution, file operations |
 
 ### 1.3 Public API Surface
 
@@ -83,28 +90,6 @@ All other modules are marked with `#[doc(hidden)]` and are considered internal i
 - `thiserror` (2.0.17) - Error derive macros
 - `tracing` (0.1.43) - Structured logging
 - `tempfile` (3.23.0) - Temporary file handling
-
-**Other Dependencies:**
-- `async-trait` (0.1.89) - Async trait support
-- `camino` (1.2.2) - UTF-8 path handling
-- `toml` (0.9.8) - TOML configuration parsing
-- `globset` (0.4.18) - Glob pattern matching
-- `fd-lock` (4.0.4) - File locking
-- `serde_json_canonicalizer` (0.3.1) - JSON canonicalization
-- `regex` (1.12.2) - Regular expressions
-- `chrono` (0.4.42, serde) - Timestamps
-- `once_cell` (1.21.3) - Synchronization primitives
-- `sysinfo` (0.37.2) - Process memory monitoring
-- `which` (8.0.0) - Binary path resolution
-- `unicode-normalization` (0.1.25) - Unicode handling
-- `strum` (0.27.2, derive, optional) - Enum helpers
-- `ratatui` (0.29.0) - Terminal UI
-- `crossterm` (0.29.0) - Terminal control
-- `serde_yaml` (package serde_yaml_ng) - YAML support
-
-**Platform Dependencies:**
-- Unix: `libc` (0.2.178), `nix` (0.30.1, features: signal, process)
-- Windows: `winapi` (0.3.9), `dunce` (1.0.5), `windows` crate (0.62.2, features: Win32_Foundation, System_JobObjects, Win32_Storage_FileSystem, Win32_Security, Win32_System_Threading)
 
 ---
 
@@ -148,26 +133,26 @@ graph TD
     CLI --> CONFIG[xchecker-config]
     CLI --> PHASES[xchecker-phases]
     CLI --> LLM[xchecker-llm]
-    
+
     CORE --> CONFIG
     CORE --> PHASES
     CORE --> LLM
     CORE --> UTILS[xchecker-utils]
-    
+
     PHASES --> CONFIG
     PHASES --> LLM
     PHASES --> UTILS
-    
+
     LLM --> UTILS
     CONFIG --> UTILS
-    
+
     style CLI fill:#ff6b6b
     style CORE fill:#4ecdc4
     style CONFIG fill:#45b7d1
     style PHASES fill:#96ceb4
     style LLM fill:#ffeaa7
     style UTILS fill:#dfe6e9
-    
+
     style CLI stroke:#ff6b6b,stroke-width:2px
     style CORE stroke:#4ecdc4,stroke-width:2px
     style CONFIG stroke:#45b7d1,stroke-width:2px
@@ -253,6 +238,7 @@ serde_yaml = { package = "serde_yaml_ng", version = "0.10.0" }
 - `types.rs` - Core types (PhaseId, StatusOutput, Priority, FileType, OutputFormat, RunnerMode)
 - `error.rs` - XCheckerError enum and UserFriendlyError trait
 - `exit_codes.rs` - ExitCode enum with constants
+- `orchestrator/handle.rs` - Public API façade
 
 **Dependencies:**
 ```toml
@@ -375,7 +361,7 @@ camino = { workspace = true }
   - `workflow.rs` - Multi-phase workflow orchestration
   - `phase_exec.rs` - Single-phase execution engine
   - `llm.rs` - LLM integration for phases
-  - `mod.rs` - Orchestrator façade (re-exported to core)
+  - `mod.rs` - Orchestrator internal modules (re-exported to core)
 
 **Dependencies:**
 ```toml
@@ -597,7 +583,7 @@ sysinfo = { workspace = true }
 ### 5.2 Trade-offs
 
 | Trade-off | Impact | Mitigation |
-|----------|---------|-------------|
+|-----------|---------|------------|
 | **Initial Migration Effort** | High | Requires significant refactoring and testing across all crates |
 | **Increased Complexity** | Medium | Workspace structure adds complexity to build system and dependency management |
 | **More Boilerplate** | Low | Each crate needs its own Cargo.toml with common metadata |
@@ -623,7 +609,7 @@ sysinfo = { workspace = true }
 ### 6.1 Risk Matrix
 
 | Risk | Probability | Impact | Mitigation |
-|-------|-------------|----------|---------|-------------|
+|-------|-------------|----------|-------------|
 | **Breaking Public API Changes** | Medium | High | Maintain re-exports, document migration guide, provide deprecation period |
 | **Circular Dependencies** | Low | High | Enforce dependency order, use dependency graph analysis tools |
 | **Test Failures During Migration** | Medium | Medium | Run full test suite after each phase, fix before proceeding |
@@ -637,7 +623,7 @@ sysinfo = { workspace = true }
 
 **Description**: Changes to crate structure could break existing library users who depend on the current single-crate layout.
 
-**Probability**: Medium  
+**Probability**: Medium
 **Impact**: High
 
 **Mitigation**:
@@ -650,7 +636,7 @@ sysinfo = { workspace = true }
 
 **Description**: Improper dependency ordering could create circular dependencies between crates, preventing compilation.
 
-**Probability**: Low  
+**Probability**: Low
 **Impact**: High
 
 **Mitigation**:
@@ -664,7 +650,7 @@ sysinfo = { workspace = true }
 
 **Description**: Migration could introduce test failures that go undetected, reducing reliability.
 
-**Probability**: Medium  
+**Probability**: Medium
 **Impact**: Medium
 
 **Mitigation**:
@@ -787,6 +773,9 @@ sysinfo = { workspace = true }
 | `spec_id.rs` | xchecker-utils | Spec ID handling |
 | `wsl.rs` | xchecker-utils | WSL integration |
 | `claude.rs` | xchecker-core (legacy) | Legacy Claude wrapper |
+| `test_support.rs` | xchecker-utils | Test utilities |
+| `template.rs` | xchecker-phases | Template system |
+| `workspace.rs` | xchecker-phases | Workspace management |
 
 ### Appendix B: Workspace Cargo.toml Example
 
@@ -879,6 +868,12 @@ features = ["test-utils", "legacy_claude", "dev-tools"]
 - [ ] Move `ring_buffer.rs` to `xchecker-utils`
 - [ ] Move `process_memory.rs` to `xchecker-utils`
 - [ ] Move `types.rs` to `xchecker-utils`
+- [ ] Move `runner.rs` to `xchecker-utils`
+- [ ] Move `source.rs` to `xchecker-utils`
+- [ ] Move `spec_id.rs` to `xchecker-utils`
+- [ ] Move `wsl.rs` to `xchecker-utils`
+- [ ] Move `test_support.rs` to `xchecker-utils`
+- [ ] Move `benchmark.rs` to `xchecker-utils`
 - [ ] Set up `xchecker-utils/Cargo.toml`
 - [ ] Add `xchecker-utils` to workspace members
 - [ ] Write unit tests for utilities
@@ -910,6 +905,17 @@ features = ["test-utils", "legacy_claude", "dev-tools"]
 - [ ] Move `orchestrator/workflow.rs` to `xchecker-phases`
 - [ ] Move `orchestrator/phase_exec.rs` to `xchecker-phases`
 - [ ] Move `orchestrator/llm.rs` to `xchecker-phases`
+- [ ] Move `artifact.rs` to `xchecker-phases`
+- [ ] Move `receipt.rs` to `xchecker-phases`
+- [ ] Move `status.rs` to `xchecker-phases`
+- [ ] Move `extraction.rs` to `xchecker-phases`
+- [ ] Move `fixup.rs` to `xchecker-phases`
+- [ ] Move `hooks.rs` to `xchecker-phases`
+- [ ] Move `validation.rs` to `xchecker-phases`
+- [ ] Move `example_generators.rs` to `xchecker-phases`
+- [ ] Move `integration_tests.rs` to `xchecker-phases`
+- [ ] Move `template.rs` to `xchecker-phases`
+- [ ] Move `workspace.rs` to `xchecker-phases`
 - [ ] Set up `xchecker-phases/Cargo.toml`
 - [ ] Add `xchecker-phases` to workspace members
 - [ ] Update imports in phase modules
@@ -1023,6 +1029,305 @@ Old imports will continue to work during a deprecation period (v2.1.x), after wh
 
 ---
 
+## 9. Additional Modularization Opportunities (Version 3.0)
+
+### 9.1 Large Files Analysis (>300 lines)
+
+| File | Lines | Current Location | Recommendation | Priority |
+|-------|--------|-----------------|---------------|----------|
+| `config.rs` | 3903 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `fixup.rs` | 2616 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `phases.rs` | 1775 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `error.rs` | 1587 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `packet.rs` | 1707 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `receipt.rs` | 2187 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `redaction.rs` | 1707 | src/ | Already covered in v2.0 - split into sub-modules | High |
+| `paths.rs` | 862 | src/ | Consider splitting into path operations and sandboxing | Medium |
+| `template.rs` | 550 | src/ | Consider splitting into template definitions and generators | Medium |
+| `workspace.rs` | 381 | src/ | Reasonable size, could be split if needed | Low |
+| `validation.rs` | 240 | src/ | Reasonable size for its purpose | Low |
+| `runner/wsl.rs` | 714 | src/runner/ | Already covered in v2.0 | Medium |
+| `runner/command_spec.rs` | 447 | src/runner/ | Already covered in v2.0 | Medium |
+| `runner/native.rs` | 358 | src/runner/ | Already covered in v2.0 | Medium |
+| `runner/process.rs` | 288 | src/runner/ | Already covered in v2.0 | Medium |
+| `runner/claude/exec.rs` | 361 | src/runner/claude/ | Already covered in v2.0 | Medium |
+| `runner/claude/types.rs` | 215 | src/runner/claude/ | Already covered in v2.0 | Low |
+| `runner/claude/detect.rs` | 210 | src/runner/claude/ | Already covered in v2.0 | Low |
+| `runner/ndjson.rs` | 296 | src/runner/ | Already covered in v2.0 | Low |
+| `test_support.rs` | 215 | src/ | Consolidate into xchecker-utils | Medium |
+
+### 9.2 Code Duplication Analysis
+
+**Runner Module Duplication:**
+
+The `runner/native.rs` and `runner/wsl.rs` modules share significant code duplication:
+- Both implement similar process spawning and timeout handling logic
+- Both have nearly identical `ProcessRunner` trait implementations
+- Platform-specific termination logic could be extracted to shared module
+
+**Recommendation:** Extract common process execution logic into a shared `runner/common.rs` module.
+
+**Test Utilities Duplication:**
+
+Test utility functions are scattered across multiple files:
+- `test_support.rs` - Secret generation for testing
+- `paths.rs` - Test isolation helpers (`with_isolated_home()`)
+- Multiple test fixtures in various modules
+
+**Recommendation:** Create a dedicated `xchecker-test-utils` crate or consolidate into `xchecker-utils` with feature gating.
+
+### 9.3 Configuration-Related Code Opportunities
+
+Configuration-related code is scattered across multiple files:
+- `config.rs` - Main configuration (3903 lines)
+- `runner.rs` - Runner mode configuration
+- `types.rs` - Runner mode enum
+- Various config-related structs in multiple modules
+
+**Recommendation:** Consider creating a `xchecker-config/` subdirectory structure:
+- `config/mod.rs` - Main config module
+- `config/defaults.rs` - Default values
+- `config/runner.rs` - Runner configuration
+- `config/llm.rs` - LLM configuration
+- `config/phases.rs` - Phase configuration
+- `config/selectors.rs` - Selector configuration
+- `config/validation.rs` - Configuration validation
+
+### 9.4 Error Handling Patterns
+
+Error handling is centralized in `error.rs` (1587 lines) but could benefit from:
+- Extracting error construction helpers
+- Creating error context builders
+- Standardizing error conversion patterns
+
+**Recommendation:** Consider adding error builder pattern or context helpers to reduce boilerplate in error creation.
+
+### 9.5 Type Definition Consolidation
+
+Type definitions are scattered across multiple files:
+- `types.rs` - Core types (712 lines)
+- `runner/types.rs` - Runner-specific types
+- `llm/types.rs` - LLM-specific types
+- Various inline type definitions
+
+**Recommendation:** Create a clear type hierarchy:
+- `xchecker-utils/types.rs` - Foundation types (PathBuf, etc.)
+- `xchecker-core/types.rs` - Public API types
+- Domain-specific types in respective crates
+
+### 9.6 Test Utilities Consolidation
+
+Test utilities are scattered:
+- `test_support.rs` - Secret generation (215 lines)
+- `paths.rs` - `with_isolated_home()` for test isolation
+- Test fixtures in multiple modules
+
+**Recommendation:** Create `xchecker-test-utils` crate with:
+- Secret generation functions
+- Test isolation helpers
+- Common test fixtures
+- Test assertion helpers
+
+### 9.7 Platform Abstraction Opportunities
+
+Platform-specific code is scattered:
+- `runner/native.rs` - Native execution
+- `runner/wsl.rs` - WSL execution
+- `runner/claude/native_cmd.rs` - Native command building
+- `runner/claude/wsl.rs` - WSL command building
+- `wsl.rs` - WSL integration
+
+**Recommendation:** Create `xchecker-platform` crate or consolidate into `xchecker-utils`:
+- Platform detection
+- Platform-specific command building
+- Platform-specific process execution
+
+### 9.8 Additional Module Recommendations
+
+**Runner Module Organization:**
+
+The `src/runner/` directory has good organization but could be improved:
+- `runner.rs` - Module facade (25 lines) - Good
+- `process.rs` - Process trait and output (288 lines) - Good
+- `command_spec.rs` - Command specification (447 lines) - Good
+- `native.rs` - Native execution (358 lines) - Good
+- `wsl.rs` - WSL execution (714 lines) - Good
+- `claude/mod.rs` - Claude runner facade (12 lines) - Good
+- `claude/exec.rs` - Claude execution (361 lines) - Good
+- `claude/io.rs` - I/O handling (83 lines) - Good
+- `claude/types.rs` - Claude types (215 lines) - Good
+- `claude/detect.rs` - Detection logic (210 lines) - Good
+- `claude/native_cmd.rs` - Native commands (118 lines) - Good
+- `claude/wsl.rs` - WSL commands (57 lines) - Good
+- `claude/version.rs` - Version detection (71 lines) - Good
+- `ndjson.rs` - NDJSON parsing (296 lines) - Good
+
+**Note:** `runner/claude/platform.rs` is referenced but does not exist - needs investigation.
+
+**Recommendation:** The runner module is well-organized. Consider adding `runner/claude/platform.rs` for platform-specific operations.
+
+### 9.9 Summary of Additional Opportunities
+
+| Opportunity | Location | Description | Priority |
+|-------------|----------|-------------|----------|
+| Split `paths.rs` | src/paths.rs (862 lines) | Separate path operations from sandboxing | Medium |
+| Split `template.rs` | src/template.rs (550 lines) | Separate template definitions from generators | Medium |
+| Consolidate test utilities | src/test_support.rs (215 lines) | Create xchecker-test-utils crate | Medium |
+| Extract runner common logic | src/runner/ | Reduce duplication between native.rs and wsl.rs | Medium |
+| Split `config.rs` | src/config.rs (3903 lines) | Create config subdirectory structure | High |
+| Create platform abstraction | Multiple files | Consolidate platform-specific code | Medium |
+| Add error builders | src/error.rs (1587 lines) | Reduce error creation boilerplate | Low |
+| Consolidate type definitions | Multiple files | Create clear type hierarchy | Low |
+
+---
+
+## 10. Priority Ranking of Recommendations
+
+### High Priority (Immediate Action Required)
+
+1. **Split `config.rs` into sub-modules** (3903 lines)
+   - Location: `src/config.rs`
+   - Effort: High
+   - Impact: High - Largest single module, complex structure
+   - Recommendation: Create `config/` subdirectory with separate modules for defaults, runner, llm, phases, selectors, validation
+
+2. **Split `fixup.rs` into sub-modules** (2616 lines)
+   - Location: `src/fixup.rs`
+   - Effort: High
+   - Impact: High - Complex fixup detection and parsing logic
+   - Recommendation: Create `fixup/` subdirectory with separate modules for detection, parsing, application
+
+3. **Split `phases.rs` into sub-modules** (1775 lines)
+   - Location: `src/phases.rs`
+   - Effort: High
+   - Impact: High - Multiple phase implementations in single file
+   - Recommendation: Create `phases/` subdirectory with separate modules for each phase
+
+4. **Split `packet.rs` into sub-modules** (1707 lines)
+   - Location: `src/packet.rs`
+   - Effort: High
+   - Impact: High - Complex packet construction and budget tracking
+   - Recommendation: Create `packet/` subdirectory with separate modules for builder, selector, budget
+
+5. **Split `receipt.rs` into sub-modules** (2187 lines)
+   - Location: `src/receipt.rs`
+   - Effort: High
+   - Impact: High - Complex receipt management and JSON emission
+   - Recommendation: Create `receipt/` subdirectory with separate modules for manager, emission, tracking
+
+6. **Split `redaction.rs` into sub-modules** (1707 lines)
+   - Location: `src/redaction.rs`
+   - Effort: High
+   - Impact: High - Complex secret pattern detection
+   - Recommendation: Create `redaction/` subdirectory with separate modules for patterns, detection, redaction
+
+7. **Split `error.rs` into sub-modules** (1587 lines)
+   - Location: `src/error.rs`
+   - Effort: High
+   - Impact: High - Comprehensive error handling
+   - Recommendation: Create `error/` subdirectory with separate modules for error types, context, conversion
+
+### Medium Priority (Consider for Next Iteration)
+
+1. **Split `paths.rs` into sub-modules** (862 lines)
+   - Location: `src/paths.rs`
+   - Effort: Medium
+   - Impact: Medium - Path utilities mixed with sandboxing
+   - Recommendation: Create `paths/` subdirectory with separate modules for operations, sandboxing, validation
+
+2. **Split `template.rs` into sub-modules** (550 lines)
+   - Location: `src/template.rs`
+   - Effort: Medium
+   - Impact: Medium - Template definitions mixed with generators
+   - Recommendation: Create `template/` subdirectory with separate modules for definitions, generators, README
+
+3. **Consolidate test utilities** (215 lines in test_support.rs)
+   - Location: `src/test_support.rs`
+   - Effort: Medium
+   - Impact: Medium - Scattered test utilities
+   - Recommendation: Create `xchecker-test-utils` crate or consolidate into `xchecker-utils` with feature gating
+
+4. **Extract runner common logic**
+   - Location: `src/runner/native.rs`, `src/runner/wsl.rs`
+   - Effort: Medium
+   - Impact: Medium - Code duplication between native and WSL runners
+   - Recommendation: Create `runner/common.rs` module for shared process execution logic
+
+5. **Create platform abstraction**
+   - Location: Multiple files
+   - Effort: Medium
+   - Impact: Medium - Platform-specific code scattered
+   - Recommendation: Create `xchecker-platform` crate or consolidate into `xchecker-utils`
+
+### Low Priority (Nice to Have)
+
+1. **Add error builders**
+   - Location: `src/error.rs`
+   - Effort: Low
+   - Impact: Low - Reduces boilerplate in error creation
+   - Recommendation: Add builder pattern for error context
+
+2. **Consolidate type definitions**
+   - Location: Multiple files
+   - Effort: Low
+   - Impact: Low - Improves type organization
+   - Recommendation: Create clear type hierarchy across crates
+
+3. **Split `workspace.rs` into sub-modules** (381 lines)
+   - Location: `src/workspace.rs`
+   - Effort: Low
+   - Impact: Low - Reasonable size for its purpose
+   - Recommendation: Create `workspace/` subdirectory if needed
+
+4. **Split `validation.rs` into sub-modules** (240 lines)
+   - Location: `src/validation.rs`
+   - Effort: Low
+   - Impact: Low - Reasonable size for its purpose
+   - Recommendation: Create `validation/` subdirectory if needed
+
+---
+
+## 11. Modularization Opportunity Summary
+
+### 11.1 Total Opportunities Identified
+
+| Priority | Count | Description |
+|----------|-------|-------------|
+| High | 7 | Large files requiring immediate split into sub-modules |
+| Medium | 5 | Code organization improvements and consolidation opportunities |
+| Low | 4 | Nice-to-have improvements |
+| **Total** | **16** | Total modularization opportunities identified |
+
+### 11.2 Opportunities by Category
+
+| Category | Count | Opportunities |
+|----------|-------|--------------|
+| Large File Splits | 7 | Split files >300 lines into sub-modules |
+| Code Duplication | 2 | Extract common logic to reduce duplication |
+| Test Utilities | 1 | Consolidate scattered test utilities |
+| Configuration Organization | 1 | Split config.rs into sub-modules |
+| Platform Abstraction | 1 | Consolidate platform-specific code |
+| Error Handling | 1 | Add error builders |
+| Type Consolidation | 1 | Consolidate type definitions |
+| Other | 2 | Additional improvements |
+
+### 11.3 Files Requiring Attention
+
+| File | Lines | Issue | Priority |
+|-------|--------|--------|----------|
+| `config.rs` | 3903 | Largest single module, needs sub-module structure | High |
+| `fixup.rs` | 2616 | Second largest, complex fixup logic | High |
+| `receipt.rs` | 2187 | Complex receipt management | High |
+| `redaction.rs` | 1707 | Complex secret detection | High |
+| `packet.rs` | 1707 | Complex packet construction | High |
+| `phases.rs` | 1775 | Multiple phase implementations | High |
+| `error.rs` | 1587 | Comprehensive error handling | High |
+| `paths.rs` | 862 | Mixed responsibilities | Medium |
+| `template.rs` | 550 | Mixed responsibilities | Medium |
+| `test_support.rs` | 215 | Scattered test utilities | Medium |
+
+---
+
 ## Conclusion
 
 This modularization report provides a comprehensive roadmap for transforming xchecker from a single-crate to a multi-crate workspace architecture. The proposed transformation:
@@ -1031,9 +1336,10 @@ This modularization report provides a comprehensive roadmap for transforming xch
 - **Maintains backward compatibility** for existing library users
 - **Follows a phased migration approach** to minimize risk and disruption
 - **Provides significant benefits** for maintainability, testing, and future extensibility
+- **Identifies 16 additional opportunities** beyond the version 2.0 proposal
 - **Includes detailed risk assessment** with mitigation strategies
 
-**Recommendation**: Proceed with the modularization plan, beginning with Phase 1 (Workspace Setup) and following the dependency-ordered migration through Phase 4 (Cleanup and Verification).
+**Recommendation**: Proceed with the modularization plan, beginning with Phase 1 (Workspace Setup) and following the dependency-ordered migration through Phase 4 (Cleanup and Verification). After completing the workspace migration, consider addressing the additional opportunities identified in Section 9.
 
 ---
 
@@ -1041,8 +1347,8 @@ This modularization report provides a comprehensive roadmap for transforming xch
 
 | Field | Value |
 |--------|--------|
-| Version | 2.0 |
-| Date | 2026-01-16 |
+| Version | 3.0 |
+| Date | 2026-01-17 |
 | Author | Modularization Analysis Team |
 | Status | Draft - Pending Approval |
 | Next Review Date | TBD |
