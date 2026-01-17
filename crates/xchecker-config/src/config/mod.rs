@@ -276,8 +276,8 @@ mode = "native"
 
         // Assert on structured error type, not string content
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, .. })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, .. }) => {
                 assert_eq!(key, "max_turns");
             }
             _ => panic!("Expected Config InvalidValue error for max_turns"),
@@ -312,19 +312,13 @@ max_turns = 8
 
         // Check that values and sources are correctly reported
         assert_eq!(effective.get("model").unwrap().0, "sonnet");
-        assert!(effective.get("model").unwrap().1.contains("config file"));
+        assert_eq!(effective.get("model").unwrap().1, "config");
 
         assert_eq!(effective.get("verbose").unwrap().0, "true");
-        assert_eq!(effective.get("verbose").unwrap().1, "CLI");
+        assert_eq!(effective.get("verbose").unwrap().1, "cli");
 
         assert_eq!(effective.get("max_turns").unwrap().0, "8");
-        assert!(
-            effective
-                .get("max_turns")
-                .unwrap()
-                .1
-                .contains("config file")
-        );
+        assert_eq!(effective.get("max_turns").unwrap().1, "config");
 
         // Restore original directory
         env::set_current_dir(original_dir).unwrap();
@@ -351,7 +345,10 @@ max_turns = 8
         let result = Config::discover(&cli_args);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Failed to load config file") || error_msg.contains("parse"));
+        assert!(
+            error_msg.contains("Invalid configuration file")
+                || error_msg.contains("Failed to parse TOML config file")
+        );
 
         // Restore original directory
         env::set_current_dir(original_dir).unwrap();
@@ -529,8 +526,8 @@ key = "value"
 
         // Assert on structured error type
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, .. })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, .. }) => {
                 assert_eq!(key, "packet_max_bytes");
             }
             _ => panic!("Expected Config InvalidValue error for packet_max_bytes"),
@@ -550,8 +547,8 @@ key = "value"
 
         // Assert on structured error type
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                 assert_eq!(key, "packet_max_bytes");
                 assert!(value.contains("exceeds maximum"));
             }
@@ -863,8 +860,8 @@ max_turns = 10
             assert!(result.is_err(), "Should reject provider: {}", provider);
 
             let error = result.unwrap_err();
-            match error.downcast_ref::<XCheckerError>() {
-                Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+            match error {
+                XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                     assert_eq!(key, "llm.provider");
                     assert!(
                         value.contains(provider),
@@ -912,8 +909,8 @@ max_turns = 10
             );
 
             let error = result.unwrap_err();
-            match error.downcast_ref::<XCheckerError>() {
-                Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+            match error {
+                XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                     assert_eq!(key, "llm.execution_strategy");
                     assert!(
                         value.contains(strategy),
@@ -986,8 +983,8 @@ provider = "invalid-provider-xyz"
         );
 
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                 assert_eq!(key, "llm.provider");
                 assert!(value.contains("invalid-provider-xyz"));
             }
@@ -1020,8 +1017,8 @@ execution_strategy = "externaltool"
         );
 
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                 assert_eq!(key, "llm.execution_strategy");
                 assert!(value.contains("externaltool"));
             }
@@ -1359,8 +1356,8 @@ prompt_template = "claude-optimized"
         );
 
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                 assert_eq!(key, "llm.prompt_template");
                 assert!(value.contains("not compatible"));
                 assert!(value.contains("openrouter"));
@@ -1396,8 +1393,8 @@ prompt_template = "openai-compatible"
         );
 
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                 assert_eq!(key, "llm.prompt_template");
                 assert!(value.contains("not compatible"));
                 assert!(value.contains("claude-cli"));
@@ -1429,8 +1426,8 @@ prompt_template = "invalid-template-name"
         assert!(result.is_err(), "Should reject invalid template name");
 
         let error = result.unwrap_err();
-        match error.downcast_ref::<XCheckerError>() {
-            Some(XCheckerError::Config(ConfigError::InvalidValue { key, value })) => {
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
                 assert_eq!(key, "llm.prompt_template");
                 assert!(value.contains("Unknown prompt template"));
                 assert!(value.contains("invalid-template-name"));
@@ -1805,7 +1802,7 @@ strict_validation = false
         assert_eq!(config.defaults.packet_max_bytes, Some(32768));
         assert_eq!(
             config.source_attribution.get("packet_max_bytes"),
-            Some(&ConfigSource::Cli)
+            Some(&ConfigSource::Programmatic)
         );
     }
 
@@ -1816,7 +1813,7 @@ strict_validation = false
         assert_eq!(config.defaults.packet_max_lines, Some(600));
         assert_eq!(
             config.source_attribution.get("packet_max_lines"),
-            Some(&ConfigSource::Cli)
+            Some(&ConfigSource::Programmatic)
         );
     }
 
@@ -1832,7 +1829,7 @@ strict_validation = false
         assert_eq!(config.defaults.phase_timeout, Some(300));
         assert_eq!(
             config.source_attribution.get("phase_timeout"),
-            Some(&ConfigSource::Cli)
+            Some(&ConfigSource::Programmatic)
         );
     }
 
@@ -1843,7 +1840,7 @@ strict_validation = false
         assert_eq!(config.runner.mode, Some("native".to_string()));
         assert_eq!(
             config.source_attribution.get("runner_mode"),
-            Some(&ConfigSource::Cli)
+            Some(&ConfigSource::Programmatic)
         );
     }
 
@@ -1854,7 +1851,7 @@ strict_validation = false
         // state_dir is tracked in source attribution
         assert_eq!(
             config.source_attribution.get("state_dir"),
-            Some(&ConfigSource::Cli)
+            Some(&ConfigSource::Programmatic)
         );
     }
 

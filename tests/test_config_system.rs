@@ -246,23 +246,11 @@ mode = "native"
 
     // Test effective_config includes source attribution
     let effective = config.effective_config();
-    assert_eq!(effective.get("model").unwrap().1, "CLI");
-    assert_eq!(effective.get("verbose").unwrap().1, "CLI");
-    assert!(
-        effective
-            .get("max_turns")
-            .unwrap()
-            .1
-            .contains("config file")
-    );
-    assert!(
-        effective
-            .get("packet_max_bytes")
-            .unwrap()
-            .1
-            .contains("config file")
-    );
-    assert_eq!(effective.get("packet_max_lines").unwrap().1, "defaults");
+    assert_eq!(effective.get("model").unwrap().1, "cli");
+    assert_eq!(effective.get("verbose").unwrap().1, "cli");
+    assert_eq!(effective.get("max_turns").unwrap().1, "config");
+    assert_eq!(effective.get("packet_max_bytes").unwrap().1, "config");
+    assert_eq!(effective.get("packet_max_lines").unwrap().1, "default");
 
     Ok(())
 }
@@ -357,7 +345,8 @@ fn test_invalid_toml_config() -> Result<()> {
     assert!(result.is_err());
     let error_msg = result.unwrap_err().to_string();
     assert!(
-        error_msg.contains("Failed to load config file") || error_msg.contains("parse"),
+        error_msg.contains("Invalid configuration file")
+            || error_msg.contains("Failed to parse TOML config file"),
         "Error message: {}",
         error_msg
     );

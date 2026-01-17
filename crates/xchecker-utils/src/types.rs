@@ -392,7 +392,7 @@ pub struct StatusOutput {
     pub artifacts: Vec<ArtifactInfo>,
     /// Path to the most recent receipt file.
     pub last_receipt_path: String,
-    /// Effective configuration with source attribution (`cli`, `config`, or `default`).
+    /// Effective configuration with source attribution (`cli`, `config`, `programmatic`, or `default`).
     pub effective_config: std::collections::BTreeMap<String, ConfigValue>,
     /// Lock drift information if lockfile exists and drift is detected.
     pub lock_drift: Option<LockDrift>,
@@ -463,7 +463,7 @@ pub struct ArtifactInfo {
 
 /// Configuration value with source attribution.
 ///
-/// Tracks both the value and where it came from (CLI, config file, or defaults).
+/// Tracks both the value and where it came from (CLI, config file, programmatic, or defaults).
 /// Used in [`StatusOutput`] to show effective configuration.
 ///
 /// # Example
@@ -488,11 +488,11 @@ pub struct ConfigValue {
 /// Source of a configuration value.
 ///
 /// Indicates where a configuration value originated from in the precedence chain:
-/// CLI arguments > config file > built-in defaults.
+/// CLI arguments > config file > programmatic overrides > built-in defaults.
 ///
 /// # Serialization
 ///
-/// Serializes to lowercase strings: `"cli"`, `"config"`, `"default"`.
+/// Serializes to lowercase strings: `"cli"`, `"config"`, `"programmatic"`, `"default"`.
 ///
 /// # Example
 ///
@@ -511,6 +511,8 @@ pub enum ConfigSource {
     Cli,
     /// Value loaded from configuration file.
     Config,
+    /// Value provided programmatically (e.g., `Config::builder()`).
+    Programmatic,
     /// Built-in default value (lowest precedence).
     Default,
 }
@@ -613,7 +615,7 @@ pub struct StatusJsonOutput {
     /// Artifacts with path and blake3_first8 hash (first 8 chars of BLAKE3)
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub artifacts: Vec<ArtifactInfo>,
-    /// Effective configuration with source attribution (cli/config/default)
+    /// Effective configuration with source attribution (cli/config/programmatic/default)
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty", default)]
     pub effective_config: std::collections::BTreeMap<String, ConfigValue>,
     /// Lock drift information if lockfile exists and drift detected

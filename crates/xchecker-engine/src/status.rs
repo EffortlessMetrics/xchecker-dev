@@ -192,13 +192,15 @@ impl StatusManager {
         let mut effective_config = BTreeMap::new();
 
         for (key, (value, source_str)) in config_map {
-            // Parse source string to ConfigSource enum
-            let source = if source_str == "CLI" {
-                ConfigSource::Cli
-            } else if source_str.contains("config file") {
-                ConfigSource::Config
-            } else {
-                ConfigSource::Default
+            // Parse source string to ConfigSource enum, accepting legacy labels.
+            let normalized = source_str.trim().to_lowercase();
+            let source = match normalized.as_str() {
+                "cli" => ConfigSource::Cli,
+                "config" => ConfigSource::Config,
+                "programmatic" => ConfigSource::Programmatic,
+                "default" | "defaults" => ConfigSource::Default,
+                _ if normalized.contains("config file") => ConfigSource::Config,
+                _ => ConfigSource::Default,
             };
 
             // Redact value if redactor is available
@@ -315,11 +317,11 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            ("haiku".to_string(), "defaults".to_string()),
+            ("haiku".to_string(), "default".to_string()),
         );
         effective_config.insert(
             "max_turns".to_string(),
-            ("6".to_string(), "defaults".to_string()),
+            ("6".to_string(), "default".to_string()),
         );
 
         // Generate status
@@ -384,11 +386,11 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            ("haiku".to_string(), "defaults".to_string()),
+            ("haiku".to_string(), "default".to_string()),
         );
         effective_config.insert(
             "max_turns".to_string(),
-            ("6".to_string(), "defaults".to_string()),
+            ("6".to_string(), "default".to_string()),
         );
 
         // Generate status
@@ -456,11 +458,11 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            ("haiku".to_string(), "defaults".to_string()),
+            ("haiku".to_string(), "default".to_string()),
         );
         effective_config.insert(
             "max_turns".to_string(),
-            ("6".to_string(), "defaults".to_string()),
+            ("6".to_string(), "default".to_string()),
         );
 
         // Create lock drift
@@ -498,14 +500,17 @@ mod tests {
         // Test that ConfigSource serializes with lowercase
         let source_cli = ConfigSource::Cli;
         let source_config = ConfigSource::Config;
+        let source_programmatic = ConfigSource::Programmatic;
         let source_default = ConfigSource::Default;
 
         let json_cli = serde_json::to_string(&source_cli).unwrap();
         let json_config = serde_json::to_string(&source_config).unwrap();
+        let json_programmatic = serde_json::to_string(&source_programmatic).unwrap();
         let json_default = serde_json::to_string(&source_default).unwrap();
 
         assert_eq!(json_cli, "\"cli\"");
         assert_eq!(json_config, "\"config\"");
+        assert_eq!(json_programmatic, "\"programmatic\"");
         assert_eq!(json_default, "\"default\"");
     }
 
@@ -701,7 +706,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            ("claude-测试-🚀".to_string(), "defaults".to_string()),
+            ("claude-测试-🚀".to_string(), "default".to_string()),
         );
         effective_config.insert(
             "description".to_string(),
@@ -761,7 +766,7 @@ mod tests {
 
         let long_value = "a".repeat(10000);
         let mut effective_config = BTreeMap::new();
-        effective_config.insert("long_key".to_string(), (long_value, "defaults".to_string()));
+        effective_config.insert("long_key".to_string(), (long_value, "default".to_string()));
 
         let status = StatusManager::generate_status_internal(
             &artifact_manager,
@@ -816,7 +821,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "key_with_@#$%".to_string(),
-            ("value_with_<>&\"'".to_string(), "defaults".to_string()),
+            ("value_with_<>&\"'".to_string(), "default".to_string()),
         );
 
         let status = StatusManager::generate_status_internal(
@@ -987,7 +992,7 @@ mod tests {
         // Test different value types
         config_map.insert(
             "string_value".to_string(),
-            ("test".to_string(), "CLI".to_string()),
+            ("test".to_string(), "cli".to_string()),
         );
         config_map.insert(
             "int_value".to_string(),
@@ -995,11 +1000,11 @@ mod tests {
         );
         config_map.insert(
             "bool_value".to_string(),
-            ("true".to_string(), "defaults".to_string()),
+            ("true".to_string(), "default".to_string()),
         );
         config_map.insert(
             "negative_int".to_string(),
-            ("-10".to_string(), "CLI".to_string()),
+            ("-10".to_string(), "cli".to_string()),
         );
 
         let effective_config = StatusManager::build_effective_config(config_map, None);
@@ -1073,7 +1078,7 @@ mod tests {
         let mut effective_config = BTreeMap::new();
         effective_config.insert(
             "model".to_string(),
-            ("haiku".to_string(), "defaults".to_string()),
+            ("haiku".to_string(), "default".to_string()),
         );
 
         let status = StatusManager::generate_status_internal(
@@ -1103,14 +1108,17 @@ mod tests {
         // Test that ConfigSource enum serializes correctly
         let cli = ConfigSource::Cli;
         let config = ConfigSource::Config;
+        let programmatic = ConfigSource::Programmatic;
         let default = ConfigSource::Default;
 
         let json_cli = serde_json::to_string(&cli).unwrap();
         let json_config = serde_json::to_string(&config).unwrap();
+        let json_programmatic = serde_json::to_string(&programmatic).unwrap();
         let json_default = serde_json::to_string(&default).unwrap();
 
         assert_eq!(json_cli, "\"cli\"");
         assert_eq!(json_config, "\"config\"");
+        assert_eq!(json_programmatic, "\"programmatic\"");
         assert_eq!(json_default, "\"default\"");
     }
 }

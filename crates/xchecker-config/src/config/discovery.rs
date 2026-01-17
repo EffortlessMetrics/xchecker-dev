@@ -1,8 +1,9 @@
-use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::path::{Path, PathBuf};
+
+use crate::error::{ConfigError, XCheckerError};
 
 use super::{
     CliArgs, ClaudeConfig, Config, ConfigSource, Defaults, GeminiConfig, HooksConfig, LlmConfig,
@@ -26,8 +27,12 @@ impl Config {
     ///
     /// Uses current working directory for config file discovery when no explicit
     /// path is provided in cli_args.
-    pub fn discover(cli_args: &CliArgs) -> Result<Self> {
-        let start_dir = std::env::current_dir().context("Failed to get current directory")?;
+    pub fn discover(cli_args: &CliArgs) -> Result<Self, XCheckerError> {
+        let start_dir = std::env::current_dir().map_err(|e| {
+            XCheckerError::Config(ConfigError::DiscoveryFailed {
+                reason: format!("Failed to get current directory: {e}"),
+            })
+        })?;
         Self::discover_from(&start_dir, cli_args)
     }
 
@@ -36,7 +41,7 @@ impl Config {
     /// This is the path-driven variant used by tests to avoid process-global state.
     /// Uses the given directory for config file discovery when no explicit path
     /// is provided in cli_args.
-    pub fn discover_from(start_dir: &Path, cli_args: &CliArgs) -> Result<Self> {
+    pub fn discover_from(start_dir: &Path, cli_args: &CliArgs) -> Result<Self, XCheckerError> {
         let mut source_attribution = HashMap::new();
 
         // Start with built-in defaults
@@ -79,8 +84,7 @@ impl Config {
         };
 
         if let Some(path) = &config_path {
-            let file_config = Self::load_config_file(path)
-                .with_context(|| format!("Failed to load config file: {}", path.display()))?;
+            let file_config = Self::load_config_file(path)?;
 
             let config_source = ConfigSource::ConfigFile(path.clone());
 
@@ -401,7 +405,7 @@ impl Config {
     /// This is the path-driven variant used by tests to avoid process-global state.
     /// Walks up the directory tree looking for `.xchecker/config.toml`, stopping
     /// at repository root markers (.git, .hg, .svn) or filesystem root.
-    pub fn discover_config_file_from(start_dir: &Path) -> Result<Option<PathBuf>> {
+    pub fn discover_config_file_from(start_dir: &Path) -> Result<Option<PathBuf>, XCheckerError> {
         let mut current_dir = start_dir.to_path_buf();
 
         loop {
@@ -431,13 +435,15 @@ impl Config {
     }
 
     /// Load configuration from TOML file
-    fn load_config_file(path: &Path) -> Result<TomlConfig> {
+    fn load_config_file(path: &Path) -> Result<TomlConfig, XCheckerError> {
         match std::fs::read_to_string(path) {
             Ok(content) => {
-                let config: TomlConfig = toml::from_str(&content).with_context(|| {
-                    format!("Failed to parse TOML config file: {}", path.display())
-                })?;
-                Ok(config)
+                toml::from_str(&content).map_err(|e| {
+                    XCheckerError::Config(ConfigError::InvalidFile(format!(
+                        "Failed to parse TOML config file {}: {e}",
+                        path.display()
+                    )))
+                })
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 // Missing config file is OK - return empty config (will use defaults)
@@ -451,11 +457,9 @@ impl Config {
                     security: None,
                 })
             }
-            Err(e) => Err(anyhow::anyhow!(
-                "Failed to read config file {}: {}",
-                path.display(),
-                e
-            )),
+            Err(e) => Err(XCheckerError::Config(ConfigError::DiscoveryFailed {
+                reason: format!("Failed to read config file {}: {}", path.display(), e),
+            })),
         }
     }
 
@@ -486,7 +490,7 @@ impl Config {
     /// - The current directory cannot be determined
     /// - A config file exists but cannot be parsed
     /// - Configuration validation fails
-    pub fn discover_from_env_and_fs() -> Result<Self> {
+    pub fn discover_from_env_and_fs() -> Result<Self, XCheckerError> {
         // Use empty CliArgs to get config file + defaults behavior
         // This matches CLI semantics without any CLI overrides
         let cli_args = CliArgs::default();

@@ -377,49 +377,46 @@ impl ConfigBuilder {
         source_attribution.insert("debug_packet".to_string(), ConfigSource::Defaults);
         source_attribution.insert("allow_links".to_string(), ConfigSource::Defaults);
 
-        // Apply builder values (all attributed to Programmatic source)
-        // Note: We use ConfigSource::Cli as a stand-in for "programmatic" since
-        // ConfigSource doesn't have a Programmatic variant yet. This maintains
-        // the highest precedence for programmatically set values.
+        // Apply builder values (all attributed to Programmatic source).
         if let Some(bytes) = self.packet_max_bytes {
             defaults.packet_max_bytes = Some(bytes);
-            source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Cli);
+            source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Programmatic);
         }
 
         if let Some(lines) = self.packet_max_lines {
             defaults.packet_max_lines = Some(lines);
-            source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Cli);
+            source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Programmatic);
         }
 
         if let Some(timeout) = self.phase_timeout {
             defaults.phase_timeout = Some(timeout.as_secs());
-            source_attribution.insert("phase_timeout".to_string(), ConfigSource::Cli);
+            source_attribution.insert("phase_timeout".to_string(), ConfigSource::Programmatic);
         }
 
         if let Some(mode) = self.runner_mode {
             runner.mode = Some(mode);
-            source_attribution.insert("runner_mode".to_string(), ConfigSource::Cli);
+            source_attribution.insert("runner_mode".to_string(), ConfigSource::Programmatic);
         }
 
         if let Some(model) = self.model {
             defaults.model = Some(model);
-            source_attribution.insert("model".to_string(), ConfigSource::Cli);
+            source_attribution.insert("model".to_string(), ConfigSource::Programmatic);
         }
 
         if let Some(turns) = self.max_turns {
             defaults.max_turns = Some(turns);
-            source_attribution.insert("max_turns".to_string(), ConfigSource::Cli);
+            source_attribution.insert("max_turns".to_string(), ConfigSource::Programmatic);
         }
 
         if let Some(verbose) = self.verbose {
             defaults.verbose = Some(verbose);
-            source_attribution.insert("verbose".to_string(), ConfigSource::Cli);
+            source_attribution.insert("verbose".to_string(), ConfigSource::Programmatic);
         }
 
         // Apply LLM provider (default to claude-cli if not set)
         if let Some(provider) = self.llm_provider {
             llm.provider = Some(provider);
-            source_attribution.insert("llm_provider".to_string(), ConfigSource::Cli);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Programmatic);
         } else {
             llm.provider = Some("claude-cli".to_string());
             source_attribution.insert("llm_provider".to_string(), ConfigSource::Defaults);
@@ -428,7 +425,7 @@ impl ConfigBuilder {
         // Apply execution strategy (default to controlled if not set)
         if let Some(strategy) = self.execution_strategy {
             llm.execution_strategy = Some(strategy);
-            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Cli);
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Programmatic);
         } else {
             llm.execution_strategy = Some("controlled".to_string());
             source_attribution.insert("execution_strategy".to_string(), ConfigSource::Defaults);
@@ -438,7 +435,7 @@ impl ConfigBuilder {
         // It would be used by OrchestratorHandle when creating the orchestrator
         // For now, we store it in a way that can be retrieved if needed
         if self.state_dir.is_some() {
-            source_attribution.insert("state_dir".to_string(), ConfigSource::Cli);
+            source_attribution.insert("state_dir".to_string(), ConfigSource::Programmatic);
         }
 
         // Build security config from builder values
@@ -448,7 +445,7 @@ impl ConfigBuilder {
         };
         if !security.extra_secret_patterns.is_empty() || !security.ignore_secret_patterns.is_empty()
         {
-            source_attribution.insert("security".to_string(), ConfigSource::Cli);
+            source_attribution.insert("security".to_string(), ConfigSource::Programmatic);
         }
 
         let config = Config {

@@ -9,6 +9,7 @@ pub enum ConfigSource {
     Cli,
     ConfigFile(PathBuf),
     Defaults,
+    Programmatic,
 }
 
 impl std::fmt::Display for ConfigSource {
@@ -17,6 +18,19 @@ impl std::fmt::Display for ConfigSource {
             Self::Cli => write!(f, "CLI"),
             Self::ConfigFile(path) => write!(f, "config file ({})", path.display()),
             Self::Defaults => write!(f, "defaults"),
+            Self::Programmatic => write!(f, "programmatic"),
+        }
+    }
+}
+
+impl ConfigSource {
+    #[must_use]
+    pub const fn stable(&self) -> &'static str {
+        match self {
+            Self::Cli => "cli",
+            Self::ConfigFile(_) => "config",
+            Self::Defaults => "default",
+            Self::Programmatic => "programmatic",
         }
     }
 }
@@ -27,6 +41,7 @@ impl From<ConfigSource> for crate::types::ConfigSource {
             ConfigSource::Cli => crate::types::ConfigSource::Cli,
             ConfigSource::ConfigFile(_) => crate::types::ConfigSource::Config,
             ConfigSource::Defaults => crate::types::ConfigSource::Default,
+            ConfigSource::Programmatic => crate::types::ConfigSource::Programmatic,
         }
     }
 }
@@ -43,7 +58,9 @@ impl Config {
                 let source = self
                     .source_attribution
                     .get(key)
-                    .map_or_else(|| "defaults".to_string(), std::string::ToString::to_string);
+                    .map_or_else(|| ConfigSource::Defaults.stable().to_string(), |src| {
+                        src.stable().to_string()
+                    });
                 config.insert(key.to_string(), (val.to_string(), source));
             }
         };
@@ -80,11 +97,15 @@ impl Config {
         let include_source = self
             .source_attribution
             .get("selectors_include")
-            .map_or_else(|| "defaults".to_string(), std::string::ToString::to_string);
+            .map_or_else(|| ConfigSource::Defaults.stable().to_string(), |src| {
+                src.stable().to_string()
+            });
         let exclude_source = self
             .source_attribution
             .get("selectors_exclude")
-            .map_or_else(|| "defaults".to_string(), std::string::ToString::to_string);
+            .map_or_else(|| ConfigSource::Defaults.stable().to_string(), |src| {
+                src.stable().to_string()
+            });
 
         config.insert(
             "selectors_include".to_string(),

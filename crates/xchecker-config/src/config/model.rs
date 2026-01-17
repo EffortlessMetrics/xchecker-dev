@@ -120,7 +120,7 @@ impl HooksConfig {
 ///
 /// # Source Attribution
 ///
-/// Each configuration value tracks its source (`cli`, `config`, or `default`)
+/// Each configuration value tracks its source (`cli`, `config`, `programmatic`, or `default`)
 /// for debugging and status display.
 ///
 /// # Example

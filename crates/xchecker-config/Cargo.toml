@@ -16,4 +16,5 @@ globset = { workspace = true }
 camino = { workspace = true }
 
 [dev-dependencies]
+xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
 tempfile = { workspace = true }

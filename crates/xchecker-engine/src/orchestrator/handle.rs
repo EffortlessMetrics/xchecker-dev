@@ -147,11 +147,7 @@ impl OrchestratorHandle {
     /// ```
     pub fn new(spec_id: &str) -> Result<Self, XCheckerError> {
         // Use environment-based config discovery (same as CLI)
-        let config = Config::discover(&CliArgs::default()).map_err(|e| {
-            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
-                reason: e.to_string(),
-            })
-        })?;
+        let config = Config::discover(&CliArgs::default())?;
 
         Self::from_config_internal(spec_id, config, false)
     }
@@ -255,11 +251,7 @@ impl OrchestratorHandle {
     ///
     /// Returns error if orchestrator creation fails.
     pub fn with_force(spec_id: &str, force: bool) -> Result<Self, XCheckerError> {
-        let config = Config::discover(&CliArgs::default()).map_err(|e| {
-            XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
-                reason: e.to_string(),
-            })
-        })?;
+        let config = Config::discover(&CliArgs::default())?;
 
         Self::from_config_internal(spec_id, config, force)
     }

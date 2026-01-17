@@ -678,10 +678,7 @@ pub fn run() -> Result<(), ExitCode> {
     // Discover and load configuration
     let config = match Config::discover(&cli_args) {
         Ok(config) => config,
-        Err(e) => {
-            let err = XCheckerError::Config(ConfigError::DiscoveryFailed {
-                reason: e.to_string(),
-            });
+        Err(err) => {
             let contextual_report = error_utils::create_contextual_report(&err, "config");
             eprintln!("{contextual_report}");
             return Err(err.to_exit_code());
