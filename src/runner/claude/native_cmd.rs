@@ -103,6 +103,13 @@ mod tests {
     }
 
     #[test]
+    fn split_command_line_preserves_double_backslash() {
+        let input = r#""C:\\Temp\\Claude\\claude.exe""#;
+        let parts = Runner::split_command_line(input);
+        assert_eq!(parts, vec![r#"C:\\Temp\\Claude\\claude.exe"#]);
+    }
+
+    #[test]
     fn split_command_line_allows_escaped_quotes() {
         let input = r#"--arg "value with \"quote\"""#;
         let parts = Runner::split_command_line(input);

@@ -25,7 +25,7 @@ pub(crate) fn claude_stub_path() -> String {
 
     let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
     format!(
-        "cargo run --manifest-path {} --bin claude-stub --",
+        "cargo run --manifest-path \"{}\" --bin claude-stub --",
         manifest_path.display()
     )
 }
