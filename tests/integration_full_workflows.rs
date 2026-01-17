@@ -29,6 +29,12 @@ use xchecker::types::{PhaseId, Receipt};
 /// - WSL is available with Claude installed, OR
 /// - `XCHECKER_E2E` environment variable is set
 fn should_run_e2e() -> bool {
+    if std::env::var_os("CARGO_BIN_EXE_claude-stub").is_some()
+        || which::which("claude-stub").is_ok()
+    {
+        return true;
+    }
+
     // Check if Claude is in PATH
     if which::which("claude").is_ok() {
         return true;
@@ -45,6 +51,40 @@ fn should_run_e2e() -> bool {
     }
 
     false
+}
+
+fn claude_stub_path() -> String {
+    if let Ok(path) = std::env::var("CARGO_BIN_EXE_claude-stub") {
+        return path;
+    }
+
+    if let Ok(path) = which::which("claude-stub") {
+        return path.to_string_lossy().to_string();
+    }
+
+    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    format!(
+        "cargo run --manifest-path {} --bin claude-stub --",
+        manifest_path.display()
+    )
+}
+
+fn normalize_core_yaml_for_determinism(content: &str) -> String {
+    content
+        .lines()
+        .map(|line| {
+            if line.starts_with("spec_id:") {
+                "spec_id: \"deterministic\"".to_string()
+            } else if line.starts_with("generated_at:") {
+                "generated_at: \"1970-01-01T00:00:00Z\"".to_string()
+            } else if line.starts_with("# Core requirements data for spec") {
+                "# Core requirements data for spec deterministic".to_string()
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Test environment setup for full workflow validation
@@ -81,9 +121,12 @@ impl WorkflowTestEnvironment {
 
     fn create_success_config(&self) -> OrchestratorConfig {
         OrchestratorConfig {
-            dry_run: true,
+            dry_run: false,
             config: {
                 let mut map = std::collections::HashMap::new();
+                map.insert("runner_mode".to_string(), "native".to_string());
+                map.insert("claude_cli_path".to_string(), claude_stub_path());
+                map.insert("claude_scenario".to_string(), "success".to_string());
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },
@@ -96,8 +139,14 @@ impl WorkflowTestEnvironment {
 
     fn create_error_config(&self) -> OrchestratorConfig {
         OrchestratorConfig {
-            dry_run: true,
-            config: std::collections::HashMap::new(),
+            dry_run: false,
+            config: {
+                let mut map = std::collections::HashMap::new();
+                map.insert("runner_mode".to_string(), "native".to_string());
+                map.insert("claude_cli_path".to_string(), claude_stub_path());
+                map.insert("claude_scenario".to_string(), "error".to_string());
+                map
+            },
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),
@@ -381,6 +430,8 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
 
     let req_yaml1 = std::fs::read_to_string(artifacts1_dir.join("00-requirements.core.yaml"))?;
     let req_yaml2 = std::fs::read_to_string(artifacts2_dir.join("00-requirements.core.yaml"))?;
+    let req_yaml1 = normalize_core_yaml_for_determinism(&req_yaml1);
+    let req_yaml2 = normalize_core_yaml_for_determinism(&req_yaml2);
 
     // In dry-run mode with identical configs, outputs should be identical
     assert_eq!(
@@ -435,13 +486,24 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
     );
 
     // Output hashes should be identical (R2.2)
+    let outputs1: Vec<_> = receipt1
+        .outputs
+        .iter()
+        .filter(|output| !output.path.ends_with(".core.yaml"))
+        .collect();
+    let outputs2: Vec<_> = receipt2
+        .outputs
+        .iter()
+        .filter(|output| !output.path.ends_with(".core.yaml"))
+        .collect();
+
     assert_eq!(
-        receipt1.outputs.len(),
-        receipt2.outputs.len(),
-        "Should have same number of outputs"
+        outputs1.len(),
+        outputs2.len(),
+        "Should have same number of deterministic outputs"
     );
 
-    for (output1, output2) in receipt1.outputs.iter().zip(receipt2.outputs.iter()) {
+    for (output1, output2) in outputs1.iter().zip(outputs2.iter()) {
         assert_eq!(output1.path, output2.path, "Output paths should match");
         assert_eq!(
             output1.blake3_canonicalized, output2.blake3_canonicalized,

@@ -2,6 +2,8 @@ use crate::error::RunnerError;
 use crate::ring_buffer::RingBuffer;
 use crate::types::RunnerMode;
 use std::env;
+use std::ffi::OsString;
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -308,8 +310,8 @@ impl Runner {
         };
 
         let output = match actual_mode {
-            RunnerMode::Native => CommandSpec::new("claude")
-                .arg("--version")
+            RunnerMode::Native => self
+                .native_command_spec(&["--version".to_string()])
                 .to_command()
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -402,7 +404,7 @@ impl Runner {
         stdin_content: &str,
         timeout_duration: Option<Duration>,
     ) -> Result<ClaudeResponse, RunnerError> {
-        let mut cmd = CommandSpec::new("claude").args(args).to_tokio_command();
+        let mut cmd = self.native_command_spec(args).to_tokio_command();
 
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -877,7 +879,7 @@ impl Runner {
                 // Auto mode validation happens during detection
                 Self::detect_auto().map(|_| ())
             }
-            RunnerMode::Native => Self::test_native_claude(),
+            RunnerMode::Native => self.test_native_claude_with_path(),
             RunnerMode::Wsl => {
                 // Validate WSL is available
                 if cfg!(target_os = "windows") {
@@ -899,7 +901,13 @@ impl Runner {
             RunnerMode::Auto => {
                 "Automatic detection (native first, then WSL on Windows)".to_string()
             }
-            RunnerMode::Native => "Native execution (spawn claude directly)".to_string(),
+            RunnerMode::Native => {
+                let mut desc = "Native execution (spawn claude directly)".to_string();
+                if let Some(claude_path) = &self.wsl_options.claude_path {
+                    desc.push_str(&format!(" (claude path: {claude_path})"));
+                }
+                desc
+            }
             RunnerMode::Wsl => {
                 let mut desc = "WSL execution".to_string();
                 if let Some(distro) = &self.wsl_options.distro {
@@ -1266,6 +1274,104 @@ mod tests {
         assert_eq!(stderr_receipt.len(), 10);
         // Should be the last 10 bytes
         assert_eq!(stderr_receipt, "t message.");
+    }
+
+    fn test_native_claude_with_path(&self) -> Result<(), RunnerError> {
+        let output = self
+            .native_command_spec(&["--version".to_string()])
+            .to_command()
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .map_err(|e| RunnerError::NativeExecutionFailed {
+                reason: format!("Failed to execute 'claude --version': {e}"),
+            })?;
+
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(RunnerError::NativeExecutionFailed {
+                reason: format!(
+                    "'claude --version' failed with exit code: {}",
+                    output.status.code().unwrap_or(-1)
+                ),
+            })
+        }
+    }
+
+    fn native_command_spec(&self, args: &[String]) -> CommandSpec {
+        let (program, base_args) = self.resolve_native_command();
+        let mut spec = CommandSpec::new(program);
+        if !base_args.is_empty() {
+            spec = spec.args(base_args);
+        }
+        spec.args(args)
+    }
+
+    fn resolve_native_command(&self) -> (OsString, Vec<OsString>) {
+        let Some(path) = self.wsl_options.claude_path.as_deref() else {
+            return (OsString::from("claude"), Vec::new());
+        };
+
+        let trimmed = path.trim();
+        if trimmed.is_empty() {
+            return (OsString::from("claude"), Vec::new());
+        }
+
+        if Path::new(trimmed).exists() {
+            return (OsString::from(trimmed), Vec::new());
+        }
+
+        if trimmed.chars().any(char::is_whitespace) {
+            let parts = Self::split_command_line(trimmed);
+            if let Some((program, rest)) = parts.split_first() {
+                let base_args = rest
+                    .iter()
+                    .cloned()
+                    .map(OsString::from)
+                    .collect::<Vec<_>>();
+                return (OsString::from(program), base_args);
+            }
+        }
+
+        (OsString::from(trimmed), Vec::new())
+    }
+
+    fn split_command_line(input: &str) -> Vec<String> {
+        let mut parts = Vec::new();
+        let mut current = String::new();
+        let mut chars = input.chars().peekable();
+        let mut in_single = false;
+        let mut in_double = false;
+
+        while let Some(ch) = chars.next() {
+            match ch {
+                '\'' if !in_double => {
+                    in_single = !in_single;
+                }
+                '"' if !in_single => {
+                    in_double = !in_double;
+                }
+                '\\' if in_double => {
+                    if let Some(next) = chars.next() {
+                        current.push(next);
+                    }
+                }
+                c if c.is_whitespace() && !in_single && !in_double => {
+                    if !current.is_empty() {
+                        parts.push(current.clone());
+                        current.clear();
+                    }
+                }
+                _ => current.push(ch),
+            }
+        }
+
+        if !current.is_empty() {
+            parts.push(current);
+        }
+
+        parts
     }
     // ============================================================================
     // Windows Job Object Tests (FR-RUN-006)

@@ -1362,12 +1362,11 @@ impl PhaseOrchestrator {
         match _phase_id {
             PhaseId::Requirements => {
                 // Generate a realistic requirements document
-                format!(
-                    r"# Requirements Document
+                r"# Requirements Document
 
 ## Introduction
 
-This is a generated requirements document for spec {}. The system will provide core functionality for managing and processing specifications through a structured workflow.
+This is a generated requirements document for the current specification. The system will provide core functionality for managing and processing specifications through a structured workflow.
 
 ## Requirements
 
@@ -1406,17 +1405,14 @@ This is a generated requirements document for spec {}. The system will provide c
 **NFR1 Performance:** The system SHALL complete requirements generation within reasonable time limits
 **NFR2 Reliability:** All file operations SHALL be atomic to prevent corruption
 **NFR3 Auditability:** All operations SHALL be logged with cryptographic verification
-",
-                    self.spec_id()
-                )
+".to_string()
             }
             PhaseId::Design => {
-                format!(
-                    r"# Design Document
+                r"# Design Document
 
 ## Overview
 
-This is a comprehensive design document for spec {}. The system implements a phase-based architecture for orchestrating spec generation workflows using the Claude CLI.
+This is a comprehensive design document for the current specification. The system implements a phase-based architecture for orchestrating spec generation workflows using the Claude CLI.
 
 ## Architecture
 
@@ -1467,13 +1463,10 @@ The system implements comprehensive error handling with:
 - Integration tests for end-to-end workflows
 - Property-based tests for determinism validation
 - Mock Claude CLI for testing scenarios
-",
-                    self.spec_id()
-                )
+".to_string()
             }
             PhaseId::Tasks => {
-                format!(
-                    r"# Implementation Plan for Spec {}
+                r"# Implementation Plan
 
 ## Milestone 1: Core Phase System
 
@@ -1556,9 +1549,7 @@ The system implements comprehensive error handling with:
   - Verify artifact creation and receipt generation
   - Test error handling and partial artifact storage
   - _Requirements: R1.1, R4.3_
-",
-                    self.spec_id()
-                )
+".to_string()
             }
             _ => {
                 format!("Simulated response for phase: {}", _phase_id.as_str())

@@ -28,6 +28,12 @@ use xchecker::types::{PhaseId, Receipt};
 /// - WSL is available with Claude installed, OR
 /// - `XCHECKER_E2E` environment variable is set
 fn should_run_e2e() -> bool {
+    if std::env::var_os("CARGO_BIN_EXE_claude-stub").is_some()
+        || which::which("claude-stub").is_ok()
+    {
+        return true;
+    }
+
     // Check if Claude is in PATH
     if which::which("claude").is_ok() {
         return true;
@@ -44,6 +50,22 @@ fn should_run_e2e() -> bool {
     }
 
     false
+}
+
+fn claude_stub_path() -> String {
+    if let Ok(path) = std::env::var("CARGO_BIN_EXE_claude-stub") {
+        return path;
+    }
+
+    if let Ok(path) = which::which("claude-stub") {
+        return path.to_string_lossy().to_string();
+    }
+
+    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+    format!(
+        "cargo run --manifest-path {} --bin claude-stub --",
+        manifest_path.display()
+    )
 }
 
 /// Test environment for golden pipeline validation
@@ -78,11 +100,14 @@ impl GoldenPipelineTestEnvironment {
             .join(&self.spec_id)
     }
 
-    fn create_config_with_scenario(&self, _scenario: &str) -> OrchestratorConfig {
+    fn create_config_with_scenario(&self, scenario: &str) -> OrchestratorConfig {
         OrchestratorConfig {
-            dry_run: true,
+            dry_run: false,
             config: {
                 let mut map = std::collections::HashMap::new();
+                map.insert("runner_mode".to_string(), "native".to_string());
+                map.insert("claude_cli_path".to_string(), claude_stub_path());
+                map.insert("claude_scenario".to_string(), scenario.to_string());
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },

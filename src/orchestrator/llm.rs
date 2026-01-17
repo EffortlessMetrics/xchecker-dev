@@ -46,15 +46,29 @@ impl PhaseOrchestrator {
     ) -> Config {
         // Extract values from OrchestratorConfig
         let model = orc_config.config.get("model").cloned();
+        let max_turns = orc_config
+            .config
+            .get("max_turns")
+            .and_then(|s| s.parse::<u32>().ok());
+        let output_format = orc_config.config.get("output_format").cloned();
         let phase_timeout = orc_config
             .config
             .get("phase_timeout")
             .and_then(|s| s.parse::<u64>().ok());
         let runner_mode = orc_config.config.get("runner_mode").cloned();
         let runner_distro = orc_config.config.get("runner_distro").cloned();
-        let claude_path = orc_config.config.get("claude_path").cloned();
+        let claude_cli_path = orc_config.config.get("claude_cli_path").cloned();
+        let claude_path = orc_config
+            .config
+            .get("claude_path")
+            .cloned()
+            .or_else(|| claude_cli_path.clone());
         let llm_provider = orc_config.config.get("llm_provider").cloned();
-        let llm_claude_binary = orc_config.config.get("llm_claude_binary").cloned();
+        let llm_claude_binary = orc_config
+            .config
+            .get("llm_claude_binary")
+            .cloned()
+            .or(claude_cli_path);
 
         // Helper to build PhaseConfig from OrchestratorConfig keys
         let build_phase_config = |phase_name: &str| -> Option<PhaseConfig> {
@@ -92,13 +106,15 @@ impl PhaseOrchestrator {
             final_: build_phase_config("final"),
         };
 
+        let mut defaults = Defaults::default();
+        defaults.model = model;
+        defaults.max_turns = max_turns;
+        defaults.output_format = output_format;
+        defaults.phase_timeout = phase_timeout;
+
         // Build Config
         Config {
-            defaults: Defaults {
-                model,
-                phase_timeout,
-                ..Defaults::default()
-            },
+            defaults,
             selectors: Selectors::default(),
             runner: RunnerConfig {
                 mode: runner_mode,
@@ -177,7 +193,16 @@ impl PhaseOrchestrator {
         let messages = vec![Message::user(prompt)];
 
         // Create invocation
-        LlmInvocation::new(&self.spec_id, phase_id.as_str(), model, timeout, messages)
+        let mut invocation =
+            LlmInvocation::new(&self.spec_id, phase_id.as_str(), model, timeout, messages);
+
+        if let Some(scenario) = orc_config.config.get("claude_scenario") {
+            invocation
+                .metadata
+                .insert("claude_scenario".to_string(), serde_json::Value::String(scenario.clone()));
+        }
+
+        invocation
     }
 
     /// Execute LLM invocation using the backend abstraction.
@@ -211,26 +236,58 @@ impl PhaseOrchestrator {
             .await
             .map_err(XCheckerError::Llm)?;
 
+        let exit_code = llm_result
+            .extensions
+            .get("exit_code")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0) as i32;
+
+        let claude_cli_version = llm_result
+            .extensions
+            .get("claude_cli_version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        let fallback_used = llm_result
+            .extensions
+            .get("fallback_used")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        let runner = llm_result
+            .extensions
+            .get("runner_used")
+            .and_then(|v| v.as_str())
+            .unwrap_or("native")
+            .to_string();
+
+        let runner_distro = llm_result
+            .extensions
+            .get("runner_distro")
+            .and_then(|v| v.as_str())
+            .map(str::to_string);
+
         // For V11, we need to convert LlmResult back to the format expected by existing code
         // This maintains compatibility while using the new abstraction
         let metadata = ClaudeExecutionMetadata {
             model_alias: None, // LlmResult doesn't track alias yet
             model_full_name: llm_result.model_used.clone(),
-            claude_cli_version: "0.8.1".to_string(), // TODO: Extract from extensions if available
-            fallback_used: false,                    // Not tracked in V11
-            runner: "native".to_string(),            // TODO: Extract from extensions if available
-            runner_distro: None,
+            claude_cli_version,
+            fallback_used,
+            runner,
+            runner_distro,
             stderr_tail: llm_result
                 .extensions
                 .get("stderr")
                 .and_then(|v| v.as_str().map(String::from)),
         };
 
-        // Exit code is 0 for success (we got a result)
+        // Exit code is derived from backend extensions (defaults to 0)
         // Errors are handled via XCheckerError::Llm mapping
         Ok((
             llm_result.raw_response.clone(),
-            0,
+            exit_code,
             Some(metadata),
             Some(llm_result),
         ))
