@@ -80,10 +80,9 @@ impl WorkflowTestEnvironment {
             config: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("runner_mode".to_string(), "native".to_string());
-                map.insert(
-                    "claude_cli_path".to_string(),
-                    test_support::claude_stub_path(),
-                );
+                let stub_path = test_support::claude_stub_path()
+                    .expect("claude-stub path is required for workflow tests");
+                map.insert("claude_cli_path".to_string(), stub_path);
                 map.insert("claude_scenario".to_string(), "success".to_string());
                 map.insert("verbose".to_string(), "true".to_string());
                 map
@@ -101,10 +100,9 @@ impl WorkflowTestEnvironment {
             config: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("runner_mode".to_string(), "native".to_string());
-                map.insert(
-                    "claude_cli_path".to_string(),
-                    test_support::claude_stub_path(),
-                );
+                let stub_path = test_support::claude_stub_path()
+                    .expect("claude-stub path is required for workflow tests");
+                map.insert("claude_cli_path".to_string(), stub_path);
                 map.insert("claude_scenario".to_string(), "error".to_string());
                 map
             },

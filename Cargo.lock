@@ -3221,6 +3221,97 @@ dependencies = [
  "winapi",
  "windows 0.62.2",
  "xchecker",
+ "xchecker-config",
+ "xchecker-engine",
+ "xchecker-llm",
+ "xchecker-utils",
+]
+
+[[package]]
+name = "xchecker-config"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "globset",
+ "serde",
+ "toml",
+ "xchecker-utils",
+]
+
+[[package]]
+name = "xchecker-engine"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "camino",
+ "chrono",
+ "clap",
+ "dunce",
+ "globset",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "serde_yaml_ng",
+ "strum 0.27.2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "which",
+ "xchecker-config",
+ "xchecker-llm",
+ "xchecker-utils",
+]
+
+[[package]]
+name = "xchecker-llm"
+version = "1.0.0"
+dependencies = [
+ "async-trait",
+ "once_cell",
+ "regex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "which",
+ "xchecker-config",
+ "xchecker-utils",
+]
+
+[[package]]
+name = "xchecker-utils"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "camino",
+ "chrono",
+ "dunce",
+ "fd-lock",
+ "libc",
+ "nix",
+ "once_cell",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "serde_yaml_ng",
+ "strum 0.27.2",
+ "sysinfo",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "unicode-normalization",
+ "winapi",
+ "windows 0.62.2",
 ]
 
 [[package]]

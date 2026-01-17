@@ -1,0 +1,13 @@
+[package]
+name = "xchecker-config"
+version = "1.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+anyhow = "1.0.100"
+serde = { version = "=1.0.228", features = ["derive"] }
+toml = "0.9.8"
+globset = "0.4.18"
+camino = "1.2.2"
