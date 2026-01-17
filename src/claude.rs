@@ -8,10 +8,9 @@
 //! once tests migrate to the new backend.
 
 use crate::error::ClaudeError;
-use crate::runner::{CommandSpec, Runner};
+use crate::runner::Runner;
 use crate::types::{OutputFormat, PermissionMode, RunnerMode};
 use serde::{Deserialize, Serialize};
-use std::process::Stdio;
 use std::time::Duration;
 
 /// Wrapper around Claude CLI with controlled surface and fallback handling
@@ -215,36 +214,18 @@ impl ClaudeWrapper {
     /// is available. If the validation fails, we'll still allow the model
     /// and let Claude CLI handle the final validation during execution.
     ///
-    /// Uses synchronous execution to avoid nested Tokio runtime issues when called
-    /// from async contexts (e.g., async tests).
+    /// NOTE: This function is conservative and always returns Ok(()) because:
+    /// 1. It's legacy/test-only code slated for removal in V19+
+    /// 2. Direct CommandSpec usage would break WSL mode
+    /// 3. Claude CLI provides final validation during actual execution
     #[allow(dead_code)] // Legacy/test-only; will be removed in V19+
-    fn validate_model_name(model_name: &str, _runner: &Runner) -> Result<(), ClaudeError> {
-        // Try to query available models to validate the model exists
-        // This is a best-effort check - if it fails, we'll still proceed
-        // Use synchronous execution to avoid nested runtime issues
-        let mut cmd = CommandSpec::new("claude").arg("models").to_command();
-        cmd.stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        match cmd.output() {
-            Ok(output) if output.status.success() => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                // Check if the model name appears in the output
-                if stdout.contains(model_name) {
-                    Ok(())
-                } else {
-                    // Model not found in available models, but we'll still allow it
-                    // and let Claude CLI provide the final error during execution
-                    Ok(())
-                }
-            }
-            _ => {
-                // If we can't validate, assume the model is valid
-                // Claude CLI will provide the final error during execution
-                Ok(())
-            }
-        }
+    fn validate_model_name(_model_name: &str, _runner: &Runner) -> Result<(), ClaudeError> {
+        // Conservative implementation: always succeed and let Claude CLI
+        // handle final validation during execution. This avoids:
+        // - WSL compatibility issues from direct CommandSpec usage
+        // - Nested runtime issues in async contexts
+        // - Unnecessary command execution for dead code
+        Ok(())
     }
 
     /// Execute a prompt with Claude CLI, trying stream-json first with text fallback
