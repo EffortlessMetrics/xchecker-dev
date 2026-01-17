@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use super::sources::ConfigSource;
+use xchecker_utils::types::ConfigSource;
 
 /// Default timeout for hook execution in seconds
 pub const DEFAULT_HOOK_TIMEOUT_SECS: u64 = 60;

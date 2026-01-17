@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-pub use crate::types::ConfigSource;
-
 use super::Config;
+use xchecker_utils::types::ConfigSource;
 
 fn stable_source_label(source: &ConfigSource) -> &'static str {
     match source {
