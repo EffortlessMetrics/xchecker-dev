@@ -321,7 +321,7 @@ impl Config {
             && !env_provider.is_empty()
         {
             llm.provider = Some(env_provider);
-            source_attribution.insert("llm_provider".to_string(), ConfigSource::Programmatic);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Config);
         }
 
         // CLI flag overrides environment variable
@@ -368,10 +368,7 @@ impl Config {
             && !env_strategy.is_empty()
         {
             llm.execution_strategy = Some(env_strategy);
-            source_attribution.insert(
-                "execution_strategy".to_string(),
-                ConfigSource::Programmatic,
-            );
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Config);
         }
 
         // CLI flag overrides everything

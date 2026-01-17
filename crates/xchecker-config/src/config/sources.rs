@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::ConfigSource;
+pub use crate::types::ConfigSource;
 
 use super::Config;
 

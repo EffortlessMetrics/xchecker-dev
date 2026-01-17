@@ -15,16 +15,14 @@ mod validation;
 pub use builder::ConfigBuilder;
 pub use cli_args::CliArgs;
 pub use model::*;
-pub use crate::types::ConfigSource;
-
-use anyhow::Result;
+pub use sources::ConfigSource;
 
 use crate::error::{ConfigError, XCheckerError};
 use crate::types::RunnerMode;
 
 impl Config {
     /// Convert runner mode string to enum
-    pub fn get_runner_mode(&self) -> Result<RunnerMode> {
+    pub fn get_runner_mode(&self) -> Result<RunnerMode, XCheckerError> {
         let mode_str = self.runner.mode.as_deref().unwrap_or("auto");
         match mode_str {
             "auto" => Ok(RunnerMode::Auto),
@@ -33,8 +31,7 @@ impl Config {
             _ => Err(XCheckerError::Config(ConfigError::InvalidValue {
                 key: "runner_mode".to_string(),
                 value: format!("Unknown runner mode: {mode_str}"),
-            })
-            .into()),
+            })),
         }
     }
 

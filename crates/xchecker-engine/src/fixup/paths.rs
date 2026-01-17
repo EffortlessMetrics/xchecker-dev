@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use crate::error::FixupError;
+use crate::paths::{SandboxConfig, SandboxError, SandboxRoot};
 
 /// Validates that a fixup target path is safe to apply patches to.
 ///
@@ -11,8 +12,8 @@ use crate::error::FixupError;
 /// - The path is not a hardlink (unless `allow_links` is true)
 /// - After symlink resolution, the path resolves within the repository root
 ///
-/// On Windows, this function uses `dunce::canonicalize` for normalized
-/// case-insensitive path comparison to handle Windows path semantics correctly.
+/// This function delegates validation to `SandboxRoot` to keep path policy
+/// consistent across fixup parsing and application.
 ///
 /// # Arguments
 ///
@@ -49,76 +50,60 @@ pub fn validate_fixup_target(
     repo_root: &std::path::Path,
     allow_links: bool,
 ) -> Result<(), FixupError> {
-    // Reject absolute paths
-    if path.is_absolute() {
-        return Err(FixupError::AbsolutePath(path.to_path_buf()));
-    }
-
-    // Reject paths with parent directory components
-    if path
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        return Err(FixupError::ParentDirEscape(path.to_path_buf()));
-    }
-
-    // Construct the full path
-    let full_path = repo_root.join(path);
-
-    // Check for symlinks and hardlinks using lstat (unless allow_links is true)
-    if !allow_links {
-        // Use lstat to get metadata without following symlinks
-        let metadata = full_path.symlink_metadata().map_err(|e| {
-            FixupError::CanonicalizationError(format!("Failed to get file metadata: {e}"))
-        })?;
-
-        // Check if it's a symlink
-        if metadata.is_symlink() {
-            return Err(FixupError::SymlinkNotAllowed(path.to_path_buf()));
-        }
-
-        // Check if it's a hardlink (more than one hard link to the same inode)
-        // Only check regular files (not directories)
-        if metadata.is_file() {
-            match crate::paths::link_count(&full_path) {
-                Ok(count) if count > 1 => {
-                    return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
-                }
-                Ok(_) => {
-                    // Link count is 1, not a hardlink
-                }
-                Err(_) => {
-                    // Fail closed: if we can't determine link count, assume it might be a hardlink
-                    return Err(FixupError::HardlinkNotAllowed(path.to_path_buf()));
-                }
-            }
-        }
-    }
-
-    // Canonicalize both paths to resolve symlinks and get absolute paths
-    let resolved = full_path.canonicalize().map_err(|e| {
-        FixupError::CanonicalizationError(format!("Failed to canonicalize target path: {e}"))
-    })?;
-
-    let canonical_repo_root = repo_root.canonicalize().map_err(|e| {
-        FixupError::CanonicalizationError(format!("Failed to canonicalize repo root: {e}"))
-    })?;
-
-    // On Windows, use dunce::canonicalize for normalized case-insensitive comparison
-    #[cfg(target_os = "windows")]
-    let (resolved, canonical_repo_root) = {
-        let resolved = dunce::canonicalize(&resolved).map_err(|e| {
-            FixupError::CanonicalizationError(format!("Failed to normalize Windows path: {e}"))
-        })?;
-        let canonical_repo_root = dunce::canonicalize(&canonical_repo_root).map_err(|e| {
-            FixupError::CanonicalizationError(format!("Failed to normalize Windows repo root: {e}"))
-        })?;
-        (resolved, canonical_repo_root)
+    let config = SandboxConfig {
+        allow_symlinks: allow_links,
+        allow_hardlinks: allow_links,
     };
 
-    // Ensure the resolved path is within the repo root
-    if !resolved.starts_with(&canonical_repo_root) {
-        return Err(FixupError::OutsideRepo(resolved));
+    let sandbox_root = SandboxRoot::new(repo_root, config).map_err(|e| match e {
+        SandboxError::RootNotFound { path } | SandboxError::RootNotDirectory { path } => {
+            FixupError::CanonicalizationError(format!("Invalid repo root: {path}"))
+        }
+        SandboxError::RootCanonicalizationFailed { path, reason } => {
+            FixupError::CanonicalizationError(format!(
+                "Failed to canonicalize repo root {path}: {reason}"
+            ))
+        }
+        SandboxError::PathCanonicalizationFailed { path, reason } => {
+            FixupError::CanonicalizationError(format!(
+                "Failed to canonicalize repo root {path}: {reason}"
+            ))
+        }
+        SandboxError::AbsolutePath { path } => FixupError::AbsolutePath(PathBuf::from(path)),
+        SandboxError::ParentTraversal { path } => FixupError::ParentDirEscape(PathBuf::from(path)),
+        SandboxError::EscapeAttempt { path, .. } => FixupError::OutsideRepo(PathBuf::from(path)),
+        SandboxError::SymlinkNotAllowed { path } => {
+            FixupError::SymlinkNotAllowed(PathBuf::from(path))
+        }
+        SandboxError::HardlinkNotAllowed { path } => {
+            FixupError::HardlinkNotAllowed(PathBuf::from(path))
+        }
+    })?;
+
+    let sandbox_path = sandbox_root.join(path).map_err(|e| match e {
+        SandboxError::AbsolutePath { path } => FixupError::AbsolutePath(PathBuf::from(path)),
+        SandboxError::ParentTraversal { path } => FixupError::ParentDirEscape(PathBuf::from(path)),
+        SandboxError::EscapeAttempt { path, .. } => FixupError::OutsideRepo(PathBuf::from(path)),
+        SandboxError::SymlinkNotAllowed { path } => {
+            FixupError::SymlinkNotAllowed(PathBuf::from(path))
+        }
+        SandboxError::HardlinkNotAllowed { path } => {
+            FixupError::HardlinkNotAllowed(PathBuf::from(path))
+        }
+        SandboxError::RootNotFound { path } | SandboxError::RootNotDirectory { path } => {
+            FixupError::CanonicalizationError(format!("Invalid repo root: {path}"))
+        }
+        SandboxError::RootCanonicalizationFailed { path, reason }
+        | SandboxError::PathCanonicalizationFailed { path, reason } => {
+            FixupError::CanonicalizationError(format!("Failed to canonicalize {path}: {reason}"))
+        }
+    })?;
+
+    if !sandbox_path.as_path().exists() {
+        return Err(FixupError::CanonicalizationError(format!(
+            "Failed to canonicalize target path: {}",
+            sandbox_path.as_path().display()
+        )));
     }
 
     Ok(())

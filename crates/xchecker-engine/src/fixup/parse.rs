@@ -181,7 +181,7 @@ impl FixupParser {
                 Ok(diff) => diffs.push(diff),
                 Err(e) => {
                     // Log the error but continue processing other blocks
-                    eprintln!("Warning: Failed to parse diff block {block_index}: {e}");
+                    tracing::warn!("Failed to parse diff block {block_index}: {e}");
                 }
             }
         }

@@ -363,14 +363,8 @@ impl ConfigBuilder {
         let phases = PhasesConfig::default();
         let hooks = HooksConfig::default();
 
-        // Track default sources
-        source_attribution.insert("max_turns".to_string(), ConfigSource::Default);
-        source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Default);
-        source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Default);
+        // Track default sources for values not set by the builder.
         source_attribution.insert("output_format".to_string(), ConfigSource::Default);
-        source_attribution.insert("verbose".to_string(), ConfigSource::Default);
-        source_attribution.insert("runner_mode".to_string(), ConfigSource::Default);
-        source_attribution.insert("phase_timeout".to_string(), ConfigSource::Default);
         source_attribution.insert("stdout_cap_bytes".to_string(), ConfigSource::Default);
         source_attribution.insert("stderr_cap_bytes".to_string(), ConfigSource::Default);
         source_attribution.insert("lock_ttl_seconds".to_string(), ConfigSource::Default);
@@ -381,21 +375,29 @@ impl ConfigBuilder {
         if let Some(bytes) = self.packet_max_bytes {
             defaults.packet_max_bytes = Some(bytes);
             source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Programmatic);
+        } else {
+            source_attribution.insert("packet_max_bytes".to_string(), ConfigSource::Default);
         }
 
         if let Some(lines) = self.packet_max_lines {
             defaults.packet_max_lines = Some(lines);
             source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Programmatic);
+        } else {
+            source_attribution.insert("packet_max_lines".to_string(), ConfigSource::Default);
         }
 
         if let Some(timeout) = self.phase_timeout {
             defaults.phase_timeout = Some(timeout.as_secs());
             source_attribution.insert("phase_timeout".to_string(), ConfigSource::Programmatic);
+        } else {
+            source_attribution.insert("phase_timeout".to_string(), ConfigSource::Default);
         }
 
         if let Some(mode) = self.runner_mode {
             runner.mode = Some(mode);
             source_attribution.insert("runner_mode".to_string(), ConfigSource::Programmatic);
+        } else {
+            source_attribution.insert("runner_mode".to_string(), ConfigSource::Default);
         }
 
         if let Some(model) = self.model {
@@ -406,11 +408,15 @@ impl ConfigBuilder {
         if let Some(turns) = self.max_turns {
             defaults.max_turns = Some(turns);
             source_attribution.insert("max_turns".to_string(), ConfigSource::Programmatic);
+        } else {
+            source_attribution.insert("max_turns".to_string(), ConfigSource::Default);
         }
 
         if let Some(verbose) = self.verbose {
             defaults.verbose = Some(verbose);
             source_attribution.insert("verbose".to_string(), ConfigSource::Programmatic);
+        } else {
+            source_attribution.insert("verbose".to_string(), ConfigSource::Default);
         }
 
         // Apply LLM provider (default to claude-cli if not set)

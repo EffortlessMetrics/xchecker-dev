@@ -4075,7 +4075,6 @@ dependencies = [
 name = "xchecker-config"
 version = "1.0.0"
 dependencies = [
- "anyhow",
  "camino",
  "globset",
  "serde",
