@@ -55,16 +55,24 @@ pub fn validate_fixup_target(
         allow_hardlinks: allow_links,
     };
 
-    let sandbox_root = SandboxRoot::new(repo_root, config).map_err(|e| match e {
+    let sandbox_root = SandboxRoot::new(repo_root, config).map_err(map_root_err)?;
+    let sandbox_path = sandbox_root.join(path).map_err(map_join_err)?;
+    if !sandbox_path.as_path().exists() {
+        return Err(FixupError::TargetFileNotFound {
+            path: path.display().to_string(),
+        });
+    }
+
+    Ok(())
+}
+
+fn map_root_err(err: SandboxError) -> FixupError {
+    match err {
         SandboxError::RootNotFound { path } | SandboxError::RootNotDirectory { path } => {
             FixupError::CanonicalizationError(format!("Invalid repo root: {path}"))
         }
-        SandboxError::RootCanonicalizationFailed { path, reason } => {
-            FixupError::CanonicalizationError(format!(
-                "Failed to canonicalize repo root {path}: {reason}"
-            ))
-        }
-        SandboxError::PathCanonicalizationFailed { path, reason } => {
+        SandboxError::RootCanonicalizationFailed { path, reason }
+        | SandboxError::PathCanonicalizationFailed { path, reason } => {
             FixupError::CanonicalizationError(format!(
                 "Failed to canonicalize repo root {path}: {reason}"
             ))
@@ -78,9 +86,11 @@ pub fn validate_fixup_target(
         SandboxError::HardlinkNotAllowed { path } => {
             FixupError::HardlinkNotAllowed(PathBuf::from(path))
         }
-    })?;
+    }
+}
 
-    let sandbox_path = sandbox_root.join(path).map_err(|e| match e {
+fn map_join_err(err: SandboxError) -> FixupError {
+    match err {
         SandboxError::AbsolutePath { path } => FixupError::AbsolutePath(PathBuf::from(path)),
         SandboxError::ParentTraversal { path } => FixupError::ParentDirEscape(PathBuf::from(path)),
         SandboxError::EscapeAttempt { path, .. } => FixupError::OutsideRepo(PathBuf::from(path)),
@@ -97,16 +107,7 @@ pub fn validate_fixup_target(
         | SandboxError::PathCanonicalizationFailed { path, reason } => {
             FixupError::CanonicalizationError(format!("Failed to canonicalize {path}: {reason}"))
         }
-    })?;
-
-    if !sandbox_path.as_path().exists() {
-        return Err(FixupError::CanonicalizationError(format!(
-            "Failed to canonicalize target path: {}",
-            sandbox_path.as_path().display()
-        )));
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -452,11 +453,11 @@ mod tests {
         let nonexistent = std::path::Path::new("does_not_exist.txt");
         let result = validate_fixup_target(nonexistent, repo_root, false);
 
-        // Should fail with canonicalization error since the file doesn't exist
+        // Should fail with missing file error since the file doesn't exist
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            FixupError::CanonicalizationError(_)
+            FixupError::TargetFileNotFound { .. }
         ));
     }
 

@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy_claude")]
 //! M5 Gate Validation Tests
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`config::{CliArgs, Config,

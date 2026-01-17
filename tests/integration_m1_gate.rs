@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy_claude")]
 //! M1 Gate Integration Tests
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::Runner`,

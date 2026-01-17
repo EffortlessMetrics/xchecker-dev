@@ -1,3 +1,4 @@
+#![cfg(feature = "test-utils")]
 //! Property-Based Tests for xchecker
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`canonicalization::Canonicalizer`,

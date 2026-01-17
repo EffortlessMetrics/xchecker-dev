@@ -1,3 +1,4 @@
+#![cfg(feature = "test-utils")]
 //! Integration tests for PacketBuilder and Phase system wiring (Task 9.2)
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,

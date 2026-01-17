@@ -282,7 +282,7 @@ pub use xchecker_engine::{
 };
 
 // Legacy wrapper; follow-up spec (V19+) to delete once tests migrate
-#[cfg(any(test, feature = "legacy_claude"))]
+#[cfg(feature = "legacy_claude")]
 #[doc(hidden)]
 pub use xchecker_engine::claude;
 
