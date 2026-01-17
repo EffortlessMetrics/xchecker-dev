@@ -106,11 +106,13 @@ impl PhaseOrchestrator {
             final_: build_phase_config("final"),
         };
 
-        let mut defaults = Defaults::default();
-        defaults.model = model;
-        defaults.max_turns = max_turns;
-        defaults.output_format = output_format;
-        defaults.phase_timeout = phase_timeout;
+        let defaults = Defaults {
+            model,
+            max_turns,
+            output_format,
+            phase_timeout,
+            ..Defaults::default()
+        };
 
         // Build Config
         Config {
@@ -197,9 +199,10 @@ impl PhaseOrchestrator {
             LlmInvocation::new(&self.spec_id, phase_id.as_str(), model, timeout, messages);
 
         if let Some(scenario) = orc_config.config.get("claude_scenario") {
-            invocation
-                .metadata
-                .insert("claude_scenario".to_string(), serde_json::Value::String(scenario.clone()));
+            invocation.metadata.insert(
+                "claude_scenario".to_string(),
+                serde_json::Value::String(scenario.clone()),
+            );
         }
 
         invocation

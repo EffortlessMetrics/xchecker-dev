@@ -3,7 +3,7 @@ use std::time::Duration;
 
 pub(crate) async fn terminate_process_windows(pid: u32) -> Result<(), RunnerError> {
     use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+    use windows::Win32::System::Threading::{OpenProcess, PROCESS_TERMINATE, TerminateProcess};
 
     unsafe {
         let process_handle = OpenProcess(PROCESS_TERMINATE, false, pid).map_err(|e| {

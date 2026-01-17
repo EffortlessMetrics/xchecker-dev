@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::time::timeout;
 
-use super::io::{drain_pipes, read_pipes_until_exit, PipeReadError};
+use super::io::{PipeReadError, drain_pipes, read_pipes_until_exit};
 use super::platform;
 use super::{BufferConfig, ClaudeResponse, NdjsonResult, WslOptions};
 
@@ -149,8 +149,14 @@ impl Runner {
             }
         }
 
-        self.execute_with_command(cmd, RunnerMode::Native, "claude", stdin_content, timeout_duration)
-            .await
+        self.execute_with_command(
+            cmd,
+            RunnerMode::Native,
+            "claude",
+            stdin_content,
+            timeout_duration,
+        )
+        .await
     }
 
     /// Execute Claude CLI via WSL using `wsl.exe --exec` with argv (no shell)
@@ -185,9 +191,9 @@ impl Runner {
         #[cfg(windows)]
         let job = platform::create_job_object()?;
 
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| execution_failed(runner_used, format!("Failed to spawn {label} process: {e}")))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            execution_failed(runner_used, format!("Failed to spawn {label} process: {e}"))
+        })?;
 
         // Assign to Job Object on Windows
         #[cfg(windows)]
@@ -308,27 +314,24 @@ fn execution_failed(runner_used: RunnerMode, reason: String) -> RunnerError {
 
 fn map_pipe_error(runner_used: RunnerMode, error: PipeReadError) -> RunnerError {
     match error {
-        PipeReadError::Stdout(err) => execution_failed(
-            runner_used,
-            format!("Failed to read stdout: {err}"),
-        ),
-        PipeReadError::Stderr(err) => execution_failed(
-            runner_used,
-            format!("Failed to read stderr: {err}"),
-        ),
-        PipeReadError::Wait(err) => execution_failed(
-            runner_used,
-            format!("Failed to wait for process: {err}"),
-        ),
+        PipeReadError::Stdout(err) => {
+            execution_failed(runner_used, format!("Failed to read stdout: {err}"))
+        }
+        PipeReadError::Stderr(err) => {
+            execution_failed(runner_used, format!("Failed to read stderr: {err}"))
+        }
+        PipeReadError::Wait(err) => {
+            execution_failed(runner_used, format!("Failed to wait for process: {err}"))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Runner;
-    use crate::types::RunnerMode;
     use crate::runner::claude::BufferConfig;
     use crate::runner::claude::WslOptions;
+    use crate::types::RunnerMode;
 
     #[test]
     fn test_runner_creation() {
@@ -349,11 +352,8 @@ mod tests {
             stderr_cap_bytes: 512,
             stderr_receipt_cap_bytes: 256,
         };
-        let runner = Runner::with_buffer_config(
-            RunnerMode::Native,
-            WslOptions::default(),
-            buffer_config,
-        );
+        let runner =
+            Runner::with_buffer_config(RunnerMode::Native, WslOptions::default(), buffer_config);
         assert_eq!(runner.buffer_config.stdout_cap_bytes, 1024);
         assert_eq!(runner.buffer_config.stderr_cap_bytes, 512);
         assert_eq!(runner.buffer_config.stderr_receipt_cap_bytes, 256);

@@ -27,7 +27,7 @@ use std::collections::HashMap;
 /// # Example
 ///
 /// ```rust
-/// use xchecker::PhaseId;
+/// use xchecker_utils::types::PhaseId;
 ///
 /// let phase = PhaseId::Requirements;
 /// assert_eq!(phase.as_str(), "requirements");
@@ -65,7 +65,7 @@ impl PhaseId {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::PhaseId;
+    /// use xchecker_utils::types::PhaseId;
     ///
     /// assert_eq!(PhaseId::Requirements.as_str(), "requirements");
     /// assert_eq!(PhaseId::Design.as_str(), "design");
@@ -339,19 +339,28 @@ pub struct FileHash {
 ///
 /// # Example
 ///
-/// ```rust,no_run
-/// use xchecker::OrchestratorHandle;
+/// ```rust
+/// use chrono::Utc;
+/// use std::collections::BTreeMap;
+/// use xchecker_utils::types::{ConfigValue, StatusOutput};
 ///
-/// let handle = OrchestratorHandle::new("my-spec")?;
-/// let status = handle.status()?;
+/// let status = StatusOutput {
+///     schema_version: "1".to_string(),
+///     emitted_at: Utc::now(),
+///     runner: "native".to_string(),
+///     runner_distro: None,
+///     fallback_used: false,
+///     canonicalization_version: "yaml-v1,md-v1".to_string(),
+///     canonicalization_backend: "jcs-rfc8785".to_string(),
+///     artifacts: Vec::new(),
+///     last_receipt_path: "receipts/latest.json".to_string(),
+///     effective_config: BTreeMap::<String, ConfigValue>::new(),
+///     lock_drift: None,
+///     pending_fixups: None,
+/// };
 ///
 /// println!("Schema version: {}", status.schema_version);
 /// println!("Artifacts: {}", status.artifacts.len());
-///
-/// for artifact in &status.artifacts {
-///     println!("  {} ({})", artifact.path, artifact.blake3_first8);
-/// }
-/// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///
 /// # Fields
@@ -437,7 +446,7 @@ pub enum CheckStatus {
 /// # Example
 ///
 /// ```rust
-/// use xchecker::types::ArtifactInfo;
+/// use xchecker_utils::types::ArtifactInfo;
 ///
 /// let artifact = ArtifactInfo {
 ///     path: "artifacts/00-requirements.md".to_string(),
@@ -460,7 +469,7 @@ pub struct ArtifactInfo {
 /// # Example
 ///
 /// ```rust
-/// use xchecker::types::{ConfigValue, ConfigSource};
+/// use xchecker_utils::types::{ConfigValue, ConfigSource};
 /// use serde_json::json;
 ///
 /// let config_value = ConfigValue {
@@ -488,7 +497,7 @@ pub struct ConfigValue {
 /// # Example
 ///
 /// ```rust
-/// use xchecker::types::ConfigSource;
+/// use xchecker_utils::types::ConfigSource;
 ///
 /// let source = ConfigSource::Cli;
 /// let json = serde_json::to_string(&source).unwrap();

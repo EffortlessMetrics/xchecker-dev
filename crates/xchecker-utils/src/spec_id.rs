@@ -28,7 +28,7 @@ use unicode_normalization::UnicodeNormalization;
 /// # Examples
 ///
 /// ```
-/// use xchecker::spec_id::sanitize_spec_id;
+/// use xchecker_utils::spec_id::sanitize_spec_id;
 ///
 /// // Valid ID passes through unchanged
 /// assert_eq!(sanitize_spec_id("my-spec_123").unwrap(), "my-spec_123");

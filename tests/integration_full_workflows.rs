@@ -22,6 +22,8 @@ use tempfile::TempDir;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::{PhaseId, Receipt};
 
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
 mod test_support;
 
 fn normalize_core_yaml_for_determinism(content: &str) -> String {

@@ -24,7 +24,7 @@ use tokio::process::Command as TokioCommand;
 /// # Example
 ///
 /// ```rust
-/// use xchecker::runner::CommandSpec;
+/// use xchecker_utils::runner::CommandSpec;
 /// use std::ffi::OsString;
 ///
 /// let cmd = CommandSpec::new("claude")
@@ -58,7 +58,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("claude");
     /// ```
@@ -84,7 +84,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("claude")
     ///     .arg("--print")
@@ -108,7 +108,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("claude")
     ///     .args(["--print", "--output-format", "json"]);
@@ -132,7 +132,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("claude")
     ///     .cwd("/path/to/workspace");
@@ -153,7 +153,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("claude")
     ///     .env("CLAUDE_API_KEY", "sk-...")
@@ -176,7 +176,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("claude")
     ///     .envs([("DEBUG", "1"), ("VERBOSE", "true")]);
@@ -203,7 +203,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// let cmd = CommandSpec::new("echo")
     ///     .arg("hello")
@@ -236,7 +236,7 @@ impl CommandSpec {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::runner::CommandSpec;
+    /// use xchecker_utils::runner::CommandSpec;
     ///
     /// # async fn example() {
     /// let cmd = CommandSpec::new("echo")

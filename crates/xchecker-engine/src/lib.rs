@@ -16,6 +16,8 @@ pub use xchecker_utils::ring_buffer;
 pub use xchecker_utils::runner;
 pub use xchecker_utils::source;
 pub use xchecker_utils::spec_id;
+#[cfg(any(test, feature = "test-utils"))]
+pub use xchecker_utils::test_support;
 pub use xchecker_utils::types;
 
 pub mod artifact;

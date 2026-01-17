@@ -162,12 +162,12 @@ impl SandboxConfig {
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::paths::{SandboxRoot, SandboxConfig};
+/// use xchecker_utils::paths::{SandboxRoot, SandboxConfig};
 ///
 /// let root = SandboxRoot::new("/path/to/workspace", SandboxConfig::default())?;
 /// let file = root.join("src/main.rs")?;
 /// println!("Safe path: {}", file.as_path().display());
-/// # Ok::<(), xchecker::paths::SandboxError>(())
+/// # Ok::<(), xchecker_utils::paths::SandboxError>(())
 /// ```
 #[derive(Debug, Clone)]
 pub struct SandboxRoot {
@@ -394,7 +394,7 @@ impl SandboxRoot {
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::paths::{SandboxRoot, SandboxConfig};
+/// use xchecker_utils::paths::{SandboxRoot, SandboxConfig};
 ///
 /// let root = SandboxRoot::new("/workspace", SandboxConfig::default())?;
 /// let path = root.join("src/lib.rs")?;

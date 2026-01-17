@@ -50,9 +50,12 @@ fn test_doctests_are_present() {
 #[test]
 fn test_key_modules_have_documentation() {
     let key_modules = vec![
-        ("src/config.rs", "config"),
-        ("src/orchestrator/mod.rs", "orchestrator"),
-        ("src/llm/mod.rs", "llm"),
+        ("crates/xchecker-config/src/config.rs", "config"),
+        (
+            "crates/xchecker-engine/src/orchestrator/mod.rs",
+            "orchestrator",
+        ),
+        ("crates/xchecker-llm/src/lib.rs", "llm"),
     ];
 
     for (file_path, module_name) in key_modules {
@@ -82,7 +85,8 @@ fn test_key_modules_have_documentation() {
 #[test]
 fn test_public_items_have_docs() {
     // Read the config module
-    let config_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/config.rs");
+    let config_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("crates/xchecker-config/src/config.rs");
     let config_content = std::fs::read_to_string(&config_path).expect("Failed to read config.rs");
 
     // Check for documentation on public structs/enums/functions

@@ -4,8 +4,8 @@
 //! limit on the number of invocations. This is primarily used for cost control
 //! with HTTP providers like OpenRouter.
 
-use crate::types::{LlmBackend, LlmInvocation, LlmResult};
 use crate::LlmError;
+use crate::types::{LlmBackend, LlmInvocation, LlmResult};
 use async_trait::async_trait;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -93,7 +93,7 @@ impl BudgetedBackend {
     /// # Examples
     ///
     /// ```no_run
-    /// use xchecker::llm::{BudgetedBackend, LlmBackend};
+    /// use xchecker_llm::{BudgetedBackend, LlmBackend};
     /// # fn example(backend: Box<dyn LlmBackend>) {
     /// // With config budget of 50
     /// let budgeted = BudgetedBackend::with_limit_from_config(backend, Some(50));

@@ -86,9 +86,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match scenario.as_str() {
         "success" | "text" => handle_success_scenario(output_format, no_sleep, model, &response)?,
-        "partial" | "truncated" => {
-            handle_partial_scenario(output_format, no_sleep, model, &response, "Connection interrupted")?
-        }
+        "partial" | "truncated" => handle_partial_scenario(
+            output_format,
+            no_sleep,
+            model,
+            &response,
+            "Connection interrupted",
+        )?,
         "malformed" | "text-fallback" => {
             handle_malformed_scenario(output_format, model, &response)?
         }

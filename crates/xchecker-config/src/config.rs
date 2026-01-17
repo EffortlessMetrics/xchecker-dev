@@ -136,8 +136,8 @@ impl HooksConfig {
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::Config;
-/// use xchecker::config::CliArgs;
+/// use xchecker_config::Config;
+/// use xchecker_config::CliArgs;
 ///
 /// // Discover configuration using CLI semantics
 /// let config = Config::discover(&CliArgs::default())?;
@@ -1414,7 +1414,7 @@ impl Config {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::Config;
+    /// use xchecker_config::Config;
     ///
     /// let config = Config::discover_from_env_and_fs()
     ///     .expect("Failed to discover config");
@@ -1442,7 +1442,7 @@ impl Config {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::Config;
+    /// use xchecker_config::Config;
     /// use std::time::Duration;
     ///
     /// let config = Config::builder()
@@ -1469,7 +1469,7 @@ impl Config {
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::Config;
+/// use xchecker_config::Config;
 /// use std::time::Duration;
 ///
 /// let config = Config::builder()
@@ -1680,7 +1680,7 @@ impl ConfigBuilder {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::Config;
+    /// use xchecker_config::Config;
     ///
     /// let config = Config::builder()
     ///     .extra_secret_patterns(vec![
@@ -1725,7 +1725,7 @@ impl ConfigBuilder {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::Config;
+    /// use xchecker_config::Config;
     ///
     /// let config = Config::builder()
     ///     .ignore_secret_patterns(vec!["test_token".to_string()])
@@ -1903,7 +1903,7 @@ impl xchecker_utils::redaction::SecretConfigProvider for Config {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 impl Config {
     /// Create a minimal Config for testing purposes
     ///

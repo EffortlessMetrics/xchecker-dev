@@ -264,8 +264,8 @@ pub use xchecker_utils::test_support;
 
 #[doc(hidden)]
 pub use xchecker_utils::{
-    atomic_write, cache, canonicalization, error, exit_codes, lock, logging, paths,
-    process_memory, redaction, ring_buffer, source, spec_id, types,
+    atomic_write, cache, canonicalization, error, exit_codes, lock, logging, paths, process_memory,
+    redaction, ring_buffer, source, spec_id, types,
 };
 
 #[doc(hidden)]
@@ -277,8 +277,8 @@ pub use xchecker_llm as llm;
 #[doc(hidden)]
 pub use xchecker_engine::{
     artifact, benchmark, doctor, example_generators, extraction, fixup, gate, hooks,
-    integration_tests, orchestrator, packet, phase, phases, receipt, runner, status,
-    template, validation, workspace, wsl,
+    integration_tests, orchestrator, packet, phase, phases, receipt, runner, status, template,
+    validation, workspace, wsl,
 };
 
 // Legacy wrapper; follow-up spec (V19+) to delete once tests migrate
@@ -300,4 +300,4 @@ pub mod tui;
 #[doc(hidden)]
 pub use receipt::write_error_receipt_and_exit;
 #[doc(hidden)]
-pub use spec_id::{sanitize_spec_id, SpecIdError};
+pub use spec_id::{SpecIdError, sanitize_spec_id};

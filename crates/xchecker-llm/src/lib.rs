@@ -20,10 +20,10 @@ pub use xchecker_utils::error;
 pub use xchecker_utils::runner;
 
 // Public exports for production use
+pub use crate::error::LlmError;
 #[allow(unused_imports)]
 // ExecutionStrategy is part of public API, used in types but not in this module
 pub use types::{ExecutionStrategy, LlmBackend, LlmInvocation, LlmResult, Message, Role};
-pub use crate::error::LlmError;
 
 // Test-only exports - hidden from documentation
 #[doc(hidden)]
@@ -560,10 +560,9 @@ mod factory_tests {
             env::remove_var("XCHECKER_OPENROUTER_BUDGET");
         }
 
-        // Set up environment for OpenRouter with budget of 0 (immediate exhaustion)
+        // Set up environment for OpenRouter (budget is configured via config)
         unsafe {
             env::set_var("OPENROUTER_API_KEY", "test-key-for-budget-test");
-            env::set_var("XCHECKER_OPENROUTER_BUDGET", "0");
         }
 
         let mut config = Config::minimal_for_testing();
@@ -577,7 +576,7 @@ mod factory_tests {
             model: Some("google/gemini-2.0-flash-lite".to_string()),
             max_tokens: Some(2048),
             temperature: Some(0.2),
-            budget: None,
+            budget: Some(0),
         });
 
         let backend = from_config(&config).expect("Failed to create backend");

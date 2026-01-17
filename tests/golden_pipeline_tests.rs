@@ -21,6 +21,8 @@ use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::runner::{Runner, RunnerMode, WslOptions};
 use xchecker::types::{PhaseId, Receipt};
 
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
 mod test_support;
 
 /// Test environment for golden pipeline validation

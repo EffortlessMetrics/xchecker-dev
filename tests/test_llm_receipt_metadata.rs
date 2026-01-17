@@ -10,7 +10,7 @@
 
 use std::collections::HashMap;
 use xchecker::receipt::ReceiptManager;
-use xchecker::types::{PacketEvidence, PhaseId, PipelineInfo};
+use xchecker::types::{LlmInfo, PacketEvidence, PhaseId, PipelineInfo};
 
 fn create_test_manager() -> (ReceiptManager, tempfile::TempDir) {
     let temp_dir = xchecker::paths::with_isolated_home();
@@ -153,7 +153,7 @@ fn test_llm_metadata_in_receipt() {
     );
 
     // Add LLM metadata
-    receipt.llm = Some(xchecker::receipt::LlmInfo {
+    receipt.llm = Some(LlmInfo {
         provider: Some("claude-cli".to_string()),
         model_used: Some("haiku".to_string()),
         tokens_input: Some(1024),
@@ -184,7 +184,7 @@ fn test_llm_metadata_in_receipt() {
 #[test]
 fn test_llm_metadata_optional_fields() {
     // Verify all LLM metadata fields are optional
-    let llm_info = xchecker::receipt::LlmInfo {
+    let llm_info = LlmInfo {
         provider: None,
         model_used: None,
         tokens_input: None,

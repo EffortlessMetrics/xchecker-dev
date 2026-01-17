@@ -14,7 +14,7 @@ use crate::types::FileType;
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::emit_jcs;
+/// use xchecker_utils::canonicalization::emit_jcs;
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize)]

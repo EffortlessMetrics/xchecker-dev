@@ -6,12 +6,12 @@
 //! **NOTE:** `src/claude.rs` is legacy/test-only and will be removed in a future release (V19+).
 //! All new code should use this backend via the `LlmBackend` trait.
 
-use crate::{LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role};
 use crate::runner::{BufferConfig, Runner, WslOptions};
-use xchecker_utils::types::{OutputFormat, RunnerMode};
+use crate::{LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role};
 use async_trait::async_trait;
 use std::path::PathBuf;
 use std::time::Duration;
+use xchecker_utils::types::{OutputFormat, RunnerMode};
 
 /// Claude CLI backend implementation
 pub(crate) struct ClaudeCliBackend {
@@ -89,7 +89,9 @@ impl ClaudeCliBackend {
             .claude
             .as_ref()
             .and_then(|claude_config| claude_config.binary.clone());
-        let claude_path = claude_binary.clone().or_else(|| cfg.runner.claude_path.clone());
+        let claude_path = claude_binary
+            .clone()
+            .or_else(|| cfg.runner.claude_path.clone());
         let binary_path = claude_path.as_ref().map(PathBuf::from);
 
         // 2. Get runner mode from config
@@ -454,10 +456,7 @@ impl LlmBackend for ClaudeCliBackend {
             "claude_cli_version",
             serde_json::Value::String(self.claude_cli_version.clone()),
         );
-        result = result.with_extension(
-            "fallback_used",
-            serde_json::Value::Bool(fallback_used),
-        );
+        result = result.with_extension("fallback_used", serde_json::Value::Bool(fallback_used));
 
         Ok(result)
     }

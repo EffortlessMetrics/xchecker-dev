@@ -31,11 +31,7 @@ impl Runner {
         if trimmed.chars().any(char::is_whitespace) {
             let parts = Self::split_command_line(trimmed);
             if let Some((program, rest)) = parts.split_first() {
-                let base_args = rest
-                    .iter()
-                    .cloned()
-                    .map(OsString::from)
-                    .collect::<Vec<_>>();
+                let base_args = rest.iter().cloned().map(OsString::from).collect::<Vec<_>>();
                 return (OsString::from(program), base_args);
             }
         }

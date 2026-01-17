@@ -315,7 +315,7 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
 ///
 /// # Example
 /// ```
-/// use xchecker::redaction::default_pattern_defs;
+/// use xchecker_utils::redaction::default_pattern_defs;
 ///
 /// let defs = default_pattern_defs();
 /// assert!(!defs.is_empty());
@@ -752,7 +752,7 @@ pub fn create_secret_detected_error(matches: &[SecretMatch]) -> XCheckerError {
 ///
 /// # Example
 /// ```
-/// use xchecker::redaction::redact_user_string;
+/// use xchecker_utils::redaction::redact_user_string;
 ///
 /// let token = format!("ghp_{}", "a".repeat(36));
 /// let error_msg = format!("Failed to authenticate with token {token}");

@@ -2,7 +2,7 @@ use crate::error::RunnerError;
 use std::time::Duration;
 
 pub(crate) async fn terminate_process_unix(pid: u32) -> Result<(), RunnerError> {
-    use nix::sys::signal::{killpg, Signal};
+    use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
 
     let pgid = Pid::from_raw(pid as i32);

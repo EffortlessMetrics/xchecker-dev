@@ -9,7 +9,8 @@
 //! # Quick Start
 //!
 //! ```rust,no_run
-//! use xchecker::{OrchestratorHandle, PhaseId};
+//! use xchecker_engine::orchestrator::OrchestratorHandle;
+//! use xchecker_engine::types::PhaseId;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -73,7 +74,8 @@ use super::{ExecutionResult, OrchestratorConfig, PhaseOrchestrator};
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::{OrchestratorHandle, PhaseId};
+/// use xchecker_engine::orchestrator::OrchestratorHandle;
+/// use xchecker_engine::types::PhaseId;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -96,7 +98,8 @@ use super::{ExecutionResult, OrchestratorConfig, PhaseOrchestrator};
 /// # Using Explicit Configuration
 ///
 /// ```rust,no_run
-/// use xchecker::{OrchestratorHandle, Config};
+/// use xchecker_engine::config::Config;
+/// use xchecker_engine::orchestrator::OrchestratorHandle;
 ///
 /// // Create explicit config programmatically
 /// let config = Config::discover(&Default::default())?;
@@ -137,7 +140,7 @@ impl OrchestratorHandle {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::OrchestratorHandle;
+    /// use xchecker_engine::orchestrator::OrchestratorHandle;
     ///
     /// let handle = OrchestratorHandle::new("my-spec")?;
     /// # Ok::<(), Box<dyn std::error::Error>>(())
@@ -168,7 +171,8 @@ impl OrchestratorHandle {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::{OrchestratorHandle, Config};
+    /// use xchecker_engine::config::Config;
+    /// use xchecker_engine::orchestrator::OrchestratorHandle;
     ///
     /// // Create explicit config programmatically
     /// let config = Config::discover(&Default::default())?;
@@ -343,7 +347,8 @@ impl OrchestratorHandle {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::{OrchestratorHandle, PhaseId};
+    /// use xchecker_engine::orchestrator::OrchestratorHandle;
+    /// use xchecker_engine::types::PhaseId;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -370,7 +375,7 @@ impl OrchestratorHandle {
     /// # Example
     ///
     /// ```rust,no_run
-    /// use xchecker::OrchestratorHandle;
+    /// use xchecker_engine::orchestrator::OrchestratorHandle;
     ///
     /// # #[tokio::main]
     /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {

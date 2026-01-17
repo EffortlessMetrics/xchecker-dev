@@ -18,7 +18,7 @@ use crate::runner::CommandSpec;
 ///
 /// # Examples
 /// ```no_run
-/// use xchecker::wsl::is_wsl_available;
+/// use xchecker_engine::wsl::is_wsl_available;
 ///
 /// match is_wsl_available() {
 ///     Ok(true) => println!("WSL is available"),
@@ -68,7 +68,7 @@ pub fn is_wsl_available() -> Result<bool, RunnerError> {
 ///
 /// # Examples
 /// ```no_run
-/// use xchecker::wsl::parse_distro_list;
+/// use xchecker_engine::wsl::parse_distro_list;
 ///
 /// let output = b"Ubuntu-22.04\nDebian\n";
 /// let distros = parse_distro_list(output).unwrap();
@@ -108,7 +108,7 @@ pub fn parse_distro_list(raw: &[u8]) -> Result<Vec<String>, RunnerError> {
 ///
 /// # Examples
 /// ```no_run
-/// use xchecker::wsl::validate_claude_in_wsl;
+/// use xchecker_engine::wsl::validate_claude_in_wsl;
 ///
 /// // Check Claude in default WSL distribution
 /// match validate_claude_in_wsl(None) {
@@ -185,7 +185,7 @@ pub fn validate_claude_in_wsl(distro: Option<&str>) -> Result<bool, RunnerError>
 ///
 /// # Examples
 /// ```no_run
-/// use xchecker::wsl::translate_win_to_wsl;
+/// use xchecker_engine::wsl::translate_win_to_wsl;
 /// use std::path::Path;
 ///
 /// # #[cfg(target_os = "windows")]
@@ -326,7 +326,7 @@ fn translate_path_heuristic(windows_path: &str) -> String {
 ///
 /// # Examples
 /// ```no_run
-/// use xchecker::wsl::translate_env_for_wsl;
+/// use xchecker_engine::wsl::translate_env_for_wsl;
 ///
 /// # #[cfg(target_os = "windows")]
 /// # {

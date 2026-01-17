@@ -1133,7 +1133,7 @@ impl FixupParser {
 /// # Examples
 ///
 /// ```
-/// use xchecker::fixup::normalize_line_endings_for_diff;
+/// use xchecker_engine::fixup::normalize_line_endings_for_diff;
 ///
 /// let crlf_content = "line1\r\nline2\r\n";
 /// let normalized = normalize_line_endings_for_diff(crlf_content);
@@ -1170,7 +1170,7 @@ pub fn normalize_line_endings_for_diff(content: &str) -> String {
 ///
 /// ```no_run
 /// use std::path::Path;
-/// use xchecker::fixup::validate_fixup_target;
+/// use xchecker_engine::fixup::validate_fixup_target;
 ///
 /// let repo_root = Path::new("/home/user/project");
 /// let target = Path::new("src/main.rs");

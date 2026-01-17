@@ -9,12 +9,12 @@
 //! This prevents shell injection attacks by ensuring arguments are passed as discrete
 //! elements rather than shell strings.
 
-mod command_spec;
-mod process;
-mod native;
-mod wsl;
 mod claude;
+mod command_spec;
+mod native;
 mod ndjson;
+mod process;
+mod wsl;
 
 pub use crate::types::RunnerMode;
 

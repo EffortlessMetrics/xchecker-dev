@@ -7,6 +7,6 @@ mod types;
 mod version;
 mod wsl;
 
+pub use super::ndjson::NdjsonResult;
 pub use exec::Runner;
 pub use types::{BufferConfig, ClaudeResponse, WslOptions};
-pub use super::ndjson::NdjsonResult;

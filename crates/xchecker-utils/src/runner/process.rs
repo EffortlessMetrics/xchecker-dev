@@ -75,8 +75,8 @@ impl ProcessOutput {
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker::runner::{ProcessRunner, CommandSpec, ProcessOutput};
-/// use xchecker::error::RunnerError;
+/// use xchecker_utils::runner::{ProcessRunner, CommandSpec, ProcessOutput};
+/// use xchecker_utils::error::RunnerError;
 /// use std::time::Duration;
 ///
 /// struct MyRunner;

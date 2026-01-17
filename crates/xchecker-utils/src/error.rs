@@ -2028,7 +2028,7 @@ impl XCheckerError {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker::error::XCheckerError;
+    /// use xchecker_utils::error::XCheckerError;
     ///
     /// let err = XCheckerError::SecretDetected {
     ///     pattern: "ghp_".to_string(),

@@ -32,16 +32,15 @@ impl Runner {
                 .map_err(|e| RunnerError::NativeExecutionFailed {
                     reason: format!("Failed to execute 'claude --version': {e}"),
                 })?,
-            RunnerMode::Wsl => {
-                self.wsl_command_spec(&["--version".to_string()])
-                    .to_command()
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped())
-                    .output()
-                    .map_err(|e| RunnerError::WslExecutionFailed {
-                        reason: format!("Failed to execute WSL 'claude --version': {e}"),
-                    })?
-            }
+            RunnerMode::Wsl => self
+                .wsl_command_spec(&["--version".to_string()])
+                .to_command()
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output()
+                .map_err(|e| RunnerError::WslExecutionFailed {
+                    reason: format!("Failed to execute WSL 'claude --version': {e}"),
+                })?,
             RunnerMode::Auto => unreachable!("Auto mode resolved above"),
         };
 

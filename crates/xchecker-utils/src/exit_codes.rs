@@ -44,7 +44,7 @@ use crate::types::ErrorKind;
 /// # Example
 ///
 /// ```rust
-/// use xchecker::ExitCode;
+/// use xchecker_utils::exit_codes::ExitCode;
 ///
 /// // Using named constants
 /// let code = ExitCode::SUCCESS;
@@ -63,8 +63,9 @@ use crate::types::ErrorKind;
 /// errors to exit codes:
 ///
 /// ```rust
-/// use xchecker::{XCheckerError, ExitCode};
-/// use xchecker::error::ConfigError;
+/// use xchecker_utils::error::ConfigError;
+/// use xchecker_utils::error::XCheckerError;
+/// use xchecker_utils::exit_codes::ExitCode;
 ///
 /// let err = XCheckerError::Config(ConfigError::InvalidFile("test".to_string()));
 /// assert_eq!(err.to_exit_code(), ExitCode::CLI_ARGS);

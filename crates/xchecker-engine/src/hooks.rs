@@ -42,7 +42,7 @@ use std::time::Duration;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 
-pub use crate::config::{HookConfig, HooksConfig, HookType, OnFail, DEFAULT_HOOK_TIMEOUT_SECS};
+pub use crate::config::{DEFAULT_HOOK_TIMEOUT_SECS, HookConfig, HookType, HooksConfig, OnFail};
 
 /// Error type for hook execution
 /// Reserved for hooks integration; not wired in v1.0

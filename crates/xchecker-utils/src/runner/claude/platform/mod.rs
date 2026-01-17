@@ -17,12 +17,12 @@ pub(crate) async fn terminate_process_by_pid(
 ) -> Result<(), RunnerError> {
     #[cfg(unix)]
     {
-        return unix::terminate_process_unix(pid).await;
+        unix::terminate_process_unix(pid).await
     }
 
     #[cfg(windows)]
     {
-        return windows::terminate_process_windows(pid).await;
+        windows::terminate_process_windows(pid).await
     }
 
     #[cfg(not(any(unix, windows)))]

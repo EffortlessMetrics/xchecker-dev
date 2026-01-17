@@ -136,6 +136,7 @@ impl SourceResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::UserFriendlyError;
 
     #[test]
     fn test_github_source_resolution() {
@@ -180,11 +181,6 @@ mod tests {
 
         assert!(error.user_message().contains("authentication failed"));
         assert!(!error.suggestions().is_empty());
-        assert!(
-            error
-                .suggestions()
-                .iter()
-                .any(|s| s.contains("auth"))
-        );
+        assert!(error.suggestions().iter().any(|s| s.contains("auth")));
     }
 }

@@ -12,26 +12,26 @@ legacy_claude = []
 xchecker-utils = { path = "../xchecker-utils" }
 xchecker-config = { path = "../xchecker-config" }
 xchecker-llm = { path = "../xchecker-llm" }
-anyhow = "1.0.100"
-serde = { version = "=1.0.228", features = ["derive"] }
-serde_json = "=1.0.148"
-blake3 = { version = "=1.8.2", features = ["rayon"] }
-serde_json_canonicalizer = "0.3.1"
-tokio = { version = "=1.49.0", features = ["full"] }
-camino = "1.2.2"
-globset = "0.4.18"
-regex = "1.12.2"
-chrono = { version = "0.4.42", features = ["serde"] }
-tempfile = "3.23.0"
-which = "8.0.0"
-serde_yaml = { package = "serde_yaml_ng", version = "0.10.0" }
-tracing = "0.1.43"
-thiserror = "2.0.17"
-clap = { version = "4.5.53", features = ["derive"] }
-strum = { version = "0.27.2", features = ["derive"], optional = true }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
+serde_json_canonicalizer = { workspace = true }
+tokio = { workspace = true }
+camino = { workspace = true }
+globset = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+tempfile = { workspace = true }
+which = { workspace = true }
+serde_yaml = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+clap = { workspace = true }
+strum = { workspace = true, optional = true }
 
 [dev-dependencies]
-toml = "0.9.8"
+toml = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-dunce = "1.0.5"
+dunce = { workspace = true }
