@@ -103,7 +103,31 @@ jobs:
           # Increase property test cases for nightly runs
           PROPTEST_CASES: 128
 
-      - name: Run test-full (all tests) - Fresh Resolve
+      - name: Run test-full (all tests) - Fresh Resolve (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v ld.lld >/dev/null 2>&1 || command -v lld >/dev/null 2>&1; then
+            if [ -n "${RUSTFLAGS:-}" ]; then
+              export RUSTFLAGS="$RUSTFLAGS -C link-arg=-fuse-ld=lld"
+            else
+              export RUSTFLAGS="-C link-arg=-fuse-ld=lld"
+            fi
+          fi
+          export CARGO_PROFILE_TEST_DEBUG=0
+          export CARGO_PROFILE_DEV_DEBUG=0
+          export CARGO_BUILD_JOBS=1
+          export CARGO_INCREMENTAL=0
+
+          cargo update
+          cargo test --all-features
+        env:
+          # Increase property test cases for nightly runs
+          PROPTEST_CASES: 128
+
+      - name: Run test-full (all tests) - Fresh Resolve (non-Linux)
+        if: runner.os != 'Linux'
         run: |
           cargo update
           cargo test --all-features
@@ -210,6 +234,8 @@ jobs:
             --skip requires_future_api \
             --skip requires_refactoring \
             --skip windows_ci_only
+        env:
+          XCHECKER_E2E: "1"
 
   # ============================================================================
   # EXAMPLE VALIDATION: Validate showcase examples

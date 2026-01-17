@@ -1,21 +1,17 @@
 use std::path::PathBuf;
 
 pub(crate) fn should_run_e2e() -> bool {
+    if std::env::var_os("XCHECKER_E2E").is_none() {
+        return false;
+    }
+
     if std::env::var_os("CARGO_BIN_EXE_claude-stub").is_some()
         || which::which("claude-stub").is_ok()
     {
         return true;
     }
 
-    if which::which("claude").is_ok() {
-        return true;
-    }
-
-    if std::env::var_os("WSL_DISTRO_NAME").is_some() {
-        return true;
-    }
-
-    std::env::var_os("XCHECKER_E2E").is_some()
+    which::which("claude").is_ok()
 }
 
 pub(crate) fn claude_stub_path() -> String {

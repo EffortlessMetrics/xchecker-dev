@@ -59,8 +59,15 @@ impl Runner {
                     in_double = !in_double;
                 }
                 '\\' if in_double => {
-                    if let Some(next) = chars.next() {
-                        current.push(next);
+                    if let Some(&next) = chars.peek() {
+                        if next == '"' {
+                            chars.next();
+                            current.push('"');
+                        } else {
+                            current.push('\\');
+                        }
+                    } else {
+                        current.push('\\');
                     }
                 }
                 c if c.is_whitespace() && !in_single && !in_double => {
@@ -78,5 +85,27 @@ impl Runner {
         }
 
         parts
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Runner;
+
+    #[test]
+    fn split_command_line_preserves_backslashes_in_quotes() {
+        let input = r#""C:\Program Files\Claude\claude.exe" --flag"#;
+        let parts = Runner::split_command_line(input);
+        assert_eq!(
+            parts,
+            vec!["C:\\Program Files\\Claude\\claude.exe", "--flag"]
+        );
+    }
+
+    #[test]
+    fn split_command_line_allows_escaped_quotes() {
+        let input = r#"--arg "value with \"quote\"""#;
+        let parts = Runner::split_command_line(input);
+        assert_eq!(parts, vec!["--arg", r#"value with "quote""#]);
     }
 }
