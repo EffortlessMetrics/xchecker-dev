@@ -25,12 +25,7 @@ impl ReceiptManager {
         let receipt_path = self.receipts_path.join(&filename);
 
         // Serialize receipt to canonical JSON using JCS (RFC 8785)
-        let json_value = serde_json::to_value(receipt)
-            .with_context(|| "Failed to serialize receipt to JSON value")?;
-        let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
-            .with_context(|| "Failed to canonicalize receipt JSON")?;
-        let json_content = String::from_utf8(json_bytes)
-            .with_context(|| "Failed to convert canonical JSON to UTF-8 string")?;
+        let json_content = Self::emit_receipt_jcs(receipt)?;
 
         // Write using atomic operation (tempfile → fsync → rename)
         write_file_atomic(&receipt_path, &json_content).map_err(|e| {

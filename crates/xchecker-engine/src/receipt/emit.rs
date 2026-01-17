@@ -1,3 +1,4 @@
+use anyhow::{Context, Result};
 use chrono::Utc;
 use std::collections::HashMap;
 
@@ -6,6 +7,18 @@ use crate::types::{ErrorKind, FileHash, PacketEvidence, PhaseId, Receipt};
 use super::ReceiptManager;
 
 impl ReceiptManager {
+    /// Emit receipt JSON using JCS canonicalization (RFC 8785).
+    pub(super) fn emit_receipt_jcs(receipt: &Receipt) -> Result<String> {
+        let json_value = serde_json::to_value(receipt)
+            .with_context(|| "Failed to serialize receipt to JSON value")?;
+        let json_bytes = serde_json_canonicalizer::to_vec(&json_value)
+            .with_context(|| "Failed to canonicalize receipt JSON")?;
+        let json_content = String::from_utf8(json_bytes)
+            .with_context(|| "Failed to convert canonical JSON to UTF-8 string")?;
+
+        Ok(json_content)
+    }
+
     /// Create an enhanced receipt for a completed phase
     #[must_use]
     #[allow(clippy::too_many_arguments)]
