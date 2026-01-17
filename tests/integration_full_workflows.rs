@@ -22,52 +22,7 @@ use tempfile::TempDir;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::{PhaseId, Receipt};
 
-/// Check if we should run E2E tests that require Claude CLI
-///
-/// E2E tests are skipped by default unless:
-/// - Claude CLI is found in PATH, OR
-/// - WSL is available with Claude installed, OR
-/// - `XCHECKER_E2E` environment variable is set
-fn should_run_e2e() -> bool {
-    if std::env::var_os("CARGO_BIN_EXE_claude-stub").is_some()
-        || which::which("claude-stub").is_ok()
-    {
-        return true;
-    }
-
-    // Check if Claude is in PATH
-    if which::which("claude").is_ok() {
-        return true;
-    }
-
-    // Check if WSL is available (heuristic for Windows)
-    if std::env::var_os("WSL_DISTRO_NAME").is_some() {
-        return true;
-    }
-
-    // Check if explicitly enabled via environment variable
-    if std::env::var_os("XCHECKER_E2E").is_some() {
-        return true;
-    }
-
-    false
-}
-
-fn claude_stub_path() -> String {
-    if let Ok(path) = std::env::var("CARGO_BIN_EXE_claude-stub") {
-        return path;
-    }
-
-    if let Ok(path) = which::which("claude-stub") {
-        return path.to_string_lossy().to_string();
-    }
-
-    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
-    format!(
-        "cargo run --manifest-path {} --bin claude-stub --",
-        manifest_path.display()
-    )
-}
+mod test_support;
 
 fn normalize_core_yaml_for_determinism(content: &str) -> String {
     content
@@ -125,7 +80,10 @@ impl WorkflowTestEnvironment {
             config: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("runner_mode".to_string(), "native".to_string());
-                map.insert("claude_cli_path".to_string(), claude_stub_path());
+                map.insert(
+                    "claude_cli_path".to_string(),
+                    test_support::claude_stub_path(),
+                );
                 map.insert("claude_scenario".to_string(), "success".to_string());
                 map.insert("verbose".to_string(), "true".to_string());
                 map
@@ -143,7 +101,10 @@ impl WorkflowTestEnvironment {
             config: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("runner_mode".to_string(), "native".to_string());
-                map.insert("claude_cli_path".to_string(), claude_stub_path());
+                map.insert(
+                    "claude_cli_path".to_string(),
+                    test_support::claude_stub_path(),
+                );
                 map.insert("claude_scenario".to_string(), "error".to_string());
                 map
             },
@@ -717,7 +678,7 @@ async fn test_artifact_content_validation() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_error_propagation_and_recovery() -> Result<()> {
-    if !should_run_e2e() {
+    if !test_support::should_run_e2e() {
         eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
         return Ok(());
     }
