@@ -159,7 +159,7 @@ All JSON outputs use JCS (RFC 8785) for canonical emission. Schema versions:
 | 8 | SECRET_DETECTED | Secret found in packet |
 | 9 | LOCK_HELD | Lock already held |
 | 10 | PHASE_TIMEOUT | Phase timed out |
-| 70 | CLAUDE_FAILURE | Claude CLI failed |
+| 70 | CLAUDE_FAILURE | LLM Provider failure |
 
 ## LLM Configuration (V11-V14)
 

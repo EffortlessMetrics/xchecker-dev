@@ -7,7 +7,7 @@ This walkthrough guides you through setting up and running xchecker on your exis
 Before starting, ensure you have:
 
 - **Rust 1.70+** installed (`rustc --version`)
-- **Claude CLI** installed and authenticated (see [DOCTOR.md](DOCTOR.md))
+- **LLM Provider** configured (Claude CLI, Gemini CLI, or API key) (see [LLM_PROVIDERS.md](LLM_PROVIDERS.md))
 - A repository you want to spec out
 
 ## Time Breakdown
