@@ -227,7 +227,8 @@ jobs:
         run: |
           # Run serially to avoid race conditions from tests that use set_current_dir
           # Tests with #[ignore] that change CWD interfere when run in parallel
-          cargo test --tests -- \
+          # Use --features dev-tools so tests can find claude-stub via CARGO_BIN_EXE_claude_stub
+          cargo test --features dev-tools --tests -- \
             --test-threads=1 \
             --include-ignored \
             --skip requires_real_claude \

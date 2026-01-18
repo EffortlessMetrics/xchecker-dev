@@ -57,18 +57,22 @@ impl PhaseOrchestrator {
             .and_then(|s| s.parse::<u64>().ok());
         let runner_mode = orc_config.config.get("runner_mode").cloned();
         let runner_distro = orc_config.config.get("runner_distro").cloned();
-        let claude_cli_path = orc_config.config.get("claude_cli_path").cloned();
-        let claude_path = orc_config
-            .config
-            .get("claude_path")
-            .cloned()
-            .or_else(|| claude_cli_path.clone());
         let llm_provider = orc_config.config.get("llm_provider").cloned();
-        let llm_claude_binary = orc_config
+
+        // Claude binary path precedence (explicit, single chain):
+        // 1. llm_claude_binary (V14+ preferred key)
+        // 2. claude_path (legacy alias)
+        // 3. claude_cli_path (oldest alias)
+        let claude_binary_path = orc_config
             .config
             .get("llm_claude_binary")
-            .cloned()
-            .or(claude_cli_path);
+            .or_else(|| orc_config.config.get("claude_path"))
+            .or_else(|| orc_config.config.get("claude_cli_path"))
+            .cloned();
+
+        // Both variables use the same resolved path for backward compatibility
+        let claude_path = claude_binary_path.clone();
+        let llm_claude_binary = claude_binary_path;
 
         // Helper to build PhaseConfig from OrchestratorConfig keys
         let build_phase_config = |phase_name: &str| -> Option<PhaseConfig> {

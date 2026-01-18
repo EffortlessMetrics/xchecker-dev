@@ -74,9 +74,9 @@ jobs:
           # Reduce link pressure on Ubuntu (prevents ld SIGBUS)
           # These are only effective on Linux but harmless elsewhere
           CARGO_BUILD_JOBS: ${{ runner.os == 'Linux' && '1' || 'default' }}
-          CARGO_INCREMENTAL: ${{ runner.os == 'Linux' && '0' || '' }}
-          CARGO_PROFILE_DEV_DEBUG: ${{ runner.os == 'Linux' && '0' || '' }}
-          CARGO_PROFILE_TEST_DEBUG: ${{ runner.os == 'Linux' && '0' || '' }}
+          CARGO_INCREMENTAL: ${{ runner.os == 'Linux' && '0' || '1' }}
+          CARGO_PROFILE_DEV_DEBUG: ${{ runner.os == 'Linux' && '0' || '2' }}
+          CARGO_PROFILE_TEST_DEBUG: ${{ runner.os == 'Linux' && '0' || '2' }}
         run: |
           if command -v ld.lld >/dev/null 2>&1 || command -v lld >/dev/null 2>&1; then
             if [ -n "${RUSTFLAGS:-}" ]; then
