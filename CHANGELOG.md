@@ -19,17 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Unified Phase Execution**: Introduced `execute_phase_core()` for consistent phase execution.
 - **Developer Guide**: Added `CLAUDE.md` for AI agent guidance and project overview.
 - **Engine Tests**: Added comprehensive engine invariant tests (Suite B3.7-B3.14).
+- **Claude CLI Improvements**: Cross-platform runner with automatic detection, output format configuration, and max turns support.
+- **NDJSON Support**: Implemented NDJSON parsing functionality for streaming responses.
+- **Security Boundaries**: Unified security boundaries and centralized pending fixups handling.
 
 ### Changed
 
 - **Documentation**: Overhauled `README.md`, `ORCHESTRATOR.md`, `CONFIGURATION.md`, and `LLM_PROVIDERS.md`.
 - **Refactoring**: Streamlined `xchecker-utils` and configuration source handling.
 - **Dependencies**: Updated security-critical dependencies and added `libc` for Unix support.
+- **WSL Runner**: Improved WSL runner test assertions and validation logic.
 
 ### Fixed
 
 - **CI/Tests**: Resolved integration test failures with `claude-stub`.
 - **Configuration**: Fixed inconsistency in `ConfigSource` naming (standardized to `Default`).
+- **Path Validation**: Enhanced artifact path validation and canonicalization.
 
 ## [1.0.0] - 2025-12-05
 
