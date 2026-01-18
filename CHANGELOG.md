@@ -18,8 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixup Validation**: Added validation for fixup targets and pending fixups reporting.
 - **Unified Phase Execution**: Introduced `execute_phase_core()` for consistent phase execution.
 - **Developer Guide**: Added `CLAUDE.md` for AI agent guidance and project overview.
-- **Community**: Added GitHub issue and Pull Request templates.
-- **Packaging**: Included `crates.io` packaging specifications in project metadata.
 - **Engine Tests**: Added comprehensive engine invariant tests (Suite B3.7-B3.14).
 - **Claude CLI Improvements**: Cross-platform runner with automatic detection, output format configuration, and max turns support.
 - **NDJSON Support**: Implemented NDJSON parsing functionality for streaming responses.
@@ -30,15 +28,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Documentation**: Overhauled `README.md`, `ORCHESTRATOR.md`, `CONFIGURATION.md`, and `LLM_PROVIDERS.md`.
 - **Refactoring**: Streamlined `xchecker-utils`, consolidated E2E test support, and improved configuration source handling.
-- **Dependencies**: Updated security-critical dependencies and added `libc` for Unix support.
-- **WSL Runner**: Improved WSL runner test assertions and validation logic.
+- **Dependencies**: Updated security-critical dependencies (Reqwest, Tokio) and added `libc` for Unix support.
 
 ### Fixed
 
 - **CI/Tests**: Resolved integration test failures with `claude-stub`.
 - **Configuration**: Fixed inconsistency in `ConfigSource` naming (standardized to `Default`).
 - **Path Validation**: Enhanced artifact path validation and canonicalization.
-- **Guardrails**: Fixed guardrails parsing logic for better resilience.
+
+## [1.0.1] - 2025-12-31
+
+### Added
+
+- **Community**: Added GitHub issue and Pull Request templates.
+- **Packaging**: Included `crates.io` packaging specifications in project metadata.
+- **Documentation**: Added `CI_PROFILES.md` detailing test profiles and strategies.
+
+### Changed
+
+- **Rust Version**: Bumped minimum supported Rust version to 1.89.
+- **Fixup System**: Improved cross-filesystem support and fuzzy edge case handling.
+- **Extraction**: Enhanced extraction module with better error handling.
+- **WSL Runner**: Improved WSL runner test assertions and validation logic.
+
+### Fixed
+
+- **Guardrails**: Fixed guardrails parsing logic for better resilience against LLM output variations.
+- **Dependencies**: Updated and pinned security-critical dependencies.
+
 
 ## [1.0.0] - 2025-12-05
 
