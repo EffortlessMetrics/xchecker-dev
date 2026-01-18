@@ -10,6 +10,6 @@ mod model;
 mod render;
 mod selectors;
 
-pub use builder::{PacketBuilder, DEFAULT_PACKET_MAX_BYTES, DEFAULT_PACKET_MAX_LINES};
+pub use builder::{DEFAULT_PACKET_MAX_BYTES, DEFAULT_PACKET_MAX_LINES, PacketBuilder};
 pub use model::{PriorityRules, SelectedFile};
 pub use selectors::ContentSelector;

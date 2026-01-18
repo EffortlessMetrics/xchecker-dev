@@ -105,8 +105,7 @@ impl ReceiptManager {
         // This ensures no secrets leak into receipts
         let redacted_stderr_tail = stderr_tail.as_ref().map(|s| redactor.redact_string(s));
 
-        let redacted_stderr_redacted =
-            stderr_redacted.as_ref().map(|s| redactor.redact_string(s));
+        let redacted_stderr_redacted = stderr_redacted.as_ref().map(|s| redactor.redact_string(s));
 
         let redacted_warnings = warnings.iter().map(|w| redactor.redact_string(w)).collect();
 

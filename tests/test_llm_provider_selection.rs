@@ -398,7 +398,10 @@ fn test_case_sensitivity_in_provider_names() {
         // Verify it's a ConfigError::InvalidValue
         let error = result.unwrap_err();
         assert!(
-            matches!(error, XCheckerError::Config(ConfigError::InvalidValue { .. })),
+            matches!(
+                error,
+                XCheckerError::Config(ConfigError::InvalidValue { .. })
+            ),
             "Should get ConfigError::InvalidValue for provider '{}'",
             provider
         );
@@ -422,7 +425,10 @@ fn test_multiple_invalid_configs_together() {
     // Verify it's a config error
     let error = result.unwrap_err();
     assert!(
-        matches!(error, XCheckerError::Config(ConfigError::InvalidValue { .. })),
+        matches!(
+            error,
+            XCheckerError::Config(ConfigError::InvalidValue { .. })
+        ),
         "Should get ConfigError::InvalidValue"
     );
 }

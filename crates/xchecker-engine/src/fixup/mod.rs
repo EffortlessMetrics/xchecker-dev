@@ -29,8 +29,8 @@ pub use model::{
 pub use parse::FixupParser;
 pub use paths::validate_fixup_target;
 pub use report::{
-    pending_fixups_for_spec, pending_fixups_from_handle, pending_fixups_result_for_spec,
-    pending_fixups_result_from_handle, PendingFixupsResult, PendingFixupsStats,
+    PendingFixupsResult, PendingFixupsStats, pending_fixups_for_spec, pending_fixups_from_handle,
+    pending_fixups_result_for_spec, pending_fixups_result_from_handle,
 };
 
 #[cfg(test)]

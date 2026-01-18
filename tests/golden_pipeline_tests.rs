@@ -1,4 +1,5 @@
 #![cfg(feature = "legacy_claude")]
+#![allow(clippy::duplicated_attributes)]
 //! Golden Pipeline Tests for Claude CLI Integration
 //!
 //! This module tests the complete Claude CLI integration pipeline with various

@@ -1,11 +1,11 @@
 use super::model::SelectedFile;
 use super::selectors::ContentSelector;
-use crate::cache::{calculate_content_hash, InsightCache};
+use crate::cache::{InsightCache, calculate_content_hash};
 use crate::config::Selectors;
 use crate::error::XCheckerError;
 use crate::logging::Logger;
 use crate::phase::{BudgetUsage, Packet};
-use crate::redaction::{create_secret_detected_error, SecretRedactor};
+use crate::redaction::{SecretRedactor, create_secret_detected_error};
 use crate::types::{FileEvidence, PacketEvidence, Priority};
 use anyhow::{Context, Result};
 use blake3::Hasher;

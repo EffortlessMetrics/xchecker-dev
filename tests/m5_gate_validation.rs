@@ -253,7 +253,10 @@ distro = "Ubuntu-22.04"
     assert_eq!(effective_config.get("max_turns").unwrap().1, "cli");
 
     assert_eq!(effective_config.get("packet_max_bytes").unwrap().0, "32768");
-    assert_eq!(effective_config.get("packet_max_bytes").unwrap().1, "config");
+    assert_eq!(
+        effective_config.get("packet_max_bytes").unwrap().1,
+        "config"
+    );
 
     assert_eq!(effective_config.get("verbose").unwrap().0, "true");
     assert_eq!(effective_config.get("verbose").unwrap().1, "cli");

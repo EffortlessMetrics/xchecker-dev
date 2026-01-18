@@ -250,8 +250,7 @@ impl FixupParser {
         let mut current_hunk_header = None;
 
         // Regex to match hunk headers: @@ -old_start,old_count +new_start,new_count @@
-        let hunk_header_regex =
-            Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap();
+        let hunk_header_regex = Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap();
 
         for line in lines {
             if let Some(captures) = hunk_header_regex.captures(line) {

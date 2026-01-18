@@ -107,8 +107,8 @@ mod tests {
     fn test_fixup_preview_structure() {
         let diff = UnifiedDiff {
             target_file: "test.txt".to_string(),
-            diff_content:
-                "--- a/test.txt\n+++ b/test.txt\n@@ -1,1 +1,2 @@\n line1\n+line2".to_string(),
+            diff_content: "--- a/test.txt\n+++ b/test.txt\n@@ -1,1 +1,2 @@\n line1\n+line2"
+                .to_string(),
             hunks: vec![DiffHunk {
                 old_range: (1, 1),
                 new_range: (1, 2),

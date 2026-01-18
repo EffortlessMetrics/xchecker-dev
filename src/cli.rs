@@ -1597,7 +1597,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("provider")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "provider".to_string(),
@@ -1613,7 +1613,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("model")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "model".to_string(),
@@ -1629,7 +1629,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("max_turns")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "max_turns".to_string(),
@@ -1645,7 +1645,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("phase_timeout")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "phase_timeout".to_string(),
@@ -1661,7 +1661,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("execution_strategy")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "execution_strategy".to_string(),

@@ -54,10 +54,7 @@ impl FixupParser {
                     Err(e) => {
                         validation_passed = false;
                         all_valid = false;
-                        warnings.push(format!(
-                            "Validation failed for {}: {}",
-                            diff.target_file, e
-                        ));
+                        warnings.push(format!("Validation failed for {}: {}", diff.target_file, e));
                         validation_messages.push(e.to_string());
                     }
                 }

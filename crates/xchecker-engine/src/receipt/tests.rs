@@ -1,10 +1,10 @@
-use super::*;
 use super::errors::error_to_exit_code_and_kind;
+use super::*;
 use crate::error::XCheckerError;
+use crate::types::PhaseId;
 use crate::types::{ErrorKind, FileHash, FileType, PacketEvidence, Receipt};
 use chrono::Utc;
 use std::collections::HashMap;
-use crate::types::PhaseId;
 use tempfile::TempDir;
 
 fn create_test_manager() -> (ReceiptManager, TempDir) {

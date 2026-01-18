@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::error::{ConfigError, XCheckerError};
 
 use super::{
-    CliArgs, ClaudeConfig, Config, ConfigSource, Defaults, GeminiConfig, HooksConfig, LlmConfig,
+    ClaudeConfig, CliArgs, Config, ConfigSource, Defaults, GeminiConfig, HooksConfig, LlmConfig,
     PhasesConfig, RunnerConfig, SecurityConfig, Selectors,
 };
 
@@ -437,14 +437,12 @@ impl Config {
     /// Load configuration from TOML file
     fn load_config_file(path: &Path) -> Result<TomlConfig, XCheckerError> {
         match std::fs::read_to_string(path) {
-            Ok(content) => {
-                toml::from_str(&content).map_err(|e| {
-                    XCheckerError::Config(ConfigError::InvalidFile(format!(
-                        "Failed to parse TOML config file {}: {e}",
-                        path.display()
-                    )))
-                })
-            }
+            Ok(content) => toml::from_str(&content).map_err(|e| {
+                XCheckerError::Config(ConfigError::InvalidFile(format!(
+                    "Failed to parse TOML config file {}: {e}",
+                    path.display()
+                )))
+            }),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 // Missing config file is OK - return empty config (will use defaults)
                 Ok(TomlConfig {
