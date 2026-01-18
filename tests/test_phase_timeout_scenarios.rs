@@ -104,7 +104,7 @@ async fn test_timeout_during_packet_building() -> Result<()> {
 /// This is the most common timeout scenario
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
-async fn test_timeout_during_claude_execution() -> Result<()> {
+async fn test_timeout_during_claude_execution_requires_claude_stub() -> Result<()> {
     let (orchestrator, _temp_dir) = setup_test_environment("claude-execution");
 
     // Use a short timeout to trigger during Claude execution
@@ -249,7 +249,7 @@ fn test_timeout_error_serialization() {
 /// This simulates a scenario where writing the artifact takes too long
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
-async fn test_timeout_during_artifact_writing() -> Result<()> {
+async fn test_timeout_during_artifact_writing_requires_claude_stub() -> Result<()> {
     let (orchestrator, _temp_dir) = setup_test_environment("artifact-writing");
 
     // Use a short timeout
@@ -499,7 +499,7 @@ mod integration_tests {
     /// This test requires a mock setup and is ignored by default
     #[tokio::test]
     #[ignore = "requires_claude_stub"]
-    async fn test_full_timeout_flow_with_mock_claude() -> Result<()> {
+    async fn test_full_timeout_flow_with_mock_claude_requires_claude_stub() -> Result<()> {
         let (orchestrator, _temp_dir) = setup_test_environment("full-flow");
 
         // Configure with short timeout
@@ -534,7 +534,7 @@ mod integration_tests {
     /// Test timeout recovery - can we continue after a timeout?
     #[tokio::test]
     #[ignore = "requires_claude_stub"]
-    async fn test_timeout_recovery() -> Result<()> {
+    async fn test_timeout_recovery_requires_claude_stub() -> Result<()> {
         let (orchestrator, _temp_dir) = setup_test_environment("recovery");
 
         // First execution times out

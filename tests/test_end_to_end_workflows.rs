@@ -67,8 +67,8 @@ fn create_success_config() -> OrchestratorConfig {
 /// Test complete workflow from Requirements through Tasks
 /// Validates: FR-ORC-001, FR-ORC-002, FR-PHASE-001, FR-PHASE-002
 #[tokio::test]
-#[ignore = "requires_claude_cli - makes real LLM calls"]
-async fn test_full_spec_generation_workflow() -> Result<()> {
+#[ignore = "requires_real_claude"]
+async fn test_full_spec_generation_workflow_requires_real_claude() -> Result<()> {
     require_llm_tests_enabled();
     let (orchestrator, temp_dir) = setup_test_environment("full-workflow");
     let config = create_success_config();
@@ -106,8 +106,8 @@ async fn test_full_spec_generation_workflow() -> Result<()> {
 /// Test resume capability from Requirements phase
 /// Validates: FR-ORC-002, FR-ORC-003
 #[tokio::test]
-#[ignore = "requires_claude_cli - makes real LLM calls"]
-async fn test_resume_from_requirements() -> Result<()> {
+#[ignore = "requires_real_claude"]
+async fn test_resume_from_requirements_requires_real_claude() -> Result<()> {
     require_llm_tests_enabled();
     let (orchestrator, _temp_dir) = setup_test_environment("resume-req");
     let config = create_success_config();
@@ -152,8 +152,8 @@ async fn test_lock_conflict_prevention() -> Result<()> {
 /// Test complete end-to-end workflow with all features
 /// Validates: All FR-* requirements in integration
 #[tokio::test]
-#[ignore = "requires_claude_cli - makes real LLM calls"]
-async fn test_complete_end_to_end_integration() -> Result<()> {
+#[ignore = "requires_real_claude"]
+async fn test_complete_end_to_end_integration_requires_real_claude() -> Result<()> {
     require_llm_tests_enabled();
     let (orchestrator, temp_dir) = setup_test_environment("complete-e2e");
     let spec_dir = temp_dir.path().join(".xchecker/specs/e2e-complete-e2e");

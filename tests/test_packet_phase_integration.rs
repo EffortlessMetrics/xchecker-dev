@@ -181,7 +181,7 @@ async fn test_secret_scanning_integration() -> Result<()> {
 /// needs to be wired through the phase context to the PacketBuilder
 #[tokio::test]
 #[ignore = "requires_future_api"]
-async fn test_packet_overflow_detection() -> Result<()> {
+async fn test_packet_overflow_detection_requires_future_api() -> Result<()> {
     let (orchestrator, _temp_dir) = setup_test_environment_with_files("overflow");
 
     // Create a very large file that will exceed packet limits
