@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-01-18
+
 ### Added
 
 - **Documentation Overhaul**: Updated `README.md`, `ORCHESTRATOR.md`, `CONFIGURATION.md`, and `LLM_PROVIDERS.md` to reflect V14 availability of multi-provider support (Gemini, OpenRouter, Anthropic)

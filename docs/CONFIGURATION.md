@@ -110,6 +110,20 @@ execution_strategy = "controlled"
 # Optional: Custom Claude CLI binary path
 binary = "/usr/local/bin/claude"
 
+[llm.gemini]
+# Optional: Custom Gemini CLI binary path
+binary = "/usr/local/bin/gemini"
+# Optional: Default model
+default_model = "gemini-2.0-flash-lite"
+
+[llm.anthropic]
+# Anthropic API configuration
+model = "sonnet"
+# Optional: API key environment variable (default: ANTHROPIC_API_KEY)
+api_key_env = "ANTHROPIC_API_KEY"
+# Optional: Base URL
+base_url = "https://api.anthropic.com/v1/messages"
+
 [selectors]
 # File inclusion patterns (glob syntax)
 include = [
