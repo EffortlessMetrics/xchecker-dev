@@ -302,9 +302,38 @@ impl SandboxRoot {
                 rel: rel_path.to_path_buf(),
             })
         } else {
-            // For non-existent paths, we can't canonicalize, but we've already
-            // validated no ".." components and it's relative, so it's safe
+            // For non-existent paths, we need to ensure that the path components
+            // that DO exist don't escape the sandbox (e.g., via symlinks).
+            // This is critical when allow_symlinks is true.
+
+            // Find the longest prefix of full_path that exists
+            let mut ancestor = full_path.clone();
+            while !ancestor.exists() {
+                if !ancestor.pop() {
+                    break;
+                }
+            }
+
+            // Canonicalize the ancestor
+            if ancestor.exists() {
+                let canonical_ancestor = ancestor.canonicalize().map_err(|e| {
+                    SandboxError::PathCanonicalizationFailed {
+                        path: ancestor.display().to_string(),
+                        reason: e.to_string(),
+                    }
+                })?;
+
+                // Verify ancestor is within root
+                if !canonical_ancestor.starts_with(&self.root) {
+                    return Err(SandboxError::EscapeAttempt {
+                        path: rel_path.display().to_string(),
+                        root: self.root.display().to_string(),
+                    });
+                }
+            }
+
             // The full path is root + rel, which is guaranteed to be within root
+            // (assuming no symlink escape, which we just checked)
             Ok(SandboxPath {
                 full: full_path,
                 rel: rel_path.to_path_buf(),
