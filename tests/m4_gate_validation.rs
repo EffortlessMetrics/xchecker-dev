@@ -17,7 +17,6 @@
 //! - R7.5: Verbose logging provides detailed operation logs
 
 use anyhow::Result;
-use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -34,12 +33,14 @@ struct M4TestEnvironment {
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
+    #[allow(dead_code)]
+    cwd_guard: test_support::CwdGuard,
 }
 
 impl M4TestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        env::set_current_dir(temp_dir.path())?;
+        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
         let spec_id = format!("m4-gate-{test_name}");
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
@@ -48,6 +49,7 @@ impl M4TestEnvironment {
             temp_dir,
             orchestrator,
             spec_id,
+            cwd_guard,
         })
     }
 
@@ -67,7 +69,8 @@ impl M4TestEnvironment {
 /// Validates R5.1 requirements for fixup detection and parsing
 #[test]
 fn test_review_detects_fixup_plan_with_unified_diffs() -> Result<()> {
-    let parser = FixupParser::new(FixupMode::Preview, PathBuf::from("."))?;
+    let sandbox = TempDir::new()?;
+    let parser = FixupParser::new(FixupMode::Preview, sandbox.path().to_path_buf())?;
 
     // Test content with FIXUP PLAN: marker and unified diff blocks
     let review_content_with_fixups = r#"
@@ -201,7 +204,8 @@ These changes will ensure the specification is complete and implementable.
 /// Validates R5.1 requirements for alternative fixup marker detection
 #[test]
 fn test_review_detects_needs_fixups_marker() -> Result<()> {
-    let parser = FixupParser::new(FixupMode::Preview, PathBuf::from("."))?;
+    let sandbox = TempDir::new()?;
+    let parser = FixupParser::new(FixupMode::Preview, sandbox.path().to_path_buf())?;
 
     // Test content with "needs fixups" marker
     let review_content_needs_fixups = r"
@@ -607,7 +611,7 @@ fn test_fixup_validation_with_git_apply_check() -> Result<()> {
 #[test]
 fn test_status_command_handles_empty_spec() -> Result<()> {
     let temp_dir = TempDir::new()?;
-    env::set_current_dir(temp_dir.path())?;
+    let _cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
     let spec_id = "empty-spec";
     let orchestrator = PhaseOrchestrator::new(spec_id)?;
