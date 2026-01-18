@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Multi-Provider Support**: Documentation and CLI updates for Gemini, OpenRouter, and Anthropic support (V14 availability).
 - **Packet Construction**: New system with priority-based file selection and configurable size limits.
-- **Receipt System**: Implemented JCS (RFC 8785) serialization and BLAKE3 hashing for execution audit trails.
+- **Receipt System**: Enhanced JCS (RFC 8785) serialization and BLAKE3 hashing for execution audit trails; added comprehensive reading/listing APIs.
 - **Configuration Model**: Comprehensive configuration model with validation, hooks support, and unified `ConfigSource` attribution.
 - **Fixup Validation**: Added validation for fixup targets and pending fixups reporting.
 - **Unified Phase Execution**: Introduced `execute_phase_core()` for consistent phase execution.
@@ -40,22 +40,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Community**: Added GitHub issue and Pull Request templates.
+- **Documentation Suite**: Added `DEBUGGING_GUIDE.md`, `WORKSPACE_GUIDE.md`, and `CI_PROFILES.md` to provide comprehensive operational guidance.
+- **Installation Scripts**: Added `scripts/install.ps1` and `scripts/install.sh` for streamlined cross-platform setup.
+- **Community**: Added GitHub issue and Pull Request templates (`.github/ISSUE_TEMPLATE`, `.github/pull_request_template.md`).
 - **Packaging**: Included `crates.io` packaging specifications in project metadata.
-- **Documentation**: Added `CI_PROFILES.md` detailing test profiles and strategies.
+- **Testing Infrastructure**: 
+  - Added comprehensive fuzzy matching tests (`tests/test_fixup_fuzzy_edge_cases.rs`) covering over 800 lines of scenarios.
+  - Introduced `tests/doc_validation` for automated schema and documentation verification.
+- **Gate System**: Robust implementation of gating logic (`src/gate.rs`) to support CI/CD integration and status checks.
 
 ### Changed
 
+- **Configuration System**: Major expansion of configuration loading and validation logic (Dec 6 updates), improving resilience and attribution.
+- **Fixup Engine**: 
+  - Improved cross-filesystem support for reliable fixes across different drive types.
+  - Enhanced fuzzy matching to handle complex edge cases and near-misses.
+- **Extraction Module**: Significant refactoring for better error handling and robustness in artifact parsing.
 - **Rust Version**: Bumped minimum supported Rust version to 1.89.
-- **Fixup System**: Improved cross-filesystem support and fuzzy edge case handling.
-- **Extraction**: Enhanced extraction module with better error handling.
-- **WSL Runner**: Improved WSL runner test assertions and validation logic.
+- **WSL Runner**: Improved WSL runner test assertions and validation logic for better Windows/Linux interoperability.
 
 ### Fixed
 
-- **Guardrails**: Fixed guardrails parsing logic for better resilience against LLM output variations.
-- **Dependencies**: Updated and pinned security-critical dependencies.
-
+- **Guardrails**: Fixed guardrails parsing logic for better resilience against LLM output variations (bot feedback).
+- **Dependencies**: Updated and pinned security-critical dependencies (Dec 31).
+- **Workflow**: Resolved issues in CI workflows and `release.yml`.
 
 ## [1.0.0] - 2025-12-05
 
