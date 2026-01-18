@@ -11,11 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Documentation Overhaul**: Updated `README.md`, `ORCHESTRATOR.md`, `CONFIGURATION.md`, and `LLM_PROVIDERS.md` to reflect V14 availability of multi-provider support (Gemini, OpenRouter, Anthropic)
-- **Unified Phase Execution Engine**: Introduced `execute_phase_core()` for consistent execution across all phases
-- **LLM Backend Abstraction**: Config-driven provider selection with `LlmBackend` trait
-- **Execution Strategy Configuration**: V11-V14 supports only "controlled" strategy
-- **Comprehensive Engine Invariant Tests**: Test suite B3.7-B3.14 for execution engine validation
+- **Multi-Provider Support**: Documentation and CLI updates for Gemini, OpenRouter, and Anthropic support (V14 availability).
+- **Packet Construction**: New system with priority-based file selection and configurable size limits.
+- **Receipt System**: Implemented JCS (RFC 8785) serialization and BLAKE3 hashing for execution audit trails.
+- **Configuration Model**: Comprehensive configuration model with validation, hooks support, and unified `ConfigSource` attribution.
+- **Fixup Validation**: Added validation for fixup targets and pending fixups reporting.
+- **Unified Phase Execution**: Introduced `execute_phase_core()` for consistent phase execution.
+- **Developer Guide**: Added `CLAUDE.md` for AI agent guidance and project overview.
+- **Engine Tests**: Added comprehensive engine invariant tests (Suite B3.7-B3.14).
+
+### Changed
+
+- **Documentation**: Overhauled `README.md`, `ORCHESTRATOR.md`, `CONFIGURATION.md`, and `LLM_PROVIDERS.md`.
+- **Refactoring**: Streamlined `xchecker-utils` and configuration source handling.
+- **Dependencies**: Updated security-critical dependencies and added `libc` for Unix support.
+
+### Fixed
+
+- **CI/Tests**: Resolved integration test failures with `claude-stub`.
+- **Configuration**: Fixed inconsistency in `ConfigSource` naming (standardized to `Default`).
 
 ## [1.0.0] - 2025-12-05
 
