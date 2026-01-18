@@ -1,0 +1,3 @@
+## 2024-05-21 - Lazy Loading vs Security Scanning
+**Learning:** In xchecker, strict security scanning required scanning *all* files before processing. However, this prevented lazy loading optimization for large repositories. We determined that scanning only *included* files is sufficient for the goal of "preventing secrets from being sent to LLM", even if it technically relaxes the "scan everything" guarantee (secrets in excluded files are ignored).
+**Action:** When optimizing security-critical paths, clarify the scope of the security guarantee. If the goal is "safe output", inputs that don't contribute to output can be skipped.
