@@ -430,7 +430,7 @@ xchecker validates configuration on startup and provides helpful error messages:
 xchecker status my-spec
 
 # This shows:
-# - Source of each setting (CLI > config > defaults)
+# - Source of each setting (CLI > config > programmatic > defaults)
 # - Effective values being used
 # - Any validation warnings
 ```

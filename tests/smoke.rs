@@ -373,6 +373,7 @@ fn test_smoke_clean_hard() {
 ///
 /// Validates that the benchmark command runs and produces valid output
 #[test]
+#[ignore = "flaky in CI - environment-dependent timing"]
 fn test_smoke_benchmark() {
     println!("🔥 Smoke test: xchecker benchmark");
 

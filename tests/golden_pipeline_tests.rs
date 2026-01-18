@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy_claude")]
+#![allow(clippy::duplicated_attributes)]
 //! Golden Pipeline Tests for Claude CLI Integration
 //!
 //! This module tests the complete Claude CLI integration pipeline with various
@@ -21,30 +23,9 @@ use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::runner::{Runner, RunnerMode, WslOptions};
 use xchecker::types::{PhaseId, Receipt};
 
-/// Check if we should run E2E tests that require Claude CLI
-///
-/// E2E tests are skipped by default unless:
-/// - Claude CLI is found in PATH, OR
-/// - WSL is available with Claude installed, OR
-/// - `XCHECKER_E2E` environment variable is set
-fn should_run_e2e() -> bool {
-    // Check if Claude is in PATH
-    if which::which("claude").is_ok() {
-        return true;
-    }
-
-    // Check if WSL is available (heuristic for Windows)
-    if std::env::var_os("WSL_DISTRO_NAME").is_some() {
-        return true;
-    }
-
-    // Check if explicitly enabled via environment variable
-    if std::env::var_os("XCHECKER_E2E").is_some() {
-        return true;
-    }
-
-    false
-}
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
+mod test_support;
 
 /// Test environment for golden pipeline validation
 struct GoldenPipelineTestEnvironment {
@@ -78,11 +59,16 @@ impl GoldenPipelineTestEnvironment {
             .join(&self.spec_id)
     }
 
-    fn create_config_with_scenario(&self, _scenario: &str) -> OrchestratorConfig {
+    fn create_config_with_scenario(&self, scenario: &str) -> OrchestratorConfig {
         OrchestratorConfig {
-            dry_run: true,
+            dry_run: false,
             config: {
                 let mut map = std::collections::HashMap::new();
+                map.insert("runner_mode".to_string(), "native".to_string());
+                let stub_path = test_support::claude_stub_path()
+                    .expect("claude-stub path is required for golden pipeline tests");
+                map.insert("claude_cli_path".to_string(), stub_path);
+                map.insert("claude_scenario".to_string(), scenario.to_string());
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },
@@ -327,7 +313,7 @@ async fn test_plain_text_output_mode() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_various_exit_codes_and_stderr_patterns() -> Result<()> {
-    if !should_run_e2e() {
+    if !test_support::should_run_e2e() {
         eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
         return Ok(());
     }
@@ -509,7 +495,7 @@ async fn test_claude_wrapper_parsing_capabilities() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_error_recovery_scenarios() -> Result<()> {
-    if !should_run_e2e() {
+    if !test_support::should_run_e2e() {
         eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
         return Ok(());
     }

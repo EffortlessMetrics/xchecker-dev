@@ -1,3 +1,4 @@
+#![cfg(feature = "test-utils")]
 //! Security validation tests for redaction system
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`packet::PacketBuilder`,

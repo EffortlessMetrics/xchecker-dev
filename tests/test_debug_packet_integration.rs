@@ -1,3 +1,4 @@
+#![cfg(feature = "test-utils")]
 //! Integration tests for --debug-packet flag behavior (FR-PKT-006, FR-PKT-007)
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`orchestrator::{OrchestratorConfig,
