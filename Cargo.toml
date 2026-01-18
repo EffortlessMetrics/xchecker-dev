@@ -81,7 +81,8 @@ test-utils = ["xchecker-utils/test-utils", "xchecker-engine/test-utils"]
 # Legacy Claude wrapper module - will be removed in V19+
 legacy_claude = ["xchecker-engine/legacy_claude"]
 # Enables dev/test utilities like claude-stub binary (not installed via `cargo install xchecker`)
-dev-tools = ["xchecker-utils/dev-tools"]
+# Also enables test-utils for VariantNames derives needed by doc_validation tests
+dev-tools = ["xchecker-utils/dev-tools", "test-utils"]
 
 [lib]
 name = "xchecker"
@@ -167,6 +168,7 @@ workspace = true
 [dev-dependencies]
 # Dev Dependencies (coarse minima)
 xchecker-utils = { path = "crates/xchecker-utils", features = ["test-utils"] }
+strum = { workspace = true }  # For test access to VariantNames trait
 proptest = { workspace = true }
 serial_test = "3.3.1"
 jsonschema = "0.39.0"

@@ -258,8 +258,8 @@ mod tests {
             "M4 gate tests should cover fixup functionality"
         );
 
-        // Verify fixup.rs module exists
-        let fixup_path = Path::new("crates/xchecker-engine/src/fixup.rs");
+        // Verify fixup module exists (now a directory with mod.rs)
+        let fixup_path = Path::new("crates/xchecker-engine/src/fixup/mod.rs");
         assert!(fixup_path.exists(), "Fixup module should exist");
 
         // Verify documented side effects:
@@ -336,8 +336,8 @@ mod tests {
             "Types module should define ErrorKind enum"
         );
 
-        // Receipt module should handle error receipts
-        let receipt_path = Path::new("crates/xchecker-engine/src/receipt.rs");
+        // Receipt module should handle error receipts (now a directory with mod.rs)
+        let receipt_path = Path::new("crates/xchecker-engine/src/receipt/mod.rs");
         assert!(receipt_path.exists(), "Receipt module should exist");
 
         let receipt_content = fs::read_to_string(receipt_path).unwrap();
