@@ -154,7 +154,8 @@ Please analyze the problem statement above and create structured requirements fo
         let context_dir = base_path.join("context");
 
         // Create PacketBuilder with selectors from context (if configured)
-        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
+        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?
+            .allow_symlinks(ctx.config.get("allow_links").is_some_and(|s| s == "true"));
         *builder.redactor_mut() = (*ctx.redactor).clone();
 
         // Build packet from base path
@@ -379,7 +380,8 @@ Please analyze the requirements and create a comprehensive design document follo
         let context_dir = base_path.join("context");
 
         // Create PacketBuilder with selectors from context (if configured)
-        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
+        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?
+            .allow_symlinks(ctx.config.get("allow_links").is_some_and(|s| s == "true"));
         *builder.redactor_mut() = (*ctx.redactor).clone();
 
         // Build packet from base path
@@ -609,7 +611,8 @@ Please analyze the design and requirements to create a comprehensive implementat
         let context_dir = base_path.join("context");
 
         // Create PacketBuilder with selectors from context (if configured)
-        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
+        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?
+            .allow_symlinks(ctx.config.get("allow_links").is_some_and(|s| s == "true"));
         *builder.redactor_mut() = (*ctx.redactor).clone();
 
         // Build packet from base path

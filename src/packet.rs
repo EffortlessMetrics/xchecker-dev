@@ -34,6 +34,8 @@ pub struct ContentSelector {
     exclude_patterns: GlobSet,
     /// Priority rules for content selection
     priority_rules: PriorityRules,
+    /// Whether to follow symlinks (default: false)
+    allow_symlinks: bool,
 }
 
 /// Priority rules defining the selection order
@@ -111,7 +113,15 @@ impl ContentSelector {
             include_patterns: include_builder.build()?,
             exclude_patterns: exclude_builder.build()?,
             priority_rules: PriorityRules::default(),
+            allow_symlinks: false,
         })
+    }
+
+    /// Enable or disable symlink following
+    #[must_use]
+    pub fn allow_symlinks(mut self, allow: bool) -> Self {
+        self.allow_symlinks = allow;
+        self
     }
 
     /// Create a `ContentSelector` with custom patterns
@@ -132,6 +142,7 @@ impl ContentSelector {
             include_patterns: include_builder.build()?,
             exclude_patterns: exclude_builder.build()?,
             priority_rules: PriorityRules::default(),
+            allow_symlinks: false,
         })
     }
 
@@ -162,6 +173,7 @@ impl ContentSelector {
                     include_patterns: include_builder.build()?,
                     exclude_patterns: exclude_builder.build()?,
                     priority_rules: PriorityRules::default(),
+                    allow_symlinks: false,
                 })
             }
             None => Self::new(),
@@ -208,7 +220,7 @@ impl ContentSelector {
         let mut files = Vec::new();
 
         // Walk the directory tree
-        self.walk_directory(base_path, &mut files)?;
+        self.walk_directory(base_path, base_path, &mut files)?;
 
         // Sort by priority (Upstream first, then High, Medium, Low)
         // Within each priority, maintain LIFO order (reverse chronological)
@@ -226,7 +238,12 @@ impl ContentSelector {
     }
 
     /// Recursively walk directory and collect matching files
-    fn walk_directory(&self, dir: &Utf8Path, files: &mut Vec<SelectedFile>) -> Result<()> {
+    fn walk_directory(
+        &self,
+        root: &Utf8Path,
+        dir: &Utf8Path,
+        files: &mut Vec<SelectedFile>,
+    ) -> Result<()> {
         if !dir.exists() {
             return Ok(());
         }
@@ -234,9 +251,31 @@ impl ContentSelector {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
             let path = Utf8PathBuf::try_from(entry.path()).context("Invalid UTF-8 path")?;
+            let file_type = entry.file_type()?;
 
+            // Handle symlinks
+            if file_type.is_symlink() {
+                if !self.allow_symlinks {
+                    continue;
+                }
+
+                // If symlinks are allowed, check for sandbox escape
+                // Fail closed: if canonicalization fails, assume unsafe
+                let safe = match (fs::canonicalize(&path), fs::canonicalize(root)) {
+                    (Ok(canonical_path), Ok(canonical_root)) => {
+                        canonical_path.starts_with(&canonical_root)
+                    }
+                    _ => false,
+                };
+
+                if !safe {
+                    continue;
+                }
+            }
+
+            // Recurse into directories (including symlinked directories if allowed)
             if path.is_dir() {
-                self.walk_directory(&path, files)?;
+                self.walk_directory(root, &path, files)?;
             } else if self.should_include(&path) {
                 let priority = self.get_priority(&path);
                 let content = fs::read_to_string(&path)
@@ -568,6 +607,14 @@ impl PacketBuilder {
     #[allow(dead_code)] // Builder accessor for API surface
     pub const fn redactor(&self) -> &SecretRedactor {
         &self.redactor
+    }
+
+    /// Enable or disable symlink following for content selection
+    #[must_use]
+    #[allow(dead_code)] // Builder configuration method
+    pub fn allow_symlinks(mut self, allow: bool) -> Self {
+        self.selector = self.selector.allow_symlinks(allow);
+        self
     }
 
     /// Get a mutable reference to the cache for configuration
