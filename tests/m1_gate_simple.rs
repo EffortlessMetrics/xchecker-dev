@@ -11,7 +11,6 @@
 //! Requirements phase with the Claude stub and verifying the results.
 
 use anyhow::Result;
-use std::env;
 use tempfile::TempDir;
 use xchecker::runner::Runner;
 
@@ -19,13 +18,17 @@ use xchecker::claude::ClaudeWrapper;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::PhaseId;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
+mod test_support;
+
 /// Test the complete Requirements phase with Claude integration
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_m1_gate_requirements_phase_integration() -> Result<()> {
     // Setup test environment
     let temp_dir = TempDir::new()?;
-    env::set_current_dir(temp_dir.path())?;
+    let _cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
     let spec_id = "m1-gate-test";
     let orchestrator = PhaseOrchestrator::new(spec_id)?;

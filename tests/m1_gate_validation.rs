@@ -20,7 +20,6 @@
 //! - R12.1, R12.2: Runner system with auto-detection
 
 use anyhow::Result;
-use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -29,8 +28,17 @@ use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::runner::{Runner, WslOptions};
 use xchecker::types::{PhaseId, RunnerMode};
 
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
+mod test_support;
+
 /// Test environment setup for M1 Gate validation
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
 struct M1TestEnvironment {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
@@ -39,12 +47,13 @@ struct M1TestEnvironment {
 impl M1TestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        env::set_current_dir(temp_dir.path())?;
+        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
         let spec_id = format!("m1-gate-{}", test_name);
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
+            _cwd_guard: cwd_guard,
             temp_dir,
             orchestrator,
             spec_id,

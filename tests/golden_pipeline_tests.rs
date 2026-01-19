@@ -14,7 +14,6 @@
 //! (artifact staging, receipt generation, etc.) rather than `OrchestratorHandle`.
 
 use anyhow::Result;
-use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -28,7 +27,12 @@ use xchecker::types::{PhaseId, Receipt};
 mod test_support;
 
 /// Test environment for golden pipeline validation
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
 struct GoldenPipelineTestEnvironment {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
@@ -37,7 +41,7 @@ struct GoldenPipelineTestEnvironment {
 impl GoldenPipelineTestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        env::set_current_dir(temp_dir.path())?;
+        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
         // Create .xchecker directory structure
         std::fs::create_dir_all(temp_dir.path().join(".xchecker/specs"))?;
@@ -46,6 +50,7 @@ impl GoldenPipelineTestEnvironment {
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
+            _cwd_guard: cwd_guard,
             temp_dir,
             orchestrator,
             spec_id,

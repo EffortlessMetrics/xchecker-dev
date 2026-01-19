@@ -10,7 +10,6 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
-use std::env;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -20,19 +19,38 @@ use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator, PhaseTimeout
 use xchecker::receipt::ReceiptManager;
 use xchecker::types::{ErrorKind, PhaseId};
 
-/// Helper to set up test environment
-fn setup_test_environment(test_name: &str) -> (PhaseOrchestrator, TempDir, PathBuf) {
-    let temp_dir = TempDir::new().unwrap();
-    let _original_dir = env::current_dir().unwrap();
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
+mod test_support;
 
-    env::set_current_dir(temp_dir.path()).unwrap();
+/// Test environment for M4 gate tests
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
+struct TestEnv {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
+    temp_dir: TempDir,
+    spec_base: PathBuf,
+    orchestrator: PhaseOrchestrator,
+}
+
+/// Helper to set up test environment
+fn setup_test_environment(test_name: &str) -> TestEnv {
+    let temp_dir = TempDir::new().unwrap();
+    let cwd_guard = test_support::CwdGuard::new(temp_dir.path()).unwrap();
 
     let spec_id = format!("test-m4-{test_name}");
     let orchestrator = PhaseOrchestrator::new(&spec_id).unwrap();
 
     let spec_base = temp_dir.path().join(".xchecker/specs").join(&spec_id);
 
-    (orchestrator, temp_dir, spec_base)
+    TestEnv {
+        _cwd_guard: cwd_guard,
+        temp_dir,
+        spec_base,
+        orchestrator,
+    }
 }
 
 /// Test that `write_error_receipt_and_exit` creates receipt with matching exit code
@@ -188,7 +206,8 @@ fn test_error_receipt_exit_code_alignment() {
 /// Test that timeout creates partial artifact with correct naming
 #[tokio::test]
 async fn test_timeout_creates_partial_artifact() -> Result<()> {
-    let (_orchestrator, _temp_dir, spec_base) = setup_test_environment("timeout-partial");
+    let env = setup_test_environment("timeout-partial");
+    let spec_base = env.spec_base;
 
     // Simulate timeout by calling handle_phase_timeout directly
     // (This is a private method, so we test the public behavior through execute_phase)

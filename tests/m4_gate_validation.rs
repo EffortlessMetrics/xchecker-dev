@@ -29,12 +29,15 @@ use xchecker::types::PhaseId;
 mod test_support;
 
 /// Test environment setup for M4 Gate validation
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
 struct M4TestEnvironment {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
-    #[allow(dead_code)]
-    cwd_guard: test_support::CwdGuard,
 }
 
 impl M4TestEnvironment {
@@ -46,10 +49,10 @@ impl M4TestEnvironment {
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
+            _cwd_guard: cwd_guard,
             temp_dir,
             orchestrator,
             spec_id,
-            cwd_guard,
         })
     }
 

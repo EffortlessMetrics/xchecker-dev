@@ -16,7 +16,6 @@
 //! - R4.2: Resume functionality from intermediate phases
 
 use anyhow::Result;
-use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -29,7 +28,12 @@ use xchecker::types::{FileType, PhaseId};
 mod test_support;
 
 /// Test environment setup for M3 Gate validation
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
 struct M3TestEnvironment {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
@@ -38,12 +42,13 @@ struct M3TestEnvironment {
 impl M3TestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        env::set_current_dir(temp_dir.path())?;
+        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
         let spec_id = format!("m3-gate-{test_name}");
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
+            _cwd_guard: cwd_guard,
             temp_dir,
             orchestrator,
             spec_id,

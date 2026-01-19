@@ -15,7 +15,6 @@
 //! - R4.2: Resume scenarios and failure recovery
 
 use anyhow::Result;
-use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -45,7 +44,12 @@ fn normalize_core_yaml_for_determinism(content: &str) -> String {
 }
 
 /// Test environment setup for full workflow validation
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
 struct WorkflowTestEnvironment {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
@@ -54,7 +58,7 @@ struct WorkflowTestEnvironment {
 impl WorkflowTestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        env::set_current_dir(temp_dir.path())?;
+        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
         // Create .xchecker directory structure
         std::fs::create_dir_all(temp_dir.path().join(".xchecker/specs"))?;
@@ -63,6 +67,7 @@ impl WorkflowTestEnvironment {
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
+            _cwd_guard: cwd_guard,
             temp_dir,
             orchestrator,
             spec_id,
