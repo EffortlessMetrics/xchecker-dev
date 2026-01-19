@@ -7,6 +7,7 @@
 
 use crate::redaction::SecretRedactor;
 use chrono::{DateTime, Utc};
+use crossterm::style::Stylize;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use sysinfo::{Pid, System};
@@ -953,35 +954,36 @@ impl Logger {
 pub fn log_doctor_report(report: &crate::doctor::DoctorOutput) {
     use crate::doctor::CheckStatus;
 
-    println!("=== xchecker Environment Health Check ===");
+    println!(
+        "{}",
+        "=== xchecker Environment Health Check ===".bold().cyan()
+    );
     println!();
 
     for check in &report.checks {
-        let status_symbol = match check.status {
-            CheckStatus::Pass => "✓",
-            CheckStatus::Warn => "⚠",
-            CheckStatus::Fail => "✗",
+        let (status_symbol, status_text, style) = match check.status {
+            CheckStatus::Pass => ("✓", "PASS", crossterm::style::Color::Green),
+            CheckStatus::Warn => ("⚠", "WARN", crossterm::style::Color::Yellow),
+            CheckStatus::Fail => ("✗", "FAIL", crossterm::style::Color::Red),
         };
 
-        let status_text = match check.status {
-            CheckStatus::Pass => "PASS",
-            CheckStatus::Warn => "WARN",
-            CheckStatus::Fail => "FAIL",
-        };
-
-        println!("{} {} [{}]", status_symbol, check.name, status_text);
+        println!(
+            "{} {} [{}]",
+            status_symbol.with(style),
+            check.name.as_str().bold(),
+            status_text.with(style)
+        );
         println!("  {}", check.details);
         println!();
     }
 
-    println!(
-        "Overall status: {}",
-        if report.ok {
-            "✓ HEALTHY"
-        } else {
-            "✗ ISSUES DETECTED"
-        }
-    );
+    let overall_status = if report.ok {
+        "✓ HEALTHY".green().bold()
+    } else {
+        "✗ ISSUES DETECTED".red().bold()
+    };
+
+    println!("Overall status: {}", overall_status);
 }
 
 /// Log cache statistics (standalone function for use outside Logger)
