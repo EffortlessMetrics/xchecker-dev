@@ -11,6 +11,7 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use std::collections::BTreeMap;
+use tracing::warn;
 
 use crate::artifact::ArtifactManager;
 use crate::orchestrator::PhaseOrchestrator;
@@ -200,7 +201,14 @@ impl StatusManager {
                 "programmatic" => ConfigSource::Programmatic,
                 "default" | "defaults" => ConfigSource::Default,
                 _ if normalized.contains("config file") => ConfigSource::Config,
-                _ => ConfigSource::Default,
+                _ => {
+                    warn!(
+                        key = %key,
+                        source_label = %source_str,
+                        "Unknown ConfigSource label, falling back to Default"
+                    );
+                    ConfigSource::Default
+                }
             };
 
             // Redact value if redactor is available
