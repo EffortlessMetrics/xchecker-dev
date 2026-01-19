@@ -40,9 +40,9 @@ pub(crate) fn claude_stub_path() -> Option<String> {
         return Some(path);
     }
 
-    // PATH fallbacks: check for claude-stub binary, then fall back to claude
+    // PATH fallback: only check for claude-stub binary
+    // Do NOT fall back to real `claude` - tests using the stub rely on stub-specific scenarios
     which::which("claude-stub")
-        .or_else(|_| which::which("claude"))
         .ok()
         .map(|path| path.to_string_lossy().to_string())
 }

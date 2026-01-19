@@ -125,6 +125,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "Request timeout: operation timed out",
         )?,
         "slow" => handle_slow_scenario(output_format, no_sleep, model, &response)?,
+        "hang" | "block" => handle_hang_scenario()?,
         _ => handle_success_scenario(output_format, no_sleep, model, &response)?,
     }
 
@@ -241,6 +242,21 @@ fn handle_slow_scenario(
         thread::sleep(Duration::from_millis(500));
     }
     handle_success_scenario(output_format, no_sleep, model, content)
+}
+
+/// Blocks for a configurable duration to test timeout handling.
+/// Duration is read from CLAUDE_STUB_HANG_SECS env var (default: 10 seconds).
+fn handle_hang_scenario() -> Result<(), Box<dyn std::error::Error>> {
+    let hang_secs: u64 = std::env::var("CLAUDE_STUB_HANG_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(10);
+
+    thread::sleep(Duration::from_secs(hang_secs));
+
+    // After hanging, return success (though the caller should have killed us by now)
+    println!("# Hang scenario completed after {} seconds", hang_secs);
+    Ok(())
 }
 
 fn emit_partial_output(
