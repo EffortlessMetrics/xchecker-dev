@@ -1,4 +1,4 @@
-use super::model::{PriorityRules, SelectedFile};
+use super::model::{CandidateFile, PriorityRules, SelectedFile};
 use crate::config::Selectors;
 use crate::types::Priority;
 use anyhow::{Context, Result};
@@ -93,6 +93,12 @@ impl ContentSelector {
         self
     }
 
+    /// Get the maximum file size limit in bytes.
+    #[must_use]
+    pub const fn get_max_file_size(&self) -> u64 {
+        self.max_file_size
+    }
+
     /// Create a `ContentSelector` with custom patterns
     /// Alternative constructor for custom pattern configuration
     #[allow(dead_code)] // Alternative API constructor
@@ -185,17 +191,26 @@ impl ContentSelector {
         self.include_patterns.is_match(path_str)
     }
 
-    /// Select files from a directory with priority-based ordering
+    /// Select candidates from a directory with priority-based ordering
     /// Returns files grouped by priority, with LIFO ordering within each group
-    pub fn select_files(&self, base_path: &Utf8Path) -> Result<Vec<SelectedFile>> {
-        let mut files = Vec::new();
+    /// This method is lazy: it does not read file content.
+    pub fn select_candidates(&self, base_path: &Utf8Path) -> Result<Vec<CandidateFile>> {
+        let mut paths = Vec::new();
 
         // Walk the directory tree, passing root for symlink sandbox validation
-        self.walk_directory(base_path, base_path, &mut files)?;
+        self.walk_directory_paths(base_path, base_path, &mut paths)?;
+
+        let mut candidates: Vec<CandidateFile> = paths
+            .into_iter()
+            .map(|path| {
+                let priority = self.get_priority(&path);
+                CandidateFile { path, priority }
+            })
+            .collect();
 
         // Sort by priority (Upstream first, then High, Medium, Low)
         // Within each priority, maintain LIFO order (reverse chronological)
-        files.sort_by(|a, b| {
+        candidates.sort_by(|a, b| {
             match a.priority.cmp(&b.priority) {
                 std::cmp::Ordering::Equal => {
                     // Within same priority, use LIFO (reverse order)
@@ -205,10 +220,75 @@ impl ContentSelector {
             }
         });
 
+        Ok(candidates)
+    }
+
+    /// Select files from a directory with priority-based ordering
+    /// Returns files grouped by priority, with LIFO ordering within each group
+    ///
+    /// # Legacy Note
+    /// This method is eager (reads all content). Use `select_candidates` for lazy loading.
+    pub fn select_files(&self, base_path: &Utf8Path) -> Result<Vec<SelectedFile>> {
+        let candidates = self.select_candidates(base_path)?;
+        let mut files = Vec::with_capacity(candidates.len());
+
+        for candidate in candidates {
+            // DoS protection: check file size before reading to prevent memory exhaustion
+            // Note: fs::metadata follows symlinks, which is correct here (we want target size)
+            let metadata = fs::metadata(&candidate.path)
+                .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
+
+            if !metadata.is_file() {
+                // Skip special files (pipes, devices, etc.) that might block reading
+                continue;
+            }
+
+            if metadata.len() > self.max_file_size {
+                // For upstream files (critical context), fail hard if they exceed the limit
+                if candidate.priority == Priority::Upstream {
+                    return Err(anyhow::anyhow!(
+                        "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                         Critical context files must fit within the configured limit.",
+                        candidate.path,
+                        self.max_file_size,
+                        metadata.len()
+                    ));
+                }
+
+                warn!(
+                    "Skipping large file: {} ({} bytes > limit {})",
+                    candidate.path,
+                    metadata.len(),
+                    self.max_file_size
+                );
+                continue;
+            }
+
+            let content = fs::read_to_string(&candidate.path)
+                .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+            // Calculate pre-redaction hash
+            let mut hasher = Hasher::new();
+            hasher.update(content.as_bytes());
+            let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
+
+            let line_count = content.lines().count();
+            let byte_count = content.len();
+
+            files.push(SelectedFile {
+                path: candidate.path,
+                content,
+                priority: candidate.priority,
+                blake3_pre_redaction,
+                line_count,
+                byte_count,
+            });
+        }
+
         Ok(files)
     }
 
-    /// Recursively walk directory and collect matching files.
+    /// Recursively walk directory and collect matching file paths.
     ///
     /// # Security
     ///
@@ -217,11 +297,11 @@ impl ContentSelector {
     /// - When `allow_symlinks` is true, symlinks are only followed if their
     ///   canonical path is within the `root` directory (sandbox validation)
     /// - Broken symlinks or canonicalization failures result in skipping (fail-closed)
-    fn walk_directory(
+    fn walk_directory_paths(
         &self,
         root: &Utf8Path,
         dir: &Utf8Path,
-        files: &mut Vec<SelectedFile>,
+        paths: &mut Vec<Utf8PathBuf>,
     ) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -256,59 +336,10 @@ impl ContentSelector {
 
             // Recurse into directories (including validated symlinked directories)
             if path.is_dir() {
-                self.walk_directory(root, &path, files)?;
+                self.walk_directory_paths(root, &path, paths)?;
             } else if self.should_include(&path) {
-                // Check file size before reading to prevent DoS
-                // Note: fs::metadata follows symlinks, which is correct here (we want target size)
-                let metadata = fs::metadata(&path).context("Failed to get file metadata")?;
-
-                if !metadata.is_file() {
-                    // Skip special files (pipes, devices, etc.) that might block reading
-                    continue;
-                }
-
-                let priority = self.get_priority(&path);
-
-                if metadata.len() > self.max_file_size {
-                    // For upstream files (critical context), fail hard if they exceed the limit
-                    if priority == Priority::Upstream {
-                        return Err(anyhow::anyhow!(
-                            "Upstream file {} exceeds size limit of {} bytes (size: {}). \
-                             Critical context files must fit within the configured limit.",
-                            path,
-                            self.max_file_size,
-                            metadata.len()
-                        ));
-                    }
-
-                    warn!(
-                        "Skipping large file: {} ({} bytes > limit {})",
-                        path,
-                        metadata.len(),
-                        self.max_file_size
-                    );
-                    continue;
-                }
-
-                let content = fs::read_to_string(&path)
-                    .with_context(|| format!("Failed to read file: {path}"))?;
-
-                // Calculate pre-redaction hash
-                let mut hasher = Hasher::new();
-                hasher.update(content.as_bytes());
-                let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
-
-                let line_count = content.lines().count();
-                let byte_count = content.len();
-
-                files.push(SelectedFile {
-                    path: path.clone(),
-                    content,
-                    priority,
-                    blake3_pre_redaction,
-                    line_count,
-                    byte_count,
-                });
+                // Just collect the path; DoS protection happens in select_files
+                paths.push(path);
             }
         }
 
