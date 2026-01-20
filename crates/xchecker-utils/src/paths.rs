@@ -398,23 +398,21 @@ impl SandboxRoot {
             }
         }
 
-        // If we found an existing ancestor, canonicalize it and verify containment
-        if ancestor.exists() {
-            let canonical_ancestor =
-                ancestor
-                    .canonicalize()
-                    .map_err(|e| SandboxError::PathCanonicalizationFailed {
-                        path: ancestor.display().to_string(),
-                        reason: e.to_string(),
-                    })?;
+        // Canonicalize the existing ancestor and verify containment
+        let canonical_ancestor =
+            ancestor
+                .canonicalize()
+                .map_err(|e| SandboxError::PathCanonicalizationFailed {
+                    path: ancestor.display().to_string(),
+                    reason: e.to_string(),
+                })?;
 
-            // Verify the canonical ancestor is within the sandbox root
-            if !canonical_ancestor.starts_with(&self.root) {
-                return Err(SandboxError::EscapeAttempt {
-                    path: rel_path.display().to_string(),
-                    root: self.root.display().to_string(),
-                });
-            }
+        // Verify the canonical ancestor is within the sandbox root
+        if !canonical_ancestor.starts_with(&self.root) {
+            return Err(SandboxError::EscapeAttempt {
+                path: rel_path.display().to_string(),
+                root: self.root.display().to_string(),
+            });
         }
 
         Ok(())
