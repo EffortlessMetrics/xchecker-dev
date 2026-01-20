@@ -962,19 +962,60 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     );
     println!();
 
+    // Helper to convert snake_case to Title Case
+    fn to_title_case(s: &str) -> String {
+        s.split('_')
+            .map(|word| {
+                let mut c = word.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            })
+            .collect::<Vec<String>>()
+            .join(" ")
+    }
+
     for check in &report.checks {
-        let (status_symbol, status_text, color) = match check.status {
-            CheckStatus::Pass => ("✓", "PASS", Color::Green),
-            CheckStatus::Warn => ("⚠", "WARN", Color::Yellow),
-            CheckStatus::Fail => ("✗", "FAIL", Color::Red),
+        let (status_symbol, color) = match check.status {
+            CheckStatus::Pass => ("✓", Color::Green),
+            CheckStatus::Warn => ("⚠", Color::Yellow),
+            CheckStatus::Fail => ("✗", Color::Red),
         };
 
-        println!(
-            "{} {} [{}]",
-            status_symbol.with(color).attribute(Attribute::Bold),
-            check.name.clone().attribute(Attribute::Bold),
-            status_text.with(color).attribute(Attribute::Bold)
-        );
+        // Format name as Title Case for better readability (e.g., claude_path -> Claude Path)
+        let formatted_name = to_title_case(&check.name);
+
+        // Build the status line
+        // Pass: "✓ Claude Path"
+        // Warn: "⚠ Claude Path [WARN]"
+        // Fail: "✗ Claude Path [FAIL]"
+        match check.status {
+            CheckStatus::Pass => {
+                println!(
+                    "{} {}",
+                    status_symbol.with(color).attribute(Attribute::Bold),
+                    formatted_name.attribute(Attribute::Bold)
+                );
+            }
+            CheckStatus::Warn => {
+                println!(
+                    "{} {} {}",
+                    status_symbol.with(color).attribute(Attribute::Bold),
+                    formatted_name.attribute(Attribute::Bold),
+                    "[WARN]".with(color).attribute(Attribute::Bold)
+                );
+            }
+            CheckStatus::Fail => {
+                println!(
+                    "{} {} {}",
+                    status_symbol.with(color).attribute(Attribute::Bold),
+                    formatted_name.attribute(Attribute::Bold),
+                    "[FAIL]".with(color).attribute(Attribute::Bold)
+                );
+            }
+        }
+
         println!("  {}", check.details);
         println!();
     }
