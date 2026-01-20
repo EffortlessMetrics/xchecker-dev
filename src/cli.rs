@@ -27,7 +27,7 @@ use crate::spec_id::sanitize_spec_id;
 /// xchecker - Claude orchestration tool for spec generation
 #[derive(Parser)]
 #[command(name = "xchecker")]
-#[command(about = "A CLI tool for orchestrating spec generation workflows using the Claude CLI")]
+#[command(about = "A CLI tool for orchestrating spec generation workflows using LLM providers")]
 #[command(long_about = r#"
 xchecker is a deterministic, token-efficient pipeline that transforms rough ideas
 into detailed implementation plans through a structured phase-based approach.
@@ -68,7 +68,7 @@ CONFIGURATION:
 PHASES:
   Requirements → Design → Tasks → Review → Fixup → Final
   Each phase produces artifacts and receipts for auditability
-  Use --dry-run to see planned execution without making Claude calls
+  Use --dry-run to see planned execution without making LLM calls
 
 For more information, see: https://github.com/your-org/xchecker
 "#)]
@@ -78,7 +78,7 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub config: Option<PathBuf>,
 
-    /// Model to use for Claude CLI calls
+    /// Model to use for LLM provider calls
     #[arg(long, global = true)]
     pub model: Option<String>,
 
@@ -212,7 +212,7 @@ pub enum Commands {
         #[arg(long, help = "Path to local repository directory")]
         repo: Option<String>,
 
-        /// Run in dry-run mode (show what would be executed without making Claude calls)
+        /// Run in dry-run mode (show what would be executed without making LLM calls)
         #[arg(long)]
         dry_run: bool,
 
@@ -267,7 +267,7 @@ pub enum Commands {
         #[arg(long, value_parser = ["requirements", "design", "tasks", "review", "fixup", "final"])]
         phase: String,
 
-        /// Run in dry-run mode (show what would be executed without making Claude calls)
+        /// Run in dry-run mode (show what would be executed without making LLM calls)
         #[arg(long)]
         dry_run: bool,
 
@@ -678,10 +678,7 @@ pub fn run() -> Result<(), ExitCode> {
     // Discover and load configuration
     let config = match Config::discover(&cli_args) {
         Ok(config) => config,
-        Err(e) => {
-            let err = XCheckerError::Config(ConfigError::DiscoveryFailed {
-                reason: e.to_string(),
-            });
+        Err(err) => {
             let contextual_report = error_utils::create_contextual_report(&err, "config");
             eprintln!("{contextual_report}");
             return Err(err.to_exit_code());
@@ -1600,7 +1597,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("provider")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "provider".to_string(),
@@ -1616,7 +1613,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("model")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "model".to_string(),
@@ -1632,7 +1629,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("max_turns")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "max_turns".to_string(),
@@ -1648,7 +1645,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("phase_timeout")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "phase_timeout".to_string(),
@@ -1664,7 +1661,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
             let source = config
                 .source_attribution
                 .get("execution_strategy")
-                .map(|s| s.clone().into())
+                .cloned()
                 .unwrap_or(ConfigSource::Config);
             effective_config.insert(
                 "execution_strategy".to_string(),

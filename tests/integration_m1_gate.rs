@@ -1,3 +1,4 @@
+#![cfg(feature = "legacy_claude")]
 //! M1 Gate Integration Tests
 //!
 //! **WHITE-BOX TEST**: This test uses internal module APIs (`runner::Runner`,
@@ -15,7 +16,6 @@
 //! - R2.1: Receipt contains all required metadata and version information
 
 use anyhow::Result;
-use std::env;
 use std::path::PathBuf;
 use tempfile::TempDir;
 use xchecker::runner::Runner;
@@ -24,8 +24,17 @@ use xchecker::claude::ClaudeWrapper;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::PhaseId;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
+mod test_support;
+
 /// Test environment setup for M1 Gate validation
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
 struct M1TestEnvironment {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
     temp_dir: TempDir,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
@@ -34,12 +43,13 @@ struct M1TestEnvironment {
 impl M1TestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
         let temp_dir = TempDir::new()?;
-        env::set_current_dir(temp_dir.path())?;
+        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
 
         let spec_id = format!("m1-gate-{}", test_name);
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
+            _cwd_guard: cwd_guard,
             temp_dir,
             orchestrator,
             spec_id,

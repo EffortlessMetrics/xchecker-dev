@@ -13,23 +13,40 @@
 
 use anyhow::Result;
 use std::collections::HashMap;
-use std::env;
 use tempfile::TempDir;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator, PhaseTimeout};
 use xchecker::types::PhaseId;
 
-/// Helper to set up test environment
-fn setup_test_environment(test_name: &str) -> (PhaseOrchestrator, TempDir) {
-    let temp_dir = TempDir::new().unwrap();
-    let _original_dir = env::current_dir().unwrap();
+#[allow(clippy::duplicate_mod)]
+#[path = "test_support/mod.rs"]
+mod test_support;
 
-    env::set_current_dir(temp_dir.path()).unwrap();
+/// Test environment for phase timeout tests
+///
+/// Note: Field order matters for drop semantics. Fields drop in declaration order,
+/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
+struct TimeoutTestEnv {
+    #[allow(dead_code)]
+    _cwd_guard: test_support::CwdGuard,
+    #[allow(dead_code)]
+    temp_dir: TempDir,
+    #[allow(dead_code)]
+    orchestrator: PhaseOrchestrator,
+}
+
+/// Helper to set up test environment
+fn setup_test_environment(test_name: &str) -> TimeoutTestEnv {
+    let temp_dir = TempDir::new().unwrap();
+    let cwd_guard = test_support::CwdGuard::new(temp_dir.path()).unwrap();
 
     let spec_id = format!("test-timeout-{}", test_name);
     let orchestrator = PhaseOrchestrator::new(&spec_id).unwrap();
 
-    // Keep temp directory as current for test duration
-    (orchestrator, temp_dir)
+    TimeoutTestEnv {
+        _cwd_guard: cwd_guard,
+        temp_dir,
+        orchestrator,
+    }
 }
 
 /// Test that PhaseTimeout struct has correct constants
@@ -114,7 +131,7 @@ fn test_phase_timeout_from_config() {
 /// This is a smoke test that validates the core timeout behavior
 #[tokio::test]
 async fn test_timeout_creates_partial_and_receipt() -> Result<()> {
-    let (_orchestrator, _temp_dir) = setup_test_environment("partial");
+    let _env = setup_test_environment("partial");
 
     // Configure with a very short timeout to trigger it
     let mut config_map = HashMap::new();

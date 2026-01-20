@@ -3,7 +3,7 @@
 xchecker uses a hierarchical configuration system with the following precedence:
 
 1. **CLI flags** (highest priority)
-2. **Configuration file** 
+2. **Configuration file**
 3. **Built-in defaults** (lowest priority)
 
 ## State Directory (XCHECKER_HOME)
@@ -102,13 +102,27 @@ claude_path = "/usr/local/bin/claude"  # Custom Claude path (optional)
 strict_validation = false
 
 [llm]
-# LLM provider configuration (V11-V14: only claude-cli supported)
+# LLM provider configuration
 provider = "claude-cli"
 execution_strategy = "controlled"
 
 [llm.claude]
 # Optional: Custom Claude CLI binary path
 binary = "/usr/local/bin/claude"
+
+[llm.gemini]
+# Optional: Custom Gemini CLI binary path
+binary = "/usr/local/bin/gemini"
+# Optional: Default model
+default_model = "gemini-2.0-flash-lite"
+
+[llm.anthropic]
+# Anthropic API configuration
+model = "sonnet"
+# Optional: API key environment variable (default: ANTHROPIC_API_KEY)
+api_key_env = "ANTHROPIC_API_KEY"
+# Optional: Base URL
+base_url = "https://api.anthropic.com/v1/messages"
 
 [selectors]
 # File inclusion patterns (glob syntax)
@@ -207,27 +221,24 @@ Controls which files are included in context packets.
 
 ### [llm]
 
-LLM provider and execution strategy configuration (V11+ multi-provider support).
-
-**⚠️ V11-V14 Constraints:** Only `claude-cli` provider and `controlled` execution strategy are supported. Other values will cause configuration validation errors.
+LLM provider and execution strategy configuration.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `provider` | String | `"claude-cli"` | LLM provider to use (**must be `"claude-cli"` in V11-V14**) |
-| `execution_strategy` | String | `"controlled"` | Execution strategy (**must be `"controlled"` in V11-V14**) |
+| `provider` | String | `"claude-cli"` | LLM provider to use |
+| `execution_strategy` | String | `"controlled"` | Execution strategy |
 
-**Supported Values (V11-V14):**
+**Supported Values:**
 
-- **`provider`**: Only `"claude-cli"` is supported
-  - Uses the official Claude CLI tool for invocations
-  - Automatically selected if omitted
-  - Attempting other values (e.g., `"gemini-cli"`, `"openrouter"`, `"anthropic"`) will fail validation
+- **`provider`**:
+  - `claude-cli` (default): Uses the official Claude CLI tool
+  - `gemini-cli`: Uses Gemini CLI
+  - `openrouter`: Uses OpenRouter HTTP API
+  - `anthropic`: Uses Anthropic HTTP API
 
-- **`execution_strategy`**: Only `"controlled"` is supported
-  - LLMs propose changes via structured output (e.g., fixups)
-  - All file modifications go through xchecker's fixup pipeline
-  - No direct disk writes or external tool invocation by LLMs
-  - Attempting `"externaltool"` or other values will fail validation
+- **`execution_strategy`**:
+  - `controlled` (default): LLMs propose changes via structured output and xchecker applies them.
+  - `externaltool`: (Planned V15+) Allows direct tool use.
 
 **Valid Configuration Example:**
 
@@ -251,40 +262,11 @@ provider = "claude-cli"
 execution_strategy = "controlled"
 ```
 
-**Validation Errors:**
-
-Attempting unsupported values will result in clear error messages:
-
-```bash
-# ❌ Invalid provider
-[llm]
-provider = "gemini-cli"
-# Error: llm.provider 'gemini-cli' is not supported.
-# Currently only 'claude-cli' is supported in V11
-
-# ❌ Invalid execution strategy
-[llm]
-execution_strategy = "externaltool"
-# Error: llm.execution_strategy 'externaltool' is not supported.
-# Currently only 'controlled' is supported in V11-V14
-```
-
-**Reserved for Future Versions (V15+):**
-
-The following values are reserved for future implementation:
-
-- **Providers**: `gemini-cli`, `openrouter`, `anthropic`
-- **Execution Strategies**: `externaltool` (for agentic workflows with direct writes/tool use)
-
 For detailed information on all providers, including authentication, testing, and cost control, see [LLM_PROVIDERS.md](LLM_PROVIDERS.md).
 
-See [ORCHESTRATOR.md](ORCHESTRATOR.md) "LLM Layer (V11 Skeleton)" section for more details on these constraints.
-
-### [llm.openrouter] (Reserved for V13+)
+### [llm.openrouter]
 
 OpenRouter-specific configuration for HTTP API access and budget control.
-
-**⚠️ V11-V14 Note:** OpenRouter is reserved for V13+. This configuration section is documented for future reference.
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -332,7 +314,7 @@ XCHECKER_OPENROUTER_BUDGET=30 xchecker spec my-feature
 - Budget resets per xchecker process (not persistent across runs)
 - Budget exhaustion is recorded in receipts with `budget_exhausted: true`
 
-For more details on OpenRouter configuration, authentication, and usage, see [LLM_PROVIDERS.md](LLM_PROVIDERS.md#provider-openrouter-reserved-for-v13).
+For more details on OpenRouter configuration, authentication, and usage, see [LLM_PROVIDERS.md](LLM_PROVIDERS.md#provider-openrouter).
 
 ### [runner]
 
@@ -430,7 +412,7 @@ xchecker validates configuration on startup and provides helpful error messages:
 xchecker status my-spec
 
 # This shows:
-# - Source of each setting (CLI > config > defaults)
+# - Source of each setting (CLI > config > programmatic > defaults)
 # - Effective values being used
 # - Any validation warnings
 ```
@@ -459,7 +441,7 @@ max_turns = 6  # Allow thorough exploration
 [selectors]
 include = [
     "src/**/*.rs",
-    "tests/**/*.rs", 
+    "tests/**/*.rs",
     "docs/**/*.md",
     "*.md",
     "Cargo.toml",

@@ -122,78 +122,64 @@ xchecker is a Rust-based CLI tool that orchestrates spec generation workflows us
 
 ## Prioritized Completion Plan
 
-### Phase 1: Immediate Cleanup (High Priority)
+### Phase 1: High Priority (Immediate)
 
-1. **Remove TODO Comments and Dead Code**
-   - Remove or implement Claude CLI version extraction in `src/orchestrator/llm.rs:219`
-   - Remove or implement runner distro extraction in `src/orchestrator/llm.rs:221`
-   - Fix or document environment isolation issues in config tests
+1. **Config Test Stability**
+   - **Status**: Open
+   - **Guidance**: Fix environment isolation issues in `crates/xchecker-config/src/config/mod.rs` (marked with TODOs) to ensure test stability across all platforms.
+   - *Note*: Metadata extraction TODOs in `src/orchestrator/llm.rs` are already resolved.
 
 2. **Add Gemini CLI Binary Flag**
-   - Add `--llm-gemini-binary` flag to `src/cli.rs`
-   - Wire through config system to `LlmConfig.gemini.binary`
+   - **Status**: Open / Ready to Implement
+   - **Guidance**: Add `--llm-gemini-binary` flag to `Cli` struct in `src/cli.rs` and wire it into `CliArgs` construction. This is required for full V14 feature parity.
 
-### Phase 2: Documentation Updates (Medium Priority)
+3. **Fallback Provider Support**
+   - **Status**: ✅ Complete
+   - **Notes**: Implemented in `crates/xchecker-llm/src/lib.rs`. The factory correctly handles construction errors and initialization of fallback providers.
+
+### Phase 2: Documentation (Medium Priority)
 
 1. **Update LLM Providers Documentation**
-   - Document that all 4 providers are fully supported (not reserved)
-   - Add examples for each provider configuration
-   - Document OpenRouter budget enforcement (XCHECKER_OPENROUTER_BUDGET)
+   - **Status**: ✅ Complete
+   - **Notes**: `docs/LLM_PROVIDERS.md` is current and accurately reflects V14 support levels for all 4 providers.
 
 2. **Create Hooks Integration Guide**
-   - Document how to configure hooks in `.xchecker/config.toml`
-   - Provide examples of pre/post-phase hooks
-   - Document hook failure behavior (warn vs fail)
+   - **Status**: Open / Missing Documentation
+   - **Guidance**: Update `docs/CONFIGURATION.md` to document the `[hooks]` configuration section. Users currently have no reference for configuring `pre-phase` and `post-phase` hooks despite the feature being implemented.
 
 3. **Update README with Current State**
-   - Clarify V11-V14 features are complete
-   - Document hooks as wired and opt-in
-   - Document that ExternalTool is reserved for V15+
+   - **Status**: Open
+   - **Guidance**: Clarify V11-V14 completeness (backend support), document hooks as valid/opt-in, and note that `controlled` is the only supported execution strategy.
 
 ### Phase 3: Enhanced LLM Backend (Low Priority)
 
-1. **Implement Fallback Provider Support**
-   - Add fallback logic to `LlmBackend::from_config()` in `src/llm/mod.rs`
-   - Test fallback from primary to secondary provider
-   - Record fallback usage in receipts (add `fallback_used` warning)
+1. **Implement Prompt Template Support**
+   - **Status**: Pending
+   - **Guidance**: Add template parsing to config and pass to backend factory. This is a V15+ enabler feature.
 
-2. **Implement Prompt Template Support**
-   - Add prompt template parsing to config system
-   - Implement template validation (compatibility rules)
-   - Pass template to backend factory for prompt formatting
+2. **Implement Per-Phase Model Selection**
+   - **Status**: Pending
+   - **Guidance**: Add config support for `model_requirements`, `model_design` overrides and wire into `LlmInvocation` metadata.
 
-3. **Implement Per-Phase Model Selection**
-   - Add support for `model_requirements`, `model_design`, etc. in config
-   - Wire per-phase model selection in `LlmInvocation` metadata
-
-### Phase 4: Test Coverage Enhancements (Low Priority)
+### Phase 4: Test Coverage (Low Priority)
 
 1. **Add LLM Integration Tests**
    - Create tests for each LLM backend (claude-cli, gemini-cli, openrouter, anthropic)
-   - Add tests for fallback provider logic
    - Add tests for prompt template system
 
 2. **Add Hooks Integration Tests**
    - Create tests for pre/post-phase hook execution
    - Test hook failure behavior (warn vs fail)
-   - Test hook timeout handling
-
-3. **Fix Config Test Isolation**
-   - Fix environment isolation issues in config tests
-   - Ensure tests use isolated environments
 
 ### Phase 5: Documentation Polish (Low Priority)
 
 1. **Create Architecture Documentation**
    - Document LLM backend architecture with Mermaid diagrams
    - Document phase execution flow
-   - Document packet building process
-   - Document fixup application flow
 
 2. **Create Migration Guide**
    - Document upgrade path from v1.0 to v1.1
-   - Document any breaking changes
-   - Document config migration steps
+
 
 ---
 

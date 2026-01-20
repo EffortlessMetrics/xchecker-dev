@@ -263,7 +263,7 @@ Minimal and full examples are provided in `docs/schemas/`:
 - `secret_detected`: Secret detected (exit code 8)
 - `lock_held`: Lock conflict (exit code 9)
 - `phase_timeout`: Phase timeout (exit code 10)
-- `claude_failure`: Claude CLI failure (exit code 70)
+- `claude_failure`: LLM Provider failure (e.g. Claude CLI, Gemini CLI) (exit code 70)
 - `unknown`: Other errors (exit code 1)
 
 **Example**:
@@ -294,7 +294,7 @@ Minimal and full examples are provided in `docs/schemas/`:
 
 The `effective_config` field maps configuration keys to objects with:
 - `value`: The effective value (arbitrary JSON type)
-- `source`: Where the value came from ("cli", "config", or "default")
+- `source`: Where the value came from ("cli", "config", "programmatic", or "default")
 
 **Example**:
 ```json

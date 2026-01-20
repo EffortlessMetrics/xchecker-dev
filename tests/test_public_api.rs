@@ -65,7 +65,7 @@ fn test_public_api_types_accessible() {
     let _: PhaseId = PhaseId::Final;
 
     // Verify Config is accessible
-    let _: fn(&CliArgs) -> Result<Config, anyhow::Error> = Config::discover;
+    let _: fn(&CliArgs) -> Result<Config, XCheckerError> = Config::discover;
 
     // Verify ExitCode constants are accessible
     let _: ExitCode = ExitCode::SUCCESS;
