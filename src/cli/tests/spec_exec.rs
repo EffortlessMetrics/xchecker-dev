@@ -4,11 +4,12 @@ use super::support::*;
 use crate::cli::commands;
 use crate::redaction::SecretRedactor;
 use crate::{CliArgs, Config};
+use serial_test::serial;
 use std::sync::Arc;
 use tempfile::TempDir;
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
+#[serial]
 async fn test_spec_command_execution() -> anyhow::Result<()> {
     // Take the global CLI lock for env/cwd mutations
     let _lock = cli_env_guard();

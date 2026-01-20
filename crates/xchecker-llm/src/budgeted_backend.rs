@@ -204,16 +204,8 @@ impl LlmBackend for BudgetedBackend {
 mod tests {
     use super::*;
     use crate::types::{LlmResult, Message, Role};
-    use std::sync::{Mutex, OnceLock};
+    use serial_test::serial;
     use std::time::Duration;
-
-    // Single global lock for all tests that touch environment variables.
-    // This ensures env-mutating tests don't run concurrently with each other.
-    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-
-    fn env_guard() -> std::sync::MutexGuard<'static, ()> {
-        ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
-    }
 
     /// Mock backend that always succeeds
     struct MockSuccessBackend;
@@ -359,18 +351,11 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_budget_precedence_env_over_config() {
-        let _guard = env_guard();
-
-        // Clean up first in case previous test left it set
-        // SAFETY: This is a test function that runs in isolation. We set and clean up
-        // environment variables within the same test scope.
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
-        }
-
-        // Set environment variable
-        unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "15");
         }
 
@@ -381,18 +366,15 @@ mod tests {
         assert_eq!(backend.limit(), 15);
 
         // Clean up
-        // SAFETY: Cleaning up the environment variable we set above
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
     }
 
     #[test]
+    #[serial]
     fn test_budget_precedence_config_over_default() {
-        let _guard = env_guard();
-
-        // Ensure no env var is set (clean up first in case previous test left it set)
-        // SAFETY: This is a test function that runs in isolation
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
@@ -402,19 +384,12 @@ mod tests {
             BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(25));
 
         assert_eq!(backend.limit(), 25);
-
-        // Clean up at end as well
-        unsafe {
-            std::env::remove_var(BUDGET_ENV_VAR);
-        }
     }
 
     #[test]
+    #[serial]
     fn test_budget_precedence_default_when_none() {
-        let _guard = env_guard();
-
-        // Ensure no env var is set (clean up first in case previous test left it set)
-        // SAFETY: This is a test function that runs in isolation
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
@@ -423,26 +398,14 @@ mod tests {
         let backend = BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), None);
 
         assert_eq!(backend.limit(), DEFAULT_BUDGET_LIMIT);
-
-        // Clean up at end as well
-        unsafe {
-            std::env::remove_var(BUDGET_ENV_VAR);
-        }
     }
 
     #[test]
+    #[serial]
     fn test_budget_precedence_env_invalid_falls_back_to_config() {
-        let _guard = env_guard();
-
-        // Clean up first in case previous test left it set
-        // SAFETY: This is a test function that runs in isolation. We set and clean up
-        // environment variables within the same test scope.
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
-        }
-
-        // Set invalid environment variable
-        unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "not-a-number");
         }
 
@@ -453,25 +416,17 @@ mod tests {
         assert_eq!(backend.limit(), 35);
 
         // Clean up
-        // SAFETY: Cleaning up the environment variable we set above
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
     }
 
     #[test]
+    #[serial]
     fn test_budget_precedence_env_empty_falls_back_to_config() {
-        let _guard = env_guard();
-
-        // Clean up first in case previous test left it set
-        // SAFETY: This is a test function that runs in isolation. We set and clean up
-        // environment variables within the same test scope.
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
-        }
-
-        // Set empty environment variable
-        unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "");
         }
 
@@ -482,18 +437,15 @@ mod tests {
         assert_eq!(backend.limit(), 40);
 
         // Clean up
-        // SAFETY: Cleaning up the environment variable we set above
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
     }
 
     #[test]
+    #[serial]
     fn test_budget_zero_from_config() {
-        let _guard = env_guard();
-
-        // Ensure no env var is set (clean up first in case previous test left it set)
-        // SAFETY: This is a test function that runs in isolation
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
@@ -503,26 +455,14 @@ mod tests {
             BudgetedBackend::with_limit_from_config(Box::new(MockSuccessBackend), Some(0));
 
         assert_eq!(backend.limit(), 0);
-
-        // Clean up at end as well
-        unsafe {
-            std::env::remove_var(BUDGET_ENV_VAR);
-        }
     }
 
     #[test]
+    #[serial]
     fn test_budget_zero_from_env() {
-        let _guard = env_guard();
-
-        // Clean up first in case previous test left it set
-        // SAFETY: This is a test function that runs in isolation. We set and clean up
-        // environment variables within the same test scope.
+        // SAFETY: Test runs serialized via #[serial], safe to manipulate env vars
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
-        }
-
-        // Set environment variable to 0
-        unsafe {
             std::env::set_var(BUDGET_ENV_VAR, "0");
         }
 
@@ -533,7 +473,6 @@ mod tests {
         assert_eq!(backend.limit(), 0);
 
         // Clean up
-        // SAFETY: Cleaning up the environment variable we set above
         unsafe {
             std::env::remove_var(BUDGET_ENV_VAR);
         }
