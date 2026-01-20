@@ -37,8 +37,7 @@ impl PacketBuilder {
     /// Create a new `PacketBuilder` with default limits
     pub fn new() -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?
-                .max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
+            selector: ContentSelector::new()?.max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes: DEFAULT_PACKET_MAX_BYTES,
@@ -50,8 +49,7 @@ impl PacketBuilder {
     #[allow(dead_code)] // Builder pattern method for API surface
     pub fn with_cache(cache_dir: Utf8PathBuf) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?
-                .max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
+            selector: ContentSelector::new()?.max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
             redactor: SecretRedactor::new()?,
             cache: Some(InsightCache::new(cache_dir)?),
             max_bytes: DEFAULT_PACKET_MAX_BYTES,
@@ -91,8 +89,7 @@ impl PacketBuilder {
         max_lines: usize,
     ) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::from_selectors(selectors)?
-                .max_file_size(max_bytes as u64),
+            selector: ContentSelector::from_selectors(selectors)?.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes,
@@ -104,8 +101,7 @@ impl PacketBuilder {
     #[allow(dead_code)] // Builder pattern method for API surface
     pub fn with_limits(max_bytes: usize, max_lines: usize) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?
-                .max_file_size(max_bytes as u64),
+            selector: ContentSelector::new()?.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes,
@@ -121,8 +117,7 @@ impl PacketBuilder {
         cache_dir: Utf8PathBuf,
     ) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?
-                .max_file_size(max_bytes as u64),
+            selector: ContentSelector::new()?.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new()?,
             cache: Some(InsightCache::new(cache_dir)?),
             max_bytes,
