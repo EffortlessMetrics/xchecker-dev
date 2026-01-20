@@ -18,7 +18,7 @@ mod run;
 mod tests;
 
 // Re-export argument types
-pub use args::{build_cli, Cli, Commands, ProjectCommands, TemplateCommands};
+pub use args::{Cli, Commands, ProjectCommands, TemplateCommands, build_cli};
 
 // Re-export run function
 pub use run::run;

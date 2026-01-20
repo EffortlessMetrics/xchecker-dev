@@ -4,8 +4,8 @@
 
 use anyhow::{Context, Result};
 
-use crate::error::ConfigError;
 use crate::XCheckerError;
+use crate::error::ConfigError;
 
 /// Execute the gate command for policy-based spec validation
 /// Per FR-GATE (Requirements 4.5.1, 4.5.2, 4.5.3, 4.5.4)
@@ -16,7 +16,7 @@ pub fn execute_gate_command(
     max_phase_age: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    use crate::gate::{emit_gate_json, parse_duration, parse_phase, GateCommand, GatePolicy};
+    use crate::gate::{GateCommand, GatePolicy, emit_gate_json, parse_duration, parse_phase};
 
     // Parse min_phase
     let min_phase_id = parse_phase(min_phase).map_err(|e| {

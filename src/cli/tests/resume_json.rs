@@ -43,10 +43,7 @@ fn test_resume_json_output_has_required_fields() {
         spec_id: "test-spec".to_string(),
         phase: "tasks".to_string(),
         current_inputs: CurrentInputs {
-            available_artifacts: vec![
-                "00-requirements.md".to_string(),
-                "10-design.md".to_string(),
-            ],
+            available_artifacts: vec!["00-requirements.md".to_string(), "10-design.md".to_string()],
             spec_exists: true,
             latest_completed_phase: Some("design".to_string()),
         },

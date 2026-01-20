@@ -4,10 +4,10 @@
 
 use anyhow::Result;
 
+use crate::XCheckerError;
 use crate::cli::args::TemplateCommands;
 use crate::error::ConfigError;
 use crate::spec_id::sanitize_spec_id;
-use crate::XCheckerError;
 
 /// Execute template management commands
 /// Per FR-TEMPLATES (Requirements 4.7.1, 4.7.2, 4.7.3)

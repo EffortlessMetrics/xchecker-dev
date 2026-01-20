@@ -4,7 +4,7 @@
 
 use anyhow::{Context, Result};
 
-use crate::{emit_jcs, Config};
+use crate::{Config, emit_jcs};
 
 /// Execute the doctor command for environment health checks
 pub fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Result<()> {

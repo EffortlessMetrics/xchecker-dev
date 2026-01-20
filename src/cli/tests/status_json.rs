@@ -2,9 +2,7 @@
 //! Validates: Requirements 4.1.2
 
 use crate::cli::commands;
-use crate::types::{
-    ArtifactInfo, ConfigSource, ConfigValue, PhaseStatusInfo, StatusJsonOutput,
-};
+use crate::types::{ArtifactInfo, ConfigSource, ConfigValue, PhaseStatusInfo, StatusJsonOutput};
 use std::collections::BTreeMap;
 
 #[test]

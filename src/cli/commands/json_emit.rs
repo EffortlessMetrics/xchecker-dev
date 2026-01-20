@@ -25,7 +25,9 @@ pub fn emit_resume_json(output: &crate::types::ResumeJsonOutput) -> Result<Strin
 }
 
 /// Emit workspace status output as canonical JSON using JCS (RFC 8785)
-pub fn emit_workspace_status_json(output: &crate::types::WorkspaceStatusJsonOutput) -> Result<String> {
+pub fn emit_workspace_status_json(
+    output: &crate::types::WorkspaceStatusJsonOutput,
+) -> Result<String> {
     emit_jcs(output).context("Failed to emit workspace status JSON")
 }
 

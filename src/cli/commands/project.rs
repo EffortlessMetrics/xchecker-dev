@@ -7,10 +7,10 @@ use anyhow::{Context, Result};
 use super::common::count_pending_fixups_for_spec;
 use super::json_emit::{emit_workspace_history_json, emit_workspace_status_json};
 
+use crate::XCheckerError;
 use crate::cli::args::ProjectCommands;
 use crate::error::ConfigError;
 use crate::spec_id::sanitize_spec_id;
-use crate::XCheckerError;
 
 /// Execute project/workspace management commands
 pub fn execute_project_command(cmd: ProjectCommands) -> Result<()> {

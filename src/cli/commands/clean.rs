@@ -8,7 +8,12 @@ use std::io::Write;
 use crate::{Config, OrchestratorHandle};
 
 /// Execute the clean command
-pub fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Config) -> Result<()> {
+pub fn execute_clean_command(
+    spec_id: &str,
+    hard: bool,
+    force: bool,
+    _config: &Config,
+) -> Result<()> {
     use crate::lock::utils;
 
     // Check if clean operation is allowed (no active locks unless forced)
