@@ -30,6 +30,7 @@ struct TimeoutTestEnv {
     _cwd_guard: test_support::CwdGuard,
     #[allow(dead_code)]
     temp_dir: TempDir,
+    #[allow(dead_code)]
     orchestrator: PhaseOrchestrator,
 }
 

@@ -146,8 +146,7 @@ async fn test_timeout_during_packet_building() -> Result<()> {
 #[ignore = "requires_claude_stub"]
 async fn test_timeout_during_claude_execution_requires_claude_stub() -> Result<()> {
     // Set the stub to hang for 10 seconds (longer than our 5-second timeout)
-    // SAFETY: This test is single-threaded and controls the stub process
-    unsafe { std::env::set_var("CLAUDE_STUB_HANG_SECS", "10") };
+    let _env_guard = test_support::EnvVarGuard::set("CLAUDE_STUB_HANG_SECS", "10");
 
     let env = setup_test_environment("claude-execution");
 
@@ -165,13 +164,22 @@ async fn test_timeout_during_claude_execution_requires_claude_stub() -> Result<(
 
     // The orchestrator handles timeouts gracefully - it returns Ok(ExecutionResult)
     // with success=false and exit_code=10 (PHASE_TIMEOUT), not Err(...)
-    assert!(result.is_ok(), "Phase execution should complete (with timeout result)");
+    assert!(
+        result.is_ok(),
+        "Phase execution should complete (with timeout result)"
+    );
 
     let exec_result = result.unwrap();
     assert!(!exec_result.success, "Phase should not succeed (timed out)");
-    assert_eq!(exec_result.exit_code, 10, "Exit code should be PHASE_TIMEOUT (10)");
+    assert_eq!(
+        exec_result.exit_code, 10,
+        "Exit code should be PHASE_TIMEOUT (10)"
+    );
     assert!(
-        exec_result.error.as_ref().is_some_and(|e| e.contains("timed out")),
+        exec_result
+            .error
+            .as_ref()
+            .is_some_and(|e| e.contains("timed out")),
         "Error should mention timeout: {:?}",
         exec_result.error
     );
@@ -303,8 +311,7 @@ fn test_timeout_error_serialization() {
 #[ignore = "requires_claude_stub"]
 async fn test_timeout_during_artifact_writing_requires_claude_stub() -> Result<()> {
     // Set the stub to hang for 10 seconds (longer than our 5-second timeout)
-    // SAFETY: This test is single-threaded and controls the stub process
-    unsafe { std::env::set_var("CLAUDE_STUB_HANG_SECS", "10") };
+    let _env_guard = test_support::EnvVarGuard::set("CLAUDE_STUB_HANG_SECS", "10");
 
     let env = setup_test_environment("artifact-writing");
 
@@ -322,11 +329,17 @@ async fn test_timeout_during_artifact_writing_requires_claude_stub() -> Result<(
 
     // The orchestrator handles timeouts gracefully - it returns Ok(ExecutionResult)
     // with success=false and exit_code=10 (PHASE_TIMEOUT)
-    assert!(result.is_ok(), "Phase execution should complete (with timeout result)");
+    assert!(
+        result.is_ok(),
+        "Phase execution should complete (with timeout result)"
+    );
 
     let exec_result = result.unwrap();
     assert!(!exec_result.success, "Phase should not succeed (timed out)");
-    assert_eq!(exec_result.exit_code, 10, "Exit code should be PHASE_TIMEOUT (10)");
+    assert_eq!(
+        exec_result.exit_code, 10,
+        "Exit code should be PHASE_TIMEOUT (10)"
+    );
 
     Ok(())
 }
@@ -561,8 +574,7 @@ mod integration_tests {
     #[ignore = "requires_claude_stub"]
     async fn test_full_timeout_flow_with_mock_claude_requires_claude_stub() -> Result<()> {
         // Set the stub to hang for 10 seconds (longer than our 5-second timeout)
-        // SAFETY: This test is single-threaded and controls the stub process
-    unsafe { std::env::set_var("CLAUDE_STUB_HANG_SECS", "10") };
+        let _env_guard = test_support::EnvVarGuard::set("CLAUDE_STUB_HANG_SECS", "10");
 
         let env = setup_test_environment("full-flow");
 
@@ -580,13 +592,22 @@ mod integration_tests {
 
         // The orchestrator handles timeouts gracefully - it returns Ok(ExecutionResult)
         // with success=false and exit_code=10 (PHASE_TIMEOUT)
-        assert!(result.is_ok(), "Phase execution should complete (with timeout result)");
+        assert!(
+            result.is_ok(),
+            "Phase execution should complete (with timeout result)"
+        );
 
         let exec_result = result.unwrap();
         assert!(!exec_result.success, "Phase should not succeed (timed out)");
-        assert_eq!(exec_result.exit_code, 10, "Exit code should be PHASE_TIMEOUT (10)");
+        assert_eq!(
+            exec_result.exit_code, 10,
+            "Exit code should be PHASE_TIMEOUT (10)"
+        );
         assert!(
-            exec_result.error.as_ref().is_some_and(|e| e.contains("timed out")),
+            exec_result
+                .error
+                .as_ref()
+                .is_some_and(|e| e.contains("timed out")),
             "Error should mention timeout: {:?}",
             exec_result.error
         );
@@ -611,8 +632,7 @@ mod integration_tests {
     #[ignore = "requires_claude_stub"]
     async fn test_timeout_recovery_requires_claude_stub() -> Result<()> {
         // Set the stub to hang for 10 seconds (longer than our 5-second timeout)
-        // SAFETY: This test is single-threaded and controls the stub process
-    unsafe { std::env::set_var("CLAUDE_STUB_HANG_SECS", "10") };
+        let _env_guard = test_support::EnvVarGuard::set("CLAUDE_STUB_HANG_SECS", "10");
 
         let env = setup_test_environment("recovery");
 
@@ -624,24 +644,42 @@ mod integration_tests {
                 return Ok(());
             }
         };
-        let result1 = env.orchestrator.execute_requirements_phase(&config_short).await;
+        let result1 = env
+            .orchestrator
+            .execute_requirements_phase(&config_short)
+            .await;
 
         // The orchestrator handles timeouts gracefully - it returns Ok(ExecutionResult)
         // with success=false and exit_code=10 (PHASE_TIMEOUT)
-        assert!(result1.is_ok(), "First execution should complete (with timeout result)");
+        assert!(
+            result1.is_ok(),
+            "First execution should complete (with timeout result)"
+        );
         let exec_result1 = result1.unwrap();
-        assert!(!exec_result1.success, "First execution should not succeed (timed out)");
-        assert_eq!(exec_result1.exit_code, 10, "Exit code should be PHASE_TIMEOUT (10)");
+        assert!(
+            !exec_result1.success,
+            "First execution should not succeed (timed out)"
+        );
+        assert_eq!(
+            exec_result1.exit_code, 10,
+            "Exit code should be PHASE_TIMEOUT (10)"
+        );
 
         // Second execution with dry_run should succeed (no stub needed)
         let config_dry = create_config_with_timeout(PhaseTimeout::DEFAULT_SECS, true);
-        let result2 = env.orchestrator.execute_requirements_phase(&config_dry).await;
+        let result2 = env
+            .orchestrator
+            .execute_requirements_phase(&config_dry)
+            .await;
         assert!(
             result2.is_ok(),
             "Second execution with dry_run should complete"
         );
         let exec_result2 = result2.unwrap();
-        assert!(exec_result2.success, "Second execution with dry_run should succeed");
+        assert!(
+            exec_result2.success,
+            "Second execution with dry_run should succeed"
+        );
 
         Ok(())
     }

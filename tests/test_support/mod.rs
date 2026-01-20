@@ -1,3 +1,9 @@
+//! Shared test utilities for integration tests.
+//!
+//! This module is included via `#[path = "test_support/mod.rs"]` in multiple test files.
+//! Not all functions are used in every test file, so we allow dead_code globally.
+#![allow(dead_code)]
+
 use std::path::{Path, PathBuf};
 
 pub(crate) fn should_run_e2e() -> bool {
@@ -25,6 +31,53 @@ impl CwdGuard {
 impl Drop for CwdGuard {
     fn drop(&mut self) {
         let _ = std::env::set_current_dir(&self.0);
+    }
+}
+
+/// Guard that restores an environment variable on drop.
+/// Use this in tests that modify env vars to prevent pollution between tests.
+pub(crate) struct EnvVarGuard {
+    key: String,
+    original: Option<String>,
+}
+
+impl EnvVarGuard {
+    /// Set an environment variable and return a guard that restores the original value on drop.
+    pub fn set(key: &str, value: &str) -> Self {
+        let original = std::env::var(key).ok();
+        // SAFETY: Tests serialize access via --test-threads=1 and restore the prior value on drop.
+        unsafe {
+            std::env::set_var(key, value);
+        }
+
+        Self {
+            key: key.to_string(),
+            original,
+        }
+    }
+
+    /// Clear an environment variable and return a guard that restores the original value on drop.
+    pub fn cleared(key: &str) -> Self {
+        let original = std::env::var(key).ok();
+        // SAFETY: Tests serialize access via --test-threads=1 and restore the prior value on drop.
+        unsafe {
+            std::env::remove_var(key);
+        }
+
+        Self {
+            key: key.to_string(),
+            original,
+        }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        // SAFETY: Restoring env var to prior state; tests run single-threaded.
+        match &self.original {
+            Some(value) => unsafe { std::env::set_var(&self.key, value) },
+            None => unsafe { std::env::remove_var(&self.key) },
+        }
     }
 }
 

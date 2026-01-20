@@ -30,8 +30,11 @@ mod test_support;
 struct TestEnv {
     #[allow(dead_code)]
     _cwd_guard: test_support::CwdGuard,
+    #[allow(dead_code)]
     temp_dir: TempDir,
+    #[allow(dead_code)]
     spec_base: PathBuf,
+    #[allow(dead_code)]
     orchestrator: PhaseOrchestrator,
 }
 
