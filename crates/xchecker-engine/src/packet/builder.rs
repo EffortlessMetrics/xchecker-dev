@@ -1,4 +1,4 @@
-use super::model::SelectedFile;
+use super::model::{CandidateFile, SelectedFile};
 use super::selectors::ContentSelector;
 use crate::cache::{InsightCache, calculate_content_hash};
 use crate::config::Selectors;
@@ -10,6 +10,7 @@ use crate::types::{FileEvidence, PacketEvidence, Priority};
 use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
+use std::fs;
 
 /// Default maximum bytes allowed in a packet
 pub const DEFAULT_PACKET_MAX_BYTES: usize = 65536;
@@ -240,64 +241,135 @@ impl PacketBuilder {
         context_dir: &Utf8Path,
         logger: Option<&Logger>,
     ) -> Result<Packet> {
-        // Select files using priority-based selection
-        let selected_files = self
+        // Select candidates using lazy selection (no content reading yet)
+        let candidates = self
             .selector
-            .select_files(base_path)
+            .select_candidates(base_path)
             .with_context(|| format!("Failed to select files from {base_path}"))?;
-
-        // First, scan all files for secrets before processing
-        for file in &selected_files {
-            if self
-                .redactor
-                .has_secrets(&file.content, file.path.as_ref())?
-            {
-                let matches = self
-                    .redactor
-                    .scan_for_secrets(&file.content, file.path.as_ref())?;
-                return Err(create_secret_detected_error(&matches).into());
-            }
-        }
 
         // Build packet content with budget enforcement and redaction
         let mut budget = BudgetUsage::new(self.max_bytes, self.max_lines);
         let mut packet_content = String::new();
         let mut included_files = Vec::new();
 
-        // First pass: Add all upstream files (never evicted)
-        let mut upstream_files = Vec::new();
-        let mut other_files = Vec::new();
+        // Split candidates into upstream and others
+        let mut upstream_candidates = Vec::new();
+        let mut other_candidates = Vec::new();
 
-        for file in selected_files {
-            if file.priority == Priority::Upstream {
-                upstream_files.push(file);
+        for candidate in candidates {
+            if candidate.priority == Priority::Upstream {
+                upstream_candidates.push(candidate);
             } else {
-                other_files.push(file);
+                other_candidates.push(candidate);
             }
         }
 
-        // Add upstream files first (always included)
-        for file in upstream_files {
-            let file_content = self.process_file_with_cache(&file, phase, logger)?;
+        let has_cache = self.cache.is_some();
 
-            // Add file content to packet
-            packet_content.push_str(&format!("=== {} ===\n", file.path));
-            packet_content.push_str(&file_content);
-            packet_content.push_str("\n\n");
+        // Get max_file_size limit for DoS protection
+        let max_file_size = self.selector.get_max_file_size();
 
-            // Update budget based on content size
-            let content_size = file_content.len() + file.path.as_str().len() + 10;
-            let line_count = file_content.lines().count() + 3;
-            budget.add_content(content_size, line_count);
+        // Helper to process a candidate file
+        // Returns Option<(SelectedFile, String, usize, usize)> if successful (file, content, size, lines)
+        // Returns Ok(None) to skip non-critical files that exceed size limit
+        let mut process_candidate =
+            |candidate: &CandidateFile| -> Result<Option<(SelectedFile, String, usize, usize)>> {
+                // DoS protection: check file size before reading to prevent memory exhaustion
+                let metadata = fs::metadata(&candidate.path)
+                    .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
-            // Create file evidence with pre-redaction hash
-            let evidence = FileEvidence {
-                path: file.path.to_string(),
-                range: None, // Full file for now
-                blake3_pre_redaction: file.blake3_pre_redaction,
-                priority: file.priority,
+                if !metadata.is_file() {
+                    // Skip special files (pipes, devices, etc.) that might block reading
+                    return Ok(None);
+                }
+
+                if metadata.len() > max_file_size {
+                    // For upstream files (critical context), fail hard if they exceed the limit
+                    if candidate.priority == Priority::Upstream {
+                        return Err(anyhow::anyhow!(
+                            "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                             Critical context files must fit within the configured limit.",
+                            candidate.path,
+                            max_file_size,
+                            metadata.len()
+                        ));
+                    }
+
+                    tracing::warn!(
+                        "Skipping large file: {} ({} bytes > limit {})",
+                        candidate.path,
+                        metadata.len(),
+                        max_file_size
+                    );
+                    return Ok(None);
+                }
+
+                // Read content (lazy load)
+                let content = fs::read_to_string(&candidate.path)
+                    .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+                // Scan for secrets immediately after reading
+                if self
+                    .redactor
+                    .has_secrets(&content, candidate.path.as_ref())?
+                {
+                    let matches = self
+                        .redactor
+                        .scan_for_secrets(&content, candidate.path.as_ref())?;
+                    return Err(create_secret_detected_error(&matches).into());
+                }
+
+                // Calculate pre-redaction hash
+                let mut hasher = Hasher::new();
+                hasher.update(content.as_bytes());
+                let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
+
+                let line_count_raw = content.lines().count();
+                let byte_count_raw = content.len();
+
+                let selected_file = SelectedFile {
+                    path: candidate.path.clone(),
+                    content,
+                    priority: candidate.priority,
+                    blake3_pre_redaction,
+                    line_count: line_count_raw,
+                    byte_count: byte_count_raw,
+                };
+
+                let file_content = self.process_file_with_cache(&selected_file, phase, logger)?;
+                let content_size = file_content.len() + candidate.path.as_str().len() + 10;
+                let line_count = file_content.lines().count() + 3;
+
+                Ok(Some((
+                    selected_file,
+                    file_content,
+                    content_size,
+                    line_count,
+                )))
             };
-            included_files.push(evidence);
+
+        // First pass: Add all upstream files (never evicted)
+        for candidate in upstream_candidates {
+            if let Some((file, file_content, content_size, line_count)) =
+                process_candidate(&candidate)?
+            {
+                // Add file content to packet
+                packet_content.push_str(&format!("=== {} ===\n", file.path));
+                packet_content.push_str(&file_content);
+                packet_content.push_str("\n\n");
+
+                // Update budget
+                budget.add_content(content_size, line_count);
+
+                // Create file evidence
+                let evidence = FileEvidence {
+                    path: file.path.to_string(),
+                    range: None, // Full file for now
+                    blake3_pre_redaction: file.blake3_pre_redaction,
+                    priority: file.priority,
+                };
+                included_files.push(evidence);
+            }
         }
 
         // Check if upstream files alone exceed budget
@@ -318,34 +390,46 @@ impl PacketBuilder {
         }
 
         // Second pass: Add other files until budget is reached
-        for file in other_files {
-            let file_content = self.process_file_with_cache(&file, phase, logger)?;
-
-            let content_size = file_content.len() + file.path.as_str().len() + 10;
-            let line_count = file_content.lines().count() + 3;
-
-            // Check if this file would exceed budget
-            if budget.would_exceed(content_size, line_count) {
-                // Skip this file to stay within budget
-                continue;
+        for candidate in other_candidates {
+            // Optimization: skip files larger than remaining budget when no cache is active.
+            // With cache, a cache hit returns only "CACHED INSIGHTS: ..." which is smaller than
+            // the file on disk, so we can't skip based on file size alone.
+            if !has_cache {
+                let remaining_bytes = budget.max_bytes.saturating_sub(budget.bytes_used);
+                if let Ok(metadata) = fs::metadata(&candidate.path)
+                    && metadata.len() as usize > remaining_bytes
+                {
+                    continue;
+                }
             }
 
-            // Add file content to packet
-            packet_content.push_str(&format!("=== {} ===\n", file.path));
-            packet_content.push_str(&file_content);
-            packet_content.push_str("\n\n");
+            // Read and process the file
+            if let Some((file, file_content, content_size, line_count)) =
+                process_candidate(&candidate)?
+            {
+                // Check if this file would exceed budget
+                if budget.would_exceed(content_size, line_count) {
+                    // Skip this file to stay within budget
+                    continue;
+                }
 
-            // Update budget
-            budget.add_content(content_size, line_count);
+                // Add file content to packet
+                packet_content.push_str(&format!("=== {} ===\n", file.path));
+                packet_content.push_str(&file_content);
+                packet_content.push_str("\n\n");
 
-            // Create file evidence with pre-redaction hash
-            let evidence = FileEvidence {
-                path: file.path.to_string(),
-                range: None, // Full file for now
-                blake3_pre_redaction: file.blake3_pre_redaction,
-                priority: file.priority,
-            };
-            included_files.push(evidence);
+                // Update budget
+                budget.add_content(content_size, line_count);
+
+                // Create file evidence
+                let evidence = FileEvidence {
+                    path: file.path.to_string(),
+                    range: None, // Full file for now
+                    blake3_pre_redaction: file.blake3_pre_redaction,
+                    priority: file.priority,
+                };
+                included_files.push(evidence);
+            }
         }
 
         // Calculate packet hash (after redaction has been applied)

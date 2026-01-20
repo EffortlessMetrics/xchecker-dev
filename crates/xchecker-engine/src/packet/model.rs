@@ -64,3 +64,12 @@ pub struct SelectedFile {
     #[allow(dead_code)] // Metadata for budget tracking
     pub byte_count: usize,
 }
+
+/// Represents a candidate file for selection (lazy loading)
+#[derive(Debug, Clone)]
+pub struct CandidateFile {
+    /// Path to the file
+    pub path: Utf8PathBuf,
+    /// Priority level
+    pub priority: Priority,
+}
