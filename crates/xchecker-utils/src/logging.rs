@@ -952,35 +952,42 @@ impl Logger {
 /// Log doctor report to console (wires Doctor into logging)
 pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     use crate::types::CheckStatus;
+    use crossterm::style::{Attribute, Color, Stylize};
 
-    println!("=== xchecker Environment Health Check ===");
+    println!(
+        "{}",
+        "=== xchecker Environment Health Check ==="
+            .with(Color::Cyan)
+            .attribute(Attribute::Bold)
+    );
     println!();
 
     for check in &report.checks {
-        let status_symbol = match check.status {
-            CheckStatus::Pass => "✓",
-            CheckStatus::Warn => "⚠",
-            CheckStatus::Fail => "✗",
+        let (status_symbol, status_text, color) = match check.status {
+            CheckStatus::Pass => ("✓", "PASS", Color::Green),
+            CheckStatus::Warn => ("⚠", "WARN", Color::Yellow),
+            CheckStatus::Fail => ("✗", "FAIL", Color::Red),
         };
 
-        let status_text = match check.status {
-            CheckStatus::Pass => "PASS",
-            CheckStatus::Warn => "WARN",
-            CheckStatus::Fail => "FAIL",
-        };
-
-        println!("{} {} [{}]", status_symbol, check.name, status_text);
+        println!(
+            "{} {} [{}]",
+            status_symbol.with(color).attribute(Attribute::Bold),
+            check.name.clone().attribute(Attribute::Bold),
+            status_text.with(color).attribute(Attribute::Bold)
+        );
         println!("  {}", check.details);
         println!();
     }
 
+    let (overall_text, overall_color) = if report.ok {
+        ("✓ HEALTHY", Color::Green)
+    } else {
+        ("✗ ISSUES DETECTED", Color::Red)
+    };
+
     println!(
         "Overall status: {}",
-        if report.ok {
-            "✓ HEALTHY"
-        } else {
-            "✗ ISSUES DETECTED"
-        }
+        overall_text.with(overall_color).attribute(Attribute::Bold)
     );
 }
 

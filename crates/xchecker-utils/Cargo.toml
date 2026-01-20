@@ -27,6 +27,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 tokio = { workspace = true }
 serde_yaml = { workspace = true }
+crossterm = { workspace = true }
 strum = { workspace = true, optional = true }
 
 [dev-dependencies]
