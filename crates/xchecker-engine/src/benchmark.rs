@@ -4,7 +4,7 @@
 //! meets its performance targets: empty run ≤ 5s, packetization ≤ 200ms for 100 files.
 
 use crate::logging::{Logger, PerformanceMetrics};
-use crate::packet::ContentSelector;
+use crate::packet::PacketBuilder;
 use crate::process_memory::ProcessMemory;
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -468,12 +468,12 @@ impl BenchmarkRunner {
 
     /// Run packetization on test files
     fn run_packetization(&self, base_path: &Utf8Path) -> Result<()> {
-        let selector = ContentSelector::new()?;
-        let _selected_files = selector.select_files(base_path)?;
+        let context_dir = base_path.join("context");
+        fs::create_dir_all(&context_dir)?;
 
-        // Simulate packet building operations without actually building
-        // (to avoid dependencies on other components)
-        std::thread::sleep(Duration::from_millis(1)); // Minimal processing time
+        let mut builder = PacketBuilder::new()?;
+        // Ignore result as we just measure time and overflow is valid outcome
+        let _ = builder.build_packet(base_path, "benchmark", &context_dir, None);
 
         Ok(())
     }

@@ -1,4 +1,4 @@
-use super::model::{PriorityRules, SelectedFile};
+use super::model::{CandidateFile, PriorityRules, SelectedFile};
 use crate::config::Selectors;
 use crate::types::Priority;
 use anyhow::{Context, Result};
@@ -164,17 +164,26 @@ impl ContentSelector {
         self.include_patterns.is_match(path_str)
     }
 
-    /// Select files from a directory with priority-based ordering
+    /// Select candidates from a directory with priority-based ordering
     /// Returns files grouped by priority, with LIFO ordering within each group
-    pub fn select_files(&self, base_path: &Utf8Path) -> Result<Vec<SelectedFile>> {
-        let mut files = Vec::new();
+    /// This method is lazy: it does not read file content.
+    pub fn select_candidates(&self, base_path: &Utf8Path) -> Result<Vec<CandidateFile>> {
+        let mut paths = Vec::new();
 
         // Walk the directory tree, passing root for symlink sandbox validation
-        self.walk_directory(base_path, base_path, &mut files)?;
+        self.walk_directory_paths(base_path, base_path, &mut paths)?;
+
+        let mut candidates: Vec<CandidateFile> = paths
+            .into_iter()
+            .map(|path| {
+                let priority = self.get_priority(&path);
+                CandidateFile { path, priority }
+            })
+            .collect();
 
         // Sort by priority (Upstream first, then High, Medium, Low)
         // Within each priority, maintain LIFO order (reverse chronological)
-        files.sort_by(|a, b| {
+        candidates.sort_by(|a, b| {
             match a.priority.cmp(&b.priority) {
                 std::cmp::Ordering::Equal => {
                     // Within same priority, use LIFO (reverse order)
@@ -184,10 +193,44 @@ impl ContentSelector {
             }
         });
 
+        Ok(candidates)
+    }
+
+    /// Select files from a directory with priority-based ordering
+    /// Returns files grouped by priority, with LIFO ordering within each group
+    ///
+    /// # Legacy Note
+    /// This method is eager (reads all content). Use `select_candidates` for lazy loading.
+    pub fn select_files(&self, base_path: &Utf8Path) -> Result<Vec<SelectedFile>> {
+        let candidates = self.select_candidates(base_path)?;
+        let mut files = Vec::with_capacity(candidates.len());
+
+        for candidate in candidates {
+            let content = fs::read_to_string(&candidate.path)
+                .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+            // Calculate pre-redaction hash
+            let mut hasher = Hasher::new();
+            hasher.update(content.as_bytes());
+            let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
+
+            let line_count = content.lines().count();
+            let byte_count = content.len();
+
+            files.push(SelectedFile {
+                path: candidate.path,
+                content,
+                priority: candidate.priority,
+                blake3_pre_redaction,
+                line_count,
+                byte_count,
+            });
+        }
+
         Ok(files)
     }
 
-    /// Recursively walk directory and collect matching files.
+    /// Recursively walk directory and collect matching file paths.
     ///
     /// # Security
     ///
@@ -196,11 +239,11 @@ impl ContentSelector {
     /// - When `allow_symlinks` is true, symlinks are only followed if their
     ///   canonical path is within the `root` directory (sandbox validation)
     /// - Broken symlinks or canonicalization failures result in skipping (fail-closed)
-    fn walk_directory(
+    fn walk_directory_paths(
         &self,
         root: &Utf8Path,
         dir: &Utf8Path,
-        files: &mut Vec<SelectedFile>,
+        paths: &mut Vec<Utf8PathBuf>,
     ) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -235,28 +278,9 @@ impl ContentSelector {
 
             // Recurse into directories (including validated symlinked directories)
             if path.is_dir() {
-                self.walk_directory(root, &path, files)?;
+                self.walk_directory_paths(root, &path, paths)?;
             } else if self.should_include(&path) {
-                let priority = self.get_priority(&path);
-                let content = fs::read_to_string(&path)
-                    .with_context(|| format!("Failed to read file: {path}"))?;
-
-                // Calculate pre-redaction hash
-                let mut hasher = Hasher::new();
-                hasher.update(content.as_bytes());
-                let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
-
-                let line_count = content.lines().count();
-                let byte_count = content.len();
-
-                files.push(SelectedFile {
-                    path: path.clone(),
-                    content,
-                    priority,
-                    blake3_pre_redaction,
-                    line_count,
-                    byte_count,
-                });
+                paths.push(path);
             }
         }
 
