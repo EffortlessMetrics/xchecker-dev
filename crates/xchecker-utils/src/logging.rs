@@ -141,6 +141,7 @@ pub fn log_phase_error(spec_id: &str, phase: &str, error: &str, duration_ms: u12
 pub struct Logger {
     verbose: bool,
     start_time: Instant,
+    operation_start_times: HashMap<String, Instant>,
     operation_timings: HashMap<String, Duration>,
     file_operations: Vec<FileOperation>,
     /// Multiple timings for the same operation (for percentile calculation)
@@ -245,6 +246,7 @@ impl Logger {
         Self {
             verbose,
             start_time: Instant::now(),
+            operation_start_times: HashMap::new(),
             operation_timings: HashMap::new(),
             file_operations: Vec::new(),
             operation_samples: HashMap::new(),
@@ -488,6 +490,8 @@ impl Logger {
 
     /// Start timing an operation
     pub fn start_timing(&mut self, operation: &str) {
+        self.operation_start_times
+            .insert(operation.to_string(), Instant::now());
         if self.verbose {
             self.verbose(&format!("Starting: {operation}"));
         }
@@ -495,7 +499,10 @@ impl Logger {
 
     /// End timing an operation and record the duration
     pub fn end_timing(&mut self, operation: &str) -> Duration {
-        let duration = self.start_time.elapsed();
+        let duration = self
+            .operation_start_times
+            .remove(operation)
+            .map_or_else(|| self.start_time.elapsed(), |start| start.elapsed());
         self.operation_timings
             .insert(operation.to_string(), duration);
 

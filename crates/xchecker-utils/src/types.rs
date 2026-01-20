@@ -281,7 +281,7 @@ pub struct Receipt {
 /// Error kinds for receipt error tracking
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(any(test, feature = "test-utils"), derive(strum::VariantNames))]
+#[cfg_attr(feature = "test-utils", derive(strum::VariantNames))]
 pub enum ErrorKind {
     CliArgs,
     PacketOverflow,
@@ -431,7 +431,7 @@ pub struct DoctorCheck {
 /// Status of a health check
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(any(test, feature = "test-utils"), derive(strum::VariantNames))]
+#[cfg_attr(feature = "test-utils", derive(strum::VariantNames))]
 pub enum CheckStatus {
     Pass,
     Warn,
@@ -505,7 +505,7 @@ pub struct ConfigValue {
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
-#[cfg_attr(any(test, feature = "test-utils"), derive(strum::VariantNames))]
+#[cfg_attr(feature = "test-utils", derive(strum::VariantNames))]
 pub enum ConfigSource {
     /// Value provided via CLI argument (highest precedence).
     Cli,
