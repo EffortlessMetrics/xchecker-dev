@@ -302,9 +302,15 @@ impl SandboxRoot {
                 rel: rel_path.to_path_buf(),
             })
         } else {
-            // For non-existent paths, we can't canonicalize, but we've already
-            // validated no ".." components and it's relative, so it's safe
-            // The full path is root + rel, which is guaranteed to be within root
+            // For non-existent paths, we need to ensure that existing ancestor
+            // directories don't escape the sandbox via symlinks.
+            // This is critical when allow_symlinks is true - a symlink directory
+            // in the path could redirect to outside the sandbox.
+            if self.config.allow_symlinks {
+                self.validate_ancestor_within_sandbox(&full_path, rel_path)?;
+            }
+
+            // The full path is root + rel, which is now guaranteed to be within root
             Ok(SandboxPath {
                 full: full_path,
                 rel: rel_path.to_path_buf(),
@@ -360,6 +366,53 @@ impl SandboxRoot {
                     });
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    /// Validate that the nearest existing ancestor of a non-existent path
+    /// stays within the sandbox when canonicalized.
+    ///
+    /// This prevents symlink traversal attacks where a symlinked directory
+    /// in the path points outside the sandbox, allowing creation of files
+    /// outside the intended directory.
+    ///
+    /// # Security
+    ///
+    /// When `allow_symlinks` is true and a path doesn't exist, we must verify
+    /// that existing parent directories don't escape via symlinks. Without this
+    /// check, `root.join("symlinked_dir/new_file.txt")` could create a file
+    /// outside the sandbox if `symlinked_dir` points elsewhere.
+    fn validate_ancestor_within_sandbox(
+        &self,
+        full_path: &Path,
+        rel_path: &Path,
+    ) -> Result<(), SandboxError> {
+        // Find the longest prefix of full_path that exists
+        let mut ancestor = full_path.to_path_buf();
+        while !ancestor.exists() {
+            if !ancestor.pop() {
+                // We've popped all the way to the root, nothing to check
+                return Ok(());
+            }
+        }
+
+        // Canonicalize the existing ancestor and verify containment
+        let canonical_ancestor =
+            ancestor
+                .canonicalize()
+                .map_err(|e| SandboxError::PathCanonicalizationFailed {
+                    path: ancestor.display().to_string(),
+                    reason: e.to_string(),
+                })?;
+
+        // Verify the canonical ancestor is within the sandbox root
+        if !canonical_ancestor.starts_with(&self.root) {
+            return Err(SandboxError::EscapeAttempt {
+                path: rel_path.display().to_string(),
+                root: self.root.display().to_string(),
+            });
         }
 
         Ok(())
@@ -715,6 +768,77 @@ mod tests {
             result.unwrap_err(),
             SandboxError::EscapeAttempt { .. }
         ));
+    }
+
+    /// Regression test for symlink traversal via non-existent paths.
+    ///
+    /// This tests the vulnerability where a symlinked directory inside the sandbox
+    /// points outside, and the attacker creates a non-existent file under it.
+    /// Since the final path doesn't exist, the old code skipped canonicalization,
+    /// allowing the escape.
+    ///
+    /// Attack scenario:
+    /// 1. Sandbox at /sandbox
+    /// 2. /sandbox/escape_dir -> /tmp/attacker (symlink to outside)
+    /// 3. Attacker calls root.join("escape_dir/malicious.txt")
+    /// 4. Old code: path doesn't exist, skip canonicalization, allow it
+    /// 5. Fixed code: canonicalize ancestor (escape_dir), detect escape
+    #[cfg(unix)]
+    #[test]
+    fn test_sandbox_join_rejects_symlink_dir_escape_via_nonexistent_path() {
+        let temp = create_test_dir();
+        let outside = TempDir::new().unwrap();
+
+        // Create a directory outside the sandbox
+        let outside_dir = outside.path().join("attacker_controlled");
+        std::fs::create_dir(&outside_dir).unwrap();
+
+        // Create a symlink inside the sandbox pointing to the outside directory
+        let escape_link = temp.path().join("escape_dir");
+        std::os::unix::fs::symlink(&outside_dir, &escape_link).unwrap();
+
+        // With symlinks allowed, try to join a NON-EXISTENT file under the symlinked dir
+        // This is the vulnerability: the final path doesn't exist, so old code
+        // would skip canonicalization and allow it
+        let config = SandboxConfig::permissive();
+        let root = SandboxRoot::new(temp.path(), config).unwrap();
+
+        // This should be rejected - escape_dir resolves outside the sandbox
+        let result = root.join("escape_dir/nonexistent_malicious_file.txt");
+        assert!(
+            result.is_err(),
+            "Expected escape to be detected for non-existent path through symlinked directory"
+        );
+        assert!(matches!(
+            result.unwrap_err(),
+            SandboxError::EscapeAttempt { .. }
+        ));
+    }
+
+    /// Test that safe symlinked directories work with non-existent paths.
+    #[cfg(unix)]
+    #[test]
+    fn test_sandbox_join_allows_safe_symlink_dir_with_nonexistent_path() {
+        let temp = create_test_dir();
+
+        // Create a subdirectory inside the sandbox
+        let inside_dir = temp.path().join("real_subdir");
+        std::fs::create_dir(&inside_dir).unwrap();
+
+        // Create a symlink inside the sandbox pointing to the inside directory
+        let safe_link = temp.path().join("link_to_subdir");
+        std::os::unix::fs::symlink(&inside_dir, &safe_link).unwrap();
+
+        // With symlinks allowed, joining a non-existent file under a SAFE symlink should work
+        let config = SandboxConfig::permissive();
+        let root = SandboxRoot::new(temp.path(), config).unwrap();
+
+        // This should succeed - link_to_subdir resolves to inside the sandbox
+        let result = root.join("link_to_subdir/new_file.txt");
+        assert!(
+            result.is_ok(),
+            "Expected safe symlink with non-existent path to succeed"
+        );
     }
 
     // ========================================================================

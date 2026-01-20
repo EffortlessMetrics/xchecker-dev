@@ -22,6 +22,8 @@
 - `crates/xchecker-engine/src/packet/selectors.rs` - Core fix in `walk_directory()`
 - `crates/xchecker-engine/src/packet/builder.rs` - API surface for configuration
 
+---
+
 ## 2026-01-20 - Unbounded Memory Consumption in File Selection
 
 **Vulnerability:** `ContentSelector::walk_directory` read entire file contents into memory using `fs::read_to_string` before checking if the file fits within the packet budget. This allowed a malicious or misconfigured repository with large files (e.g., 10GB logs) to cause an Out-Of-Memory (OOM) crash or Denial of Service (DoS) by exhausting system resources.
@@ -43,3 +45,33 @@
 **Files Changed:**
 - `crates/xchecker-engine/src/packet/selectors.rs`
 - `crates/xchecker-engine/src/packet/builder.rs`
+
+---
+
+## 2026-01-20 - Symlink Traversal via Non-Existent Paths in SandboxRoot
+
+**Vulnerability:** `SandboxRoot::join()` allowed symlink traversal escape when `allow_symlinks=true` and the target path did not exist. Because non-existent paths bypass `canonicalize()`, a symlinked directory in the path could redirect to outside the sandbox.
+
+**Severity:** HIGH (when `allow_symlinks` is enabled)
+
+**Attack Scenario:**
+1. Sandbox root at `/workspace`
+2. Attacker creates symlink: `/workspace/escape_dir` → `/tmp/attacker_controlled`
+3. Attacker calls `root.join("escape_dir/new_malicious_file.txt")`
+4. Old code: path doesn't exist → skip canonicalization → allow the path
+5. Result: attacker can write to `/tmp/attacker_controlled/new_malicious_file.txt`
+
+**Root Cause:** The original `SandboxRoot::join()` implementation assumed that for non-existent paths, rejecting `..` components was sufficient. However, symlinks in ancestor directories can redirect the path outside the sandbox without using `..`.
+
+**Learning:** `std::fs::canonicalize()` requires the path to exist. When validating a non-existent path in a sandbox, you must canonicalize and validate the nearest existing ancestor directory, especially when symlinks are allowed.
+
+**Fix Applied:**
+1. Added `validate_ancestor_within_sandbox()` method
+2. For non-existent paths when `allow_symlinks=true`, find the longest existing prefix
+3. Canonicalize that ancestor and verify it stays within the sandbox root
+4. Fail with `EscapeAttempt` error if ancestor escapes
+
+**Prevention:** When validating paths that may not exist yet, always validate existing ancestor directories. Don't assume lexical checks (no `..`) are sufficient when symlinks are allowed.
+
+**Files Changed:**
+- `crates/xchecker-utils/src/paths.rs` - Added `validate_ancestor_within_sandbox()` and called it for non-existent paths
