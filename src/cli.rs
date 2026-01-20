@@ -176,6 +176,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub llm_claude_binary: Option<String>,
 
+    /// Path to Gemini CLI binary (for gemini-cli provider)
+    #[arg(long, global = true)]
+    pub llm_gemini_binary: Option<String>,
+
     /// Execution strategy: controlled (default, LLMs cannot write directly)
     #[arg(long, global = true)]
     pub execution_strategy: Option<String>,
@@ -671,7 +675,7 @@ pub fn run() -> Result<(), ExitCode> {
         },
         llm_provider: cli.llm_provider.clone(),
         llm_claude_binary: cli.llm_claude_binary.clone(),
-        llm_gemini_binary: None, // TODO: Add CLI flag for Gemini binary in future
+        llm_gemini_binary: cli.llm_gemini_binary.clone(),
         execution_strategy: cli.execution_strategy.clone(),
     };
 

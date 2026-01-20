@@ -139,7 +139,6 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -184,9 +183,7 @@ mod tests {
         assert_eq!(runner.mode, Some("auto".to_string()));
     }
 
-    // TODO: This test has environment isolation issues when run with other tests
     #[test]
-    #[ignore]
     fn test_config_discovery_with_cli_override() {
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
@@ -202,10 +199,6 @@ packet_max_bytes = 32768
 mode = "native"
 "#,
         );
-
-        // Change to temp directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp_dir.path()).unwrap();
 
         let cli_args = CliArgs {
             config_path: None,
@@ -236,7 +229,7 @@ mode = "native"
             execution_strategy: None,
         };
 
-        let config = Config::discover(&cli_args).unwrap();
+        let config = Config::discover_from(temp_dir.path(), &cli_args).unwrap();
 
         // CLI overrides should take precedence
         assert_eq!(config.defaults.model, Some("opus".to_string()));
@@ -256,9 +249,6 @@ mode = "native"
             config.source_attribution.get("verbose"),
             Some(&ConfigSource::Cli)
         );
-
-        // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
@@ -281,9 +271,7 @@ mode = "native"
         }
     }
 
-    // TODO: This test has environment isolation issues - needs to be fixed
     #[test]
-    #[ignore]
     fn test_effective_config() {
         let temp_dir = TempDir::new().unwrap();
         let _config_path = create_test_config_file(
@@ -295,16 +283,12 @@ max_turns = 8
 "#,
         );
 
-        // Change to temp directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp_dir.path()).unwrap();
-
         let cli_args = CliArgs {
             verbose: Some(true),
             ..Default::default()
         };
 
-        let config = Config::discover(&cli_args).unwrap();
+        let config = Config::discover_from(temp_dir.path(), &cli_args).unwrap();
         let effective = config.effective_config();
 
         // Check that values and sources are correctly reported
@@ -316,14 +300,9 @@ max_turns = 8
 
         assert_eq!(effective.get("max_turns").unwrap().0, "8");
         assert_eq!(effective.get("max_turns").unwrap().1, "config");
-
-        // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
     }
 
-    // TODO: This test has environment isolation issues - needs to be fixed
     #[test]
-    #[ignore]
     fn test_invalid_toml_config() {
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
@@ -333,22 +312,15 @@ max_turns = 8
         let config_path = xchecker_dir.join("config.toml");
         fs::write(&config_path, "invalid toml content [[[").unwrap();
 
-        // Change to temp directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp_dir.path()).unwrap();
-
         let cli_args = CliArgs::default();
 
-        let result = Config::discover(&cli_args);
+        let result = Config::discover_from(temp_dir.path(), &cli_args);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         assert!(
             error_msg.contains("Invalid configuration file")
                 || error_msg.contains("Failed to parse TOML config file")
         );
-
-        // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
     }
 
     // ===== Edge Case Tests (Task 9.7) =====

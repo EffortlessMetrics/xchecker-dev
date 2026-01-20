@@ -52,6 +52,8 @@ The following changes can be made to existing schemas without incrementing the v
 - Added `warnings` (optional) to receipts
 - Added `fallback_used` (optional) to receipts
 - Added `diff_context` (optional) to receipts
+- Added `llm` (optional) to receipts for provider metadata
+- Added `pipeline` (optional) to receipts for execution strategy metadata
 - Added `pending_fixups` (optional) to status
 - Added `lock_drift` (optional) to status
 - Added `canonicalization_backend` to all outputs

@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use crate::artifact::{Artifact, ArtifactType};
 use crate::extraction::{summarize_design, summarize_requirements, summarize_tasks};
 use crate::fixup::{FixupMode, FixupParser};
-use crate::packet::PacketBuilder;
+use crate::cache::InsightCache;
+use crate::packet::{PacketBuilder, DEFAULT_PACKET_MAX_BYTES, DEFAULT_PACKET_MAX_LINES};
+use crate::paths;
 use crate::phase::{
     BudgetUsage, NextStep, Packet, Phase, PhaseContext, PhaseMetadata, PhaseResult,
 };
@@ -41,6 +43,39 @@ CORRECT (start immediately with content):
   ## Introduction
 
   This system provides...";
+
+fn packet_limits_from_context(ctx: &PhaseContext) -> (usize, usize) {
+    let max_bytes = ctx
+        .config
+        .get("packet_max_bytes")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_PACKET_MAX_BYTES);
+    let max_lines = ctx
+        .config
+        .get("packet_max_lines")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_PACKET_MAX_LINES);
+    (max_bytes, max_lines)
+}
+
+fn build_packet_builder(ctx: &PhaseContext) -> Result<PacketBuilder> {
+    let (max_bytes, max_lines) = packet_limits_from_context(ctx);
+    let mut builder =
+        PacketBuilder::with_selectors_and_limits(ctx.selectors.as_ref(), max_bytes, max_lines)?;
+    *builder.redactor_mut() = (*ctx.redactor).clone();
+
+    match InsightCache::new(paths::cache_dir()) {
+        Ok(cache) => builder.set_cache(cache),
+        Err(err) => {
+            tracing::warn!(
+                "Failed to initialize InsightCache (continuing without cache): {}",
+                err
+            );
+        }
+    }
+
+    Ok(builder)
+}
 
 /// Implementation of the Requirements phase
 ///
@@ -154,8 +189,7 @@ Please analyze the problem statement above and create structured requirements fo
         let context_dir = base_path.join("context");
 
         // Create PacketBuilder with selectors from context (if configured)
-        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
-        *builder.redactor_mut() = (*ctx.redactor).clone();
+        let mut builder = build_packet_builder(ctx)?;
 
         // Build packet from base path
         // PacketBuilder will:
@@ -379,8 +413,7 @@ Please analyze the requirements and create a comprehensive design document follo
         let context_dir = base_path.join("context");
 
         // Create PacketBuilder with selectors from context (if configured)
-        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
-        *builder.redactor_mut() = (*ctx.redactor).clone();
+        let mut builder = build_packet_builder(ctx)?;
 
         // Build packet from base path
         // PacketBuilder will:
@@ -609,8 +642,7 @@ Please analyze the design and requirements to create a comprehensive implementat
         let context_dir = base_path.join("context");
 
         // Create PacketBuilder with selectors from context (if configured)
-        let mut builder = PacketBuilder::with_selectors(ctx.selectors.as_ref())?;
-        *builder.redactor_mut() = (*ctx.redactor).clone();
+        let mut builder = build_packet_builder(ctx)?;
 
         // Build packet from base path
         // PacketBuilder will:
@@ -1274,13 +1306,15 @@ Please conduct a thorough review of the specification artifacts and provide your
         let blake3_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
 
         // Create evidence for the packet
+        let (max_bytes, max_lines) = packet_limits_from_context(ctx);
+
         let evidence = PacketEvidence {
             files,
-            max_bytes: 65536, // Default from design
-            max_lines: 1200,  // Default from design
+            max_bytes,
+            max_lines,
         };
 
-        let mut budget_used = BudgetUsage::new(65536, 1200); // Default limits
+        let mut budget_used = BudgetUsage::new(max_bytes, max_lines);
         budget_used.add_content(content.len(), content.lines().count());
 
         Ok(Packet::new(content, blake3_hash, evidence, budget_used))
@@ -1537,13 +1571,15 @@ The review phase has identified issues that need to be addressed. Please process
         let blake3_hash = blake3::hash(content.as_bytes()).to_hex().to_string();
 
         // Create evidence for the packet
+        let (max_bytes, max_lines) = packet_limits_from_context(ctx);
+
         let evidence = PacketEvidence {
             files,
-            max_bytes: 65536, // Default from design
-            max_lines: 1200,  // Default from design
+            max_bytes,
+            max_lines,
         };
 
-        let mut budget_used = BudgetUsage::new(65536, 1200); // Default limits
+        let mut budget_used = BudgetUsage::new(max_bytes, max_lines);
         budget_used.add_content(content.len(), content.lines().count());
 
         Ok(Packet::new(content, blake3_hash, evidence, budget_used))
