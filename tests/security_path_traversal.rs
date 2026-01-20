@@ -75,6 +75,9 @@ fn test_fixup_path_traversal_rejection() -> Result<()> {
     // This simulates the environment the FixupPhase would run in
     let base_path = env.handle.artifact_manager().base_path().to_path_buf();
 
+    // Ensure the spec directory exists (required for SandboxRoot canonicalization)
+    std::fs::create_dir_all(&base_path)?;
+
     // Initialize FixupParser in Apply mode
     let parser = FixupParser::new(FixupMode::Apply, base_path.into_std_path_buf())
         .expect("Failed to create FixupParser");
