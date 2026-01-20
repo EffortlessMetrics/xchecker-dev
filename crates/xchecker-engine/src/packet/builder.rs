@@ -216,6 +216,20 @@ impl PacketBuilder {
         self.cache = None;
     }
 
+    /// Enable or disable symlink following for content selection.
+    ///
+    /// When enabled, symlinks are only followed if they resolve to paths
+    /// within the base directory being scanned (sandbox validation).
+    /// This prevents path traversal attacks.
+    ///
+    /// Default is `false` (symlinks are skipped for security).
+    #[must_use]
+    #[allow(dead_code)] // Builder configuration method
+    pub fn allow_symlinks(mut self, allow: bool) -> Self {
+        self.selector = self.selector.allow_symlinks(allow);
+        self
+    }
+
     /// Build a packet from the given base path and phase context
     /// Returns a Packet with content and evidence, or fails pre-Claude if budget exceeded
     pub fn build_packet(
