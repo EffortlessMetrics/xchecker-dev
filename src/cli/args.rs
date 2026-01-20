@@ -52,7 +52,7 @@ PHASES:
   Each phase produces artifacts and receipts for auditability
   Use --dry-run to see planned execution without making LLM calls
 
-For more information, see: https://github.com/your-org/xchecker
+For more information, see: https://github.com/EffortlessMetrics/xchecker
 "#)]
 #[command(version)]
 pub struct Cli {

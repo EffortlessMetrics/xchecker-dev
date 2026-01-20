@@ -12,12 +12,14 @@ pub fn execute_clean_command(
     spec_id: &str,
     hard: bool,
     force: bool,
-    _config: &Config,
+    config: &Config,
 ) -> Result<()> {
     use crate::lock::utils;
 
     // Check if clean operation is allowed (no active locks unless forced)
-    if let Err(lock_error) = utils::can_clean(spec_id, force, None) {
+    // Use the configured lock TTL for staleness detection
+    let lock_ttl = config.defaults.lock_ttl_seconds;
+    if let Err(lock_error) = utils::can_clean(spec_id, force, lock_ttl) {
         return Err(anyhow::anyhow!(
             "Cannot clean spec '{spec_id}': {lock_error}"
         ));

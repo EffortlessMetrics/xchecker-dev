@@ -183,8 +183,8 @@ fn test_derive_spec_status_uses_latest_receipt() {
     );
     receipt_manager.write_receipt(&receipt1).unwrap();
 
-    // Small delay to ensure different timestamps
-    std::thread::sleep(std::time::Duration::from_millis(1100));
+    // Small delay to ensure different timestamps (50ms is sufficient for chrono precision)
+    std::thread::sleep(std::time::Duration::from_millis(50));
 
     // Create second receipt (design - success)
     let receipt2 = receipt_manager.create_receipt(

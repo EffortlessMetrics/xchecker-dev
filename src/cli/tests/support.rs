@@ -47,6 +47,13 @@ pub fn setup_test_environment() -> TestEnvGuard {
     // From here onwards we're serialized against other CLI tests
     env::set_current_dir(temp_dir.path()).unwrap();
 
+    // CRITICAL: Set XCHECKER_HOME to the temp directory to ensure complete isolation.
+    // Without this, tests may read/write against a developer machine's environment.
+    // Safety: We hold the global CLI lock, so no concurrent test can race on env vars.
+    unsafe {
+        env::set_var("XCHECKER_HOME", temp_dir.path());
+    }
+
     TestEnvGuard {
         _lock: lock,
         _temp_dir: temp_dir,
