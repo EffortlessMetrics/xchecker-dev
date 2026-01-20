@@ -15,8 +15,6 @@ mod commands;
 mod run;
 
 #[cfg(test)]
-#[allow(clippy::items_after_test_module)] // Test helper functions defined after tests is intentional
-#[allow(clippy::await_holding_lock)] // Test synchronization using mutex guards across awaits is intentional
 mod tests;
 
 // Re-export argument types
