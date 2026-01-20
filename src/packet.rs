@@ -202,16 +202,17 @@ impl ContentSelector {
         self.include_patterns.is_match(path_str)
     }
 
-    /// Select files from a directory with priority-based ordering (Lazy)
-    /// Returns files grouped by priority, with LIFO ordering within each group.
-    /// This method does NOT read file content.
-    pub fn select_candidates(&self, base_path: &Utf8Path) -> Result<Vec<CandidateFile>> {
-        let mut candidates = Vec::new();
-        self.walk_directory_candidates(base_path, &mut candidates)?;
+    /// Select files from a directory with priority-based ordering
+    /// Returns files grouped by priority, with LIFO ordering within each group
+    pub fn select_files(&self, base_path: &Utf8Path) -> Result<Vec<SelectedFile>> {
+        let mut files = Vec::new();
+
+        // Walk the directory tree
+        self.walk_directory(base_path, &mut files)?;
 
         // Sort by priority (Upstream first, then High, Medium, Low)
         // Within each priority, maintain LIFO order (reverse chronological)
-        candidates.sort_by(|a, b| {
+        files.sort_by(|a, b| {
             match a.priority.cmp(&b.priority) {
                 std::cmp::Ordering::Equal => {
                     // Within same priority, use LIFO (reverse order)
@@ -220,80 +221,11 @@ impl ContentSelector {
                 other => other,
             }
         });
-        Ok(candidates)
-    }
-
-    /// Recursively walk directory and collect matching candidates (Lazy)
-    fn walk_directory_candidates(
-        &self,
-        dir: &Utf8Path,
-        candidates: &mut Vec<CandidateFile>,
-    ) -> Result<()> {
-        if !dir.exists() {
-            return Ok(());
-        }
-
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = Utf8PathBuf::try_from(entry.path()).context("Invalid UTF-8 path")?;
-
-            if path.is_dir() {
-                self.walk_directory_candidates(&path, candidates)?;
-            } else if self.should_include(&path) {
-                let priority = self.get_priority(&path);
-                // Get file size without reading content
-                let size = fs::metadata(&path)
-                    .with_context(|| format!("Failed to get metadata for: {path}"))?
-                    .len();
-
-                candidates.push(CandidateFile {
-                    path,
-                    priority,
-                    size,
-                });
-            }
-        }
-        Ok(())
-    }
-
-    /// Select files from a directory with priority-based ordering
-    /// Returns files grouped by priority, with LIFO ordering within each group
-    ///
-    /// # Legacy Note
-    /// This method eagerly reads all file content. Use `select_candidates` for lazy loading
-    /// if you don't need content immediately.
-    pub fn select_files(&self, base_path: &Utf8Path) -> Result<Vec<SelectedFile>> {
-        // Use the lazy selection first
-        let candidates = self.select_candidates(base_path)?;
-        let mut files = Vec::with_capacity(candidates.len());
-
-        for candidate in candidates {
-            let content = fs::read_to_string(&candidate.path)
-                .with_context(|| format!("Failed to read file: {}", candidate.path))?;
-
-            // Calculate pre-redaction hash
-            let mut hasher = Hasher::new();
-            hasher.update(content.as_bytes());
-            let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
-
-            let line_count = content.lines().count();
-            let byte_count = content.len();
-
-            files.push(SelectedFile {
-                path: candidate.path,
-                content,
-                priority: candidate.priority,
-                blake3_pre_redaction,
-                line_count,
-                byte_count,
-            });
-        }
 
         Ok(files)
     }
 
     /// Recursively walk directory and collect matching files
-    #[allow(dead_code)] // Kept for backward compatibility if needed, but select_files uses select_candidates now
     fn walk_directory(&self, dir: &Utf8Path, files: &mut Vec<SelectedFile>) -> Result<()> {
         if !dir.exists() {
             return Ok(());
@@ -331,17 +263,6 @@ impl ContentSelector {
 
         Ok(())
     }
-}
-
-/// Represents a candidate file for selection (without content loaded)
-#[derive(Debug, Clone)]
-pub struct CandidateFile {
-    /// Path to the file
-    pub path: Utf8PathBuf,
-    /// Priority level
-    pub priority: Priority,
-    /// File size in bytes (from metadata)
-    pub size: u64,
 }
 
 /// Represents a file selected for potential inclusion in a packet
@@ -683,54 +604,14 @@ impl PacketBuilder {
         context_dir: &Utf8Path,
         logger: Option<&Logger>,
     ) -> Result<Packet> {
-        // Lazy select files using priority-based selection (without reading content yet)
-        let candidates = self
+        // Select files using priority-based selection
+        let selected_files = self
             .selector
-            .select_candidates(base_path)
+            .select_files(base_path)
             .with_context(|| format!("Failed to select files from {base_path}"))?;
 
-        // Build packet content with budget enforcement and redaction
-        let mut budget = BudgetUsage::new(self.max_bytes, self.max_lines);
-        let mut packet_content = String::new();
-        let mut included_files = Vec::new();
-
-        // Candidates are already sorted by Priority (Upstream -> High -> Medium -> Low)
-        // We iterate and process them one by one.
-        for candidate in candidates {
-            let is_upstream = candidate.priority == Priority::Upstream;
-
-            // Optimization: Skip files that definitely won't fit byte budget (unless Upstream)
-            // Note: candidate.size is u64 (from metadata), budget.max_bytes is usize.
-            // We cast strictly for comparison.
-            if !is_upstream && budget.would_exceed_bytes(candidate.size as usize) {
-                // Skip reading content if we know it won't fit bytes
-                continue;
-            }
-
-            // Read content
-            let content = fs::read_to_string(&candidate.path)
-                .with_context(|| format!("Failed to read file: {}", candidate.path))?;
-
-            // Compute hash
-            let mut hasher = Hasher::new();
-            hasher.update(content.as_bytes());
-            let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
-
-            // Construct SelectedFile wrapper for processing
-            let file = SelectedFile {
-                path: candidate.path.clone(),
-                content,
-                priority: candidate.priority,
-                blake3_pre_redaction,
-                line_count: 0, // Will be calculated in process_file if needed or below
-                byte_count: candidate.size as usize,
-            };
-
-            // Process content (redaction/cache)
-            // Note: process_file_with_cache handles redaction.
-            // But we must check for secrets *before* including if `has_secrets` returns true for unignored secrets.
-            // The original logic was: "First, scan all files for secrets".
-            // Here we scan just-in-time.
+        // First, scan all files for secrets before processing
+        for file in &selected_files {
             if self
                 .redactor
                 .has_secrets(&file.content, file.path.as_ref())?
@@ -740,25 +621,40 @@ impl PacketBuilder {
                     .scan_for_secrets(&file.content, file.path.as_ref())?;
                 return Err(create_secret_detected_error(&matches).into());
             }
+        }
 
+        // Build packet content with budget enforcement and redaction
+        let mut budget = BudgetUsage::new(self.max_bytes, self.max_lines);
+        let mut packet_content = String::new();
+        let mut included_files = Vec::new();
+
+        // First pass: Add all upstream files (never evicted)
+        let mut upstream_files = Vec::new();
+        let mut other_files = Vec::new();
+
+        for file in selected_files {
+            if file.priority == Priority::Upstream {
+                upstream_files.push(file);
+            } else {
+                other_files.push(file);
+            }
+        }
+
+        // Add upstream files first (always included)
+        for file in upstream_files {
             let file_content = self.process_file_with_cache(&file, phase, logger)?;
 
-            let content_size = file_content.len() + file.path.as_str().len() + 10;
-            let line_count = file_content.lines().count() + 3;
-
-            // Check budget (exact check now that we have processed content)
-            if !is_upstream && budget.would_exceed(content_size, line_count) {
-                // Skip
-                continue;
-            }
-
-            // Add to packet
+            // Add file content to packet
             packet_content.push_str(&format!("=== {} ===\n", file.path));
             packet_content.push_str(&file_content);
             packet_content.push_str("\n\n");
 
+            // Update budget based on content size
+            let content_size = file_content.len() + file.path.as_str().len() + 10;
+            let line_count = file_content.lines().count() + 3;
             budget.add_content(content_size, line_count);
 
+            // Create file evidence with pre-redaction hash
             let evidence = FileEvidence {
                 path: file.path.to_string(),
                 range: None, // Full file for now
@@ -768,14 +664,8 @@ impl PacketBuilder {
             included_files.push(evidence);
         }
 
-        // Check if upstream files caused overflow (since they bypass initial check)
+        // Check if upstream files alone exceed budget
         if budget.is_exceeded() {
-            // We can check if *only* upstream files are in.
-            // But actually, we process in order. Upstream are first.
-            // If upstream files exceed budget, we still added them.
-            // And subsequent non-upstream files would be skipped.
-            // So if budget is exceeded here, it must be because of upstream files.
-
             // Write packet preview before failing
             self.write_packet_preview(&packet_content, phase, context_dir)?;
 
@@ -789,6 +679,37 @@ impl PacketBuilder {
                 limit_lines: budget.max_lines,
             }
             .into());
+        }
+
+        // Second pass: Add other files until budget is reached
+        for file in other_files {
+            let file_content = self.process_file_with_cache(&file, phase, logger)?;
+
+            let content_size = file_content.len() + file.path.as_str().len() + 10;
+            let line_count = file_content.lines().count() + 3;
+
+            // Check if this file would exceed budget
+            if budget.would_exceed(content_size, line_count) {
+                // Skip this file to stay within budget
+                continue;
+            }
+
+            // Add file content to packet
+            packet_content.push_str(&format!("=== {} ===\n", file.path));
+            packet_content.push_str(&file_content);
+            packet_content.push_str("\n\n");
+
+            // Update budget
+            budget.add_content(content_size, line_count);
+
+            // Create file evidence with pre-redaction hash
+            let evidence = FileEvidence {
+                path: file.path.to_string(),
+                range: None, // Full file for now
+                blake3_pre_redaction: file.blake3_pre_redaction,
+                priority: file.priority,
+            };
+            included_files.push(evidence);
         }
 
         // Calculate packet hash (after redaction has been applied)
@@ -983,14 +904,6 @@ impl PacketBuilder {
 impl Default for PacketBuilder {
     fn default() -> Self {
         Self::new().expect("Failed to create default PacketBuilder")
-    }
-}
-
-// Extension to BudgetUsage to check bytes without lines
-impl BudgetUsage {
-    /// Check if adding content would exceed byte budget
-    pub const fn would_exceed_bytes(&self, bytes: usize) -> bool {
-        self.bytes_used + bytes > self.max_bytes
     }
 }
 
@@ -1714,7 +1627,7 @@ mod packet_builder_tests {
     fn test_packet_builder_with_selectors_accepts_custom_patterns() -> Result<()> {
         let selectors = Selectors {
             include: vec!["**/*.rs".to_string()],
-            exclude: vec![],
+            exclude: vec!["**/test_*.rs".to_string()],
         };
 
         let builder = PacketBuilder::with_selectors(Some(&selectors))?;
