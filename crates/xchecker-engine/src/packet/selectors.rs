@@ -202,9 +202,39 @@ impl ContentSelector {
         dir: &Utf8Path,
         files: &mut Vec<SelectedFile>,
     ) -> Result<()> {
+        self.walk_directory_inner(root, None, dir, files)
+    }
+
+    /// Inner implementation with pre-canonicalized root for performance.
+    ///
+    /// The `canonical_root` is computed once and passed through recursive calls
+    /// to avoid repeated `fs::canonicalize(root)` syscalls on every symlink check.
+    fn walk_directory_inner(
+        &self,
+        root: &Utf8Path,
+        canonical_root: Option<&std::path::Path>,
+        dir: &Utf8Path,
+        files: &mut Vec<SelectedFile>,
+    ) -> Result<()> {
         if !dir.exists() {
             return Ok(());
         }
+
+        // Pre-canonicalize root once at the top level, reuse in recursive calls
+        let owned_canonical_root;
+        let canonical_root = match canonical_root {
+            Some(cr) => cr,
+            None => {
+                owned_canonical_root = fs::canonicalize(root).ok();
+                match &owned_canonical_root {
+                    Some(cr) => cr.as_path(),
+                    // If root can't be canonicalized, fail-closed: skip all symlink validation
+                    None => {
+                        return self.walk_directory_no_symlinks(dir, files);
+                    }
+                }
+            }
+        };
 
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -220,11 +250,9 @@ impl ContentSelector {
 
                 // Symlinks allowed: verify target stays within sandbox (root)
                 // Fail-closed: if canonicalization fails, skip the entry
-                let is_safe = match (fs::canonicalize(&path), fs::canonicalize(root)) {
-                    (Ok(canonical_path), Ok(canonical_root)) => {
-                        canonical_path.starts_with(&canonical_root)
-                    }
-                    _ => false, // Broken symlink or resolution error - skip
+                let is_safe = match fs::canonicalize(&path) {
+                    Ok(canonical_path) => canonical_path.starts_with(canonical_root),
+                    Err(_) => false, // Broken symlink or resolution error - skip
                 };
 
                 if !is_safe {
@@ -234,14 +262,72 @@ impl ContentSelector {
             }
 
             // Recurse into directories (including validated symlinked directories)
-            if path.is_dir() {
-                self.walk_directory(root, &path, files)?;
+            // Use DirEntry's file_type for non-symlinks to avoid extra stat call
+            let is_dir = if file_type.is_symlink() {
+                // For symlinks we already validated, check if target is a directory
+                path.is_dir()
+            } else {
+                file_type.is_dir()
+            };
+
+            if is_dir {
+                self.walk_directory_inner(root, Some(canonical_root), &path, files)?;
             } else if self.should_include(&path) {
                 let priority = self.get_priority(&path);
                 let content = fs::read_to_string(&path)
                     .with_context(|| format!("Failed to read file: {path}"))?;
 
                 // Calculate pre-redaction hash
+                let mut hasher = Hasher::new();
+                hasher.update(content.as_bytes());
+                let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
+
+                let line_count = content.lines().count();
+                let byte_count = content.len();
+
+                files.push(SelectedFile {
+                    path: path.clone(),
+                    content,
+                    priority,
+                    blake3_pre_redaction,
+                    line_count,
+                    byte_count,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Fallback directory walker when root canonicalization fails.
+    ///
+    /// Skips all symlinks unconditionally (fail-closed security).
+    fn walk_directory_no_symlinks(
+        &self,
+        dir: &Utf8Path,
+        files: &mut Vec<SelectedFile>,
+    ) -> Result<()> {
+        if !dir.exists() {
+            return Ok(());
+        }
+
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = Utf8PathBuf::try_from(entry.path()).context("Invalid UTF-8 path")?;
+            let file_type = entry.file_type()?;
+
+            // Skip all symlinks in fallback mode
+            if file_type.is_symlink() {
+                continue;
+            }
+
+            if file_type.is_dir() {
+                self.walk_directory_no_symlinks(&path, files)?;
+            } else if self.should_include(&path) {
+                let priority = self.get_priority(&path);
+                let content = fs::read_to_string(&path)
+                    .with_context(|| format!("Failed to read file: {path}"))?;
+
                 let mut hasher = Hasher::new();
                 hasher.update(content.as_bytes());
                 let blake3_pre_redaction = hasher.finalize().to_hex().to_string();

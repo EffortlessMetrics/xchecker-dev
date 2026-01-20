@@ -950,45 +950,85 @@ impl Logger {
 }
 
 /// Log doctor report to console (wires Doctor into logging)
+///
+/// Colors are only applied when stdout is a terminal and `NO_COLOR` is not set.
 pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     use crate::types::CheckStatus;
-    use crossterm::style::{Attribute, Color, Stylize};
+    use std::io::IsTerminal;
 
-    println!(
-        "{}",
-        "=== xchecker Environment Health Check ==="
-            .with(Color::Cyan)
-            .attribute(Attribute::Bold)
-    );
-    println!();
+    // Respect NO_COLOR convention and only colorize when outputting to a terminal
+    let use_color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
 
-    for check in &report.checks {
-        let (status_symbol, status_text, color) = match check.status {
-            CheckStatus::Pass => ("✓", "PASS", Color::Green),
-            CheckStatus::Warn => ("⚠", "WARN", Color::Yellow),
-            CheckStatus::Fail => ("✗", "FAIL", Color::Red),
+    if use_color {
+        log_doctor_report_colored(report);
+    } else {
+        log_doctor_report_plain(report);
+    }
+
+    fn log_doctor_report_colored(report: &crate::types::DoctorOutput) {
+        use crossterm::style::{Attribute, Color, Stylize};
+
+        println!(
+            "{}",
+            "=== xchecker Environment Health Check ==="
+                .with(Color::Cyan)
+                .attribute(Attribute::Bold)
+        );
+        println!();
+
+        for check in &report.checks {
+            let (status_symbol, status_text, color) = match check.status {
+                CheckStatus::Pass => ("✓", "PASS", Color::Green),
+                CheckStatus::Warn => ("⚠", "WARN", Color::Yellow),
+                CheckStatus::Fail => ("✗", "FAIL", Color::Red),
+            };
+
+            println!(
+                "{} {} [{}]",
+                status_symbol.with(color).attribute(Attribute::Bold),
+                check.name.as_str().attribute(Attribute::Bold),
+                status_text.with(color).attribute(Attribute::Bold)
+            );
+            println!("  {}", check.details);
+            println!();
+        }
+
+        let (overall_text, overall_color) = if report.ok {
+            ("✓ HEALTHY", Color::Green)
+        } else {
+            ("✗ ISSUES DETECTED", Color::Red)
         };
 
         println!(
-            "{} {} [{}]",
-            status_symbol.with(color).attribute(Attribute::Bold),
-            check.name.clone().attribute(Attribute::Bold),
-            status_text.with(color).attribute(Attribute::Bold)
+            "Overall status: {}",
+            overall_text.with(overall_color).attribute(Attribute::Bold)
         );
-        println!("  {}", check.details);
-        println!();
     }
 
-    let (overall_text, overall_color) = if report.ok {
-        ("✓ HEALTHY", Color::Green)
-    } else {
-        ("✗ ISSUES DETECTED", Color::Red)
-    };
+    fn log_doctor_report_plain(report: &crate::types::DoctorOutput) {
+        println!("=== xchecker Environment Health Check ===");
+        println!();
 
-    println!(
-        "Overall status: {}",
-        overall_text.with(overall_color).attribute(Attribute::Bold)
-    );
+        for check in &report.checks {
+            let status_text = match check.status {
+                CheckStatus::Pass => "[PASS]",
+                CheckStatus::Warn => "[WARN]",
+                CheckStatus::Fail => "[FAIL]",
+            };
+
+            println!("{} {}", check.name, status_text);
+            println!("  {}", check.details);
+            println!();
+        }
+
+        let overall_text = if report.ok {
+            "HEALTHY"
+        } else {
+            "ISSUES DETECTED"
+        };
+
+        println!("Overall status: {overall_text}");
+    }
 }
 
 /// Log cache statistics (standalone function for use outside Logger)
