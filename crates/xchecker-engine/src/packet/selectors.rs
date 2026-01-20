@@ -6,6 +6,10 @@ use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::fs;
+use tracing::warn;
+
+/// Default maximum file size (10MB) to prevent DoS
+const DEFAULT_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
 /// Content selector that implements priority-based file selection
 /// with concrete defaults and LIFO ordering within priority classes
@@ -23,6 +27,8 @@ pub struct ContentSelector {
     /// When true, symlinks are only followed if they resolve to paths within
     /// the base directory (sandbox), preventing path traversal attacks.
     allow_symlinks: bool,
+    /// Maximum file size in bytes (default: 10MB)
+    max_file_size: u64,
 }
 
 impl ContentSelector {
@@ -57,7 +63,20 @@ impl ContentSelector {
             exclude_patterns: exclude_builder.build()?,
             priority_rules: PriorityRules::default(),
             allow_symlinks: false,
+            max_file_size: DEFAULT_MAX_FILE_SIZE,
         })
+    }
+
+    /// Set the maximum file size limit in bytes.
+    ///
+    /// Files larger than this limit will be skipped during selection to prevent
+    /// Denial of Service (DoS) attacks via memory exhaustion.
+    ///
+    /// Default is 10MB.
+    #[must_use]
+    pub const fn max_file_size(mut self, size: u64) -> Self {
+        self.max_file_size = size;
+        self
     }
 
     /// Enable or disable symlink following during directory traversal.
@@ -93,6 +112,7 @@ impl ContentSelector {
             exclude_patterns: exclude_builder.build()?,
             priority_rules: PriorityRules::default(),
             allow_symlinks: false,
+            max_file_size: DEFAULT_MAX_FILE_SIZE,
         })
     }
 
@@ -124,6 +144,7 @@ impl ContentSelector {
                     exclude_patterns: exclude_builder.build()?,
                     priority_rules: PriorityRules::default(),
                     allow_symlinks: false,
+                    max_file_size: DEFAULT_MAX_FILE_SIZE,
                 })
             }
             None => Self::new(),
@@ -273,7 +294,38 @@ impl ContentSelector {
             if is_dir {
                 self.walk_directory_inner(root, Some(canonical_root), &path, files)?;
             } else if self.should_include(&path) {
+                // Check file size before reading to prevent DoS
+                // Note: fs::metadata follows symlinks, which is correct here (we want target size)
+                let metadata = fs::metadata(&path).context("Failed to get file metadata")?;
+
+                if !metadata.is_file() {
+                    // Skip special files (pipes, devices, etc.) that might block reading
+                    continue;
+                }
+
                 let priority = self.get_priority(&path);
+
+                if metadata.len() > self.max_file_size {
+                    // For upstream files (critical context), fail hard if they exceed the limit
+                    if priority == Priority::Upstream {
+                        return Err(anyhow::anyhow!(
+                            "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                             Critical context files must fit within the configured limit.",
+                            path,
+                            self.max_file_size,
+                            metadata.len()
+                        ));
+                    }
+
+                    warn!(
+                        "Skipping large file: {} ({} bytes > limit {})",
+                        path,
+                        metadata.len(),
+                        self.max_file_size
+                    );
+                    continue;
+                }
+
                 let content = fs::read_to_string(&path)
                     .with_context(|| format!("Failed to read file: {path}"))?;
 
@@ -324,7 +376,37 @@ impl ContentSelector {
             if file_type.is_dir() {
                 self.walk_directory_no_symlinks(&path, files)?;
             } else if self.should_include(&path) {
+                // Check file size before reading to prevent DoS
+                let metadata = fs::metadata(&path).context("Failed to get file metadata")?;
+
+                if !metadata.is_file() {
+                    // Skip special files (pipes, devices, etc.)
+                    continue;
+                }
+
                 let priority = self.get_priority(&path);
+
+                if metadata.len() > self.max_file_size {
+                    // For upstream files (critical context), fail hard if they exceed the limit
+                    if priority == Priority::Upstream {
+                        return Err(anyhow::anyhow!(
+                            "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                             Critical context files must fit within the configured limit.",
+                            path,
+                            self.max_file_size,
+                            metadata.len()
+                        ));
+                    }
+
+                    warn!(
+                        "Skipping large file: {} ({} bytes > limit {})",
+                        path,
+                        metadata.len(),
+                        self.max_file_size
+                    );
+                    continue;
+                }
+
                 let content = fs::read_to_string(&path)
                     .with_context(|| format!("Failed to read file: {path}"))?;
 
@@ -498,6 +580,30 @@ mod tests {
         // and nothing matches exclude (empty globset never matches)
         assert!(!selector.should_include(Utf8Path::new("README.md")));
         assert!(!selector.should_include(Utf8Path::new("src/main.rs")));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_large_file_skipped() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+
+        // Create a large file (larger than our test limit)
+        let large_content = "x".repeat(1024); // 1KB
+        fs::write(base_path.join("large.md"), &large_content)?;
+
+        // Create a small file
+        let small_content = "small";
+        fs::write(base_path.join("small.md"), small_content)?;
+
+        // Set limit to 500 bytes (smaller than large file)
+        let selector = ContentSelector::new()?.max_file_size(500);
+        let files = selector.select_files(&base_path)?;
+
+        // Should only include the small file
+        assert_eq!(files.len(), 1);
+        assert!(files[0].path.as_str().contains("small.md"));
 
         Ok(())
     }

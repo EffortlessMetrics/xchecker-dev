@@ -21,3 +21,25 @@
 **Files Changed:**
 - `crates/xchecker-engine/src/packet/selectors.rs` - Core fix in `walk_directory()`
 - `crates/xchecker-engine/src/packet/builder.rs` - API surface for configuration
+
+## 2026-01-20 - Unbounded Memory Consumption in File Selection
+
+**Vulnerability:** `ContentSelector::walk_directory` read entire file contents into memory using `fs::read_to_string` before checking if the file fits within the packet budget. This allowed a malicious or misconfigured repository with large files (e.g., 10GB logs) to cause an Out-Of-Memory (OOM) crash or Denial of Service (DoS) by exhausting system resources.
+
+**Severity:** MEDIUM
+
+**Root Cause:** File reading was eager (read-all-then-check) rather than lazy or bounded. The `ContentSelector` did not enforce any size limits during traversal.
+
+**Learning:** Always check file metadata (`fs::metadata(path).len()`) before reading content into memory. Set hard limits on file sizes based on application constraints (e.g., packet budget). Also, avoid reading special files (pipes, devices) which might block indefinitely.
+
+**Fix Applied:**
+1. Added `max_file_size` limit to `ContentSelector`.
+2. Updated `PacketBuilder` to set `max_file_size` equal to the configured `packet_max_bytes`.
+3. In `walk_directory`, check `metadata.len()` and `metadata.is_file()` before reading.
+4. Fail hard if critical `Upstream` files exceed the limit, but skip non-critical files with a warning.
+
+**Prevention:** Enforce resource limits early in the processing pipeline (fail-fast). Use metadata checks before I/O.
+
+**Files Changed:**
+- `crates/xchecker-engine/src/packet/selectors.rs`
+- `crates/xchecker-engine/src/packet/builder.rs`

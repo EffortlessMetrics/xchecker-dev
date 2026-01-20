@@ -37,7 +37,7 @@ impl PacketBuilder {
     /// Create a new `PacketBuilder` with default limits
     pub fn new() -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?,
+            selector: ContentSelector::new()?.max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes: DEFAULT_PACKET_MAX_BYTES,
@@ -49,7 +49,7 @@ impl PacketBuilder {
     #[allow(dead_code)] // Builder pattern method for API surface
     pub fn with_cache(cache_dir: Utf8PathBuf) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?,
+            selector: ContentSelector::new()?.max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
             redactor: SecretRedactor::new()?,
             cache: Some(InsightCache::new(cache_dir)?),
             max_bytes: DEFAULT_PACKET_MAX_BYTES,
@@ -66,7 +66,8 @@ impl PacketBuilder {
     /// Returns an error if selector patterns are invalid or redactor creation fails.
     pub fn with_selectors(selectors: Option<&Selectors>) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::from_selectors(selectors)?,
+            selector: ContentSelector::from_selectors(selectors)?
+                .max_file_size(DEFAULT_PACKET_MAX_BYTES as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes: DEFAULT_PACKET_MAX_BYTES,
@@ -88,7 +89,7 @@ impl PacketBuilder {
         max_lines: usize,
     ) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::from_selectors(selectors)?,
+            selector: ContentSelector::from_selectors(selectors)?.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes,
@@ -100,7 +101,7 @@ impl PacketBuilder {
     #[allow(dead_code)] // Builder pattern method for API surface
     pub fn with_limits(max_bytes: usize, max_lines: usize) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?,
+            selector: ContentSelector::new()?.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new()?,
             cache: None,
             max_bytes,
@@ -116,7 +117,7 @@ impl PacketBuilder {
         cache_dir: Utf8PathBuf,
     ) -> Result<Self> {
         Ok(Self {
-            selector: ContentSelector::new()?,
+            selector: ContentSelector::new()?.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new()?,
             cache: Some(InsightCache::new(cache_dir)?),
             max_bytes,
@@ -133,7 +134,7 @@ impl PacketBuilder {
         max_lines: usize,
     ) -> Self {
         Self {
-            selector,
+            selector: selector.max_file_size(max_bytes as u64),
             redactor: SecretRedactor::new().expect("Failed to create SecretRedactor"),
             cache: None,
             max_bytes,
@@ -144,14 +145,14 @@ impl PacketBuilder {
     /// Create a `PacketBuilder` with custom redactor, selector and limits
     #[must_use]
     #[allow(dead_code)] // Builder pattern method for API surface
-    pub const fn with_redactor_selector_and_limits(
+    pub fn with_redactor_selector_and_limits(
         redactor: SecretRedactor,
         selector: ContentSelector,
         max_bytes: usize,
         max_lines: usize,
     ) -> Self {
         Self {
-            selector,
+            selector: selector.max_file_size(max_bytes as u64),
             redactor,
             cache: None,
             max_bytes,
@@ -162,7 +163,7 @@ impl PacketBuilder {
     /// Create a `PacketBuilder` with all custom components
     #[must_use]
     #[allow(dead_code)] // Builder pattern method for API surface
-    pub const fn with_all_components(
+    pub fn with_all_components(
         redactor: SecretRedactor,
         selector: ContentSelector,
         cache: Option<InsightCache>,
@@ -170,7 +171,7 @@ impl PacketBuilder {
         max_lines: usize,
     ) -> Self {
         Self {
-            selector,
+            selector: selector.max_file_size(max_bytes as u64),
             redactor,
             cache,
             max_bytes,
@@ -519,12 +520,17 @@ mod packet_builder_tests {
         let mut builder = PacketBuilder::with_limits(1000, 10)?;
         let result = builder.build_packet(&base_path, "test", &context_dir, None);
 
-        // Should fail with PacketOverflow error because upstream file exceeds budget
+        // Should fail because upstream file exceeds size limit (which matches packet limit)
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        // Use Debug format to check error chain
+        let err_msg = format!("{:?}", err);
+        assert!(err_msg.contains("Upstream file"));
+        assert!(err_msg.contains("exceeds size limit"));
 
-        // Context file should still be written
+        // Context file is NOT written when file selection fails early
         let context_file = context_dir.join("test-packet.txt");
-        assert!(context_file.exists());
+        assert!(!context_file.exists());
 
         Ok(())
     }
@@ -577,12 +583,17 @@ mod packet_builder_tests {
         let mut builder = PacketBuilder::with_limits(100, 5)?;
         let result = builder.build_packet(&base_path, "test", &context_dir, None);
 
-        // Should fail because upstream file exceeds budget
+        // Should fail because upstream file exceeds size limit
         assert!(result.is_err());
+        let err = result.unwrap_err();
+        // Use Debug format to check error chain
+        let err_msg = format!("{:?}", err);
+        assert!(err_msg.contains("Upstream file"));
+        assert!(err_msg.contains("exceeds size limit"));
 
-        // Context file should still be written
+        // Context file is NOT written when file selection fails early
         let context_file = context_dir.join("test-packet.txt");
-        assert!(context_file.exists());
+        assert!(!context_file.exists());
 
         Ok(())
     }
