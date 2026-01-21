@@ -1505,7 +1505,10 @@ mod tests {
         assert_eq!(to_title_case("claude_cli_version"), "Claude CLI Version");
         assert_eq!(to_title_case("wsl_availability"), "WSL Availability");
         assert_eq!(to_title_case("llm_provider"), "LLM Provider");
-        assert_eq!(to_title_case("http_provider_config"), "HTTP Provider Config");
+        assert_eq!(
+            to_title_case("http_provider_config"),
+            "HTTP Provider Config"
+        );
         assert_eq!(to_title_case("json_output"), "JSON Output");
         assert_eq!(to_title_case("simple_test"), "Simple Test");
         assert_eq!(to_title_case("api_key"), "API Key");
