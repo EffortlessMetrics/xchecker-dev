@@ -3,6 +3,7 @@
 //! This module contains LLM-related code extracted from mod.rs.
 
 use std::collections::HashMap;
+use std::fmt;
 use anyhow::Result;
 
 use crate::config::{
@@ -11,7 +12,7 @@ use crate::config::{
 };
 use crate::error::XCheckerError;
 use crate::hooks::HooksConfig;
-use crate::llm::{LlmBackend, LlmInvocation, LlmResult, Message};
+use crate::llm::{LlmBackend, LlmFallbackInfo, LlmInvocation, LlmResult, Message};
 use crate::types::PhaseId;
 
 use super::{OrchestratorConfig, PhaseOrchestrator, PhaseTimeout};
@@ -29,6 +30,42 @@ pub(crate) struct ClaudeExecutionMetadata {
     pub runner: String,
     pub runner_distro: Option<String>,
     pub stderr_tail: Option<String>,
+}
+
+/// Error wrapper that preserves fallback warning metadata on invocation failures.
+#[derive(Debug)]
+pub(crate) struct LlmInvocationError {
+    error: XCheckerError,
+    fallback_warning: Option<String>,
+}
+
+impl LlmInvocationError {
+    pub(crate) fn new(error: XCheckerError, fallback_warning: Option<String>) -> Self {
+        Self {
+            error,
+            fallback_warning,
+        }
+    }
+
+    pub(crate) fn error(&self) -> &XCheckerError {
+        &self.error
+    }
+
+    pub(crate) fn fallback_warning(&self) -> Option<&str> {
+        self.fallback_warning.as_deref()
+    }
+}
+
+impl fmt::Display for LlmInvocationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.error)
+    }
+}
+
+impl std::error::Error for LlmInvocationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
+    }
 }
 
 fn apply_overrides_from_map(config: &mut Config, overrides: &HashMap<String, String>) {
@@ -245,12 +282,12 @@ impl PhaseOrchestrator {
     pub(crate) fn make_llm_backend(
         &self,
         orc_config: &OrchestratorConfig,
-    ) -> Result<Box<dyn LlmBackend>, XCheckerError> {
+    ) -> Result<(Box<dyn LlmBackend>, Option<LlmFallbackInfo>), XCheckerError> {
         // Build a Config from OrchestratorConfig
         let cfg = self.config_from_orchestrator_config(orc_config);
 
         // Use the factory function to construct the appropriate backend
-        crate::llm::from_config(&cfg).map_err(XCheckerError::Llm)
+        crate::llm::from_config_with_fallback(&cfg).map_err(XCheckerError::Llm)
     }
 
     /// Build `LlmInvocation` from packet and phase context.
@@ -360,18 +397,31 @@ impl PhaseOrchestrator {
         i32,
         Option<ClaudeExecutionMetadata>,
         Option<LlmResult>,
+        Option<String>,
     )> {
         // Build LLM invocation
         let invocation = self.build_llm_invocation(phase_id, prompt, packet, config);
 
         // Get backend
-        let backend = self.make_llm_backend(config)?;
+        let (backend, fallback_info) = self.make_llm_backend(config)?;
+        let fallback_warning = fallback_info.map(|info| info.warning_message());
+        let fallback_warning_for_error = fallback_warning.clone();
 
         // Invoke LLM
-        let llm_result = backend
-            .invoke(invocation)
-            .await
-            .map_err(XCheckerError::Llm)?;
+        let llm_result = backend.invoke(invocation).await.map_err(|err| {
+            anyhow::Error::new(LlmInvocationError::new(
+                XCheckerError::Llm(err),
+                fallback_warning_for_error.clone(),
+            ))
+        })?;
+        let llm_result = if let Some(ref warning) = fallback_warning {
+            llm_result.with_extension(
+                "llm_fallback_warning",
+                serde_json::Value::String(warning.clone()),
+            )
+        } else {
+            llm_result
+        };
 
         let exit_code = llm_result
             .extensions
@@ -427,6 +477,7 @@ impl PhaseOrchestrator {
             exit_code,
             Some(metadata),
             Some(llm_result),
+            fallback_warning,
         ))
     }
 }

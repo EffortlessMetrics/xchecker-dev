@@ -150,6 +150,28 @@ pub struct LlmResult {
     pub extensions: HashMap<String, serde_json::Value>,
 }
 
+/// Fallback metadata when a secondary provider is used.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LlmFallbackInfo {
+    /// Primary provider that failed to construct.
+    pub primary_provider: String,
+    /// Fallback provider that was constructed successfully.
+    pub fallback_provider: String,
+    /// Redacted reason for the primary provider failure.
+    pub reason: String,
+}
+
+impl LlmFallbackInfo {
+    /// Format a warning string suitable for receipts.
+    #[must_use]
+    pub fn warning_message(&self) -> String {
+        format!(
+            "llm_fallback: Primary provider '{}' failed: {}. Using fallback '{}'.",
+            self.primary_provider, self.reason, self.fallback_provider
+        )
+    }
+}
+
 impl LlmResult {
     /// Create a new LLM result
     #[must_use]

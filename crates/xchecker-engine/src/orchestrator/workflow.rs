@@ -388,6 +388,11 @@ impl PhaseOrchestrator {
         };
 
         // Create receipt using core outputs
+        let mut warnings = Vec::new();
+        if let Some(warning) = &core.llm_fallback_warning {
+            warnings.push(warning.clone());
+        }
+
         let mut receipt = self.receipt_manager().create_receipt_with_redactor(
             config.redactor.as_ref(),
             self.spec_id(),
@@ -404,7 +409,7 @@ impl PhaseOrchestrator {
             core.packet_evidence.clone(),
             None,   // No stderr_tail for successful execution
             None,   // No stderr_redacted for successful execution
-            vec![], // No warnings for now
+            warnings,
             core.claude_metadata.as_ref().map(|m| m.fallback_used),
             core.claude_metadata
                 .as_ref()

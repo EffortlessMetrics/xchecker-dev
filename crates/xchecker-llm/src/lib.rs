@@ -23,7 +23,9 @@ pub use xchecker_utils::runner;
 pub use crate::error::LlmError;
 #[allow(unused_imports)]
 // ExecutionStrategy is part of public API, used in types but not in this module
-pub use types::{ExecutionStrategy, LlmBackend, LlmInvocation, LlmResult, Message, Role};
+pub use types::{
+    ExecutionStrategy, LlmBackend, LlmFallbackInfo, LlmInvocation, LlmResult, Message, Role,
+};
 
 // Test-only exports - hidden from documentation
 #[doc(hidden)]
@@ -91,6 +93,91 @@ fn construct_backend_for_provider(
     }
 }
 
+/// Create an LLM backend from configuration, returning fallback metadata when used.
+///
+/// This factory constructs the appropriate backend and, if the primary provider fails
+/// to construct and a fallback is configured, returns the fallback backend along with
+/// a warning message payload describing the fallback.
+///
+/// # Errors
+///
+/// Returns `LlmError::Unsupported` if:
+/// - The provider is unknown/invalid
+/// - The execution strategy is not supported
+///
+/// Returns `LlmError::Misconfiguration` if:
+/// - Provider-specific configuration is invalid
+pub fn from_config_with_fallback(
+    config: &Config,
+) -> Result<(Box<dyn LlmBackend>, Option<LlmFallbackInfo>), LlmError> {
+    let provider = config.llm.provider.as_deref().unwrap_or("claude-cli");
+
+    // Validate execution strategy - must be "controlled" in V11-V14
+    let execution_strategy = config
+        .llm
+        .execution_strategy
+        .as_deref()
+        .unwrap_or("controlled");
+
+    if execution_strategy != "controlled" {
+        return Err(LlmError::Unsupported(format!(
+            "Execution strategy '{}' is not supported in V11-V14. Only 'controlled' is supported. \
+                 Other strategies like 'externaltool' are reserved for future versions.",
+            execution_strategy
+        )));
+    }
+
+    // Attempt to construct primary backend
+    let primary_result = construct_backend_for_provider(provider, config);
+
+    match primary_result {
+        Ok(backend) => Ok((backend, None)),
+        Err(primary_error) => {
+            // Check if fallback provider is configured
+            if let Some(fallback_provider) = config.llm.fallback_provider.as_deref() {
+                let reason = redact_error_for_logging(&primary_error);
+
+                // Log warning about fallback usage (redacted)
+                eprintln!(
+                    "Warning: Primary provider '{}' failed during construction: {}. Attempting fallback provider '{}'.",
+                    provider, reason, fallback_provider
+                );
+
+                // Attempt to construct fallback backend
+                match construct_backend_for_provider(fallback_provider, config) {
+                    Ok(fallback_backend) => {
+                        eprintln!(
+                            "Successfully constructed fallback provider '{}'. This usage will be recorded in receipt warnings.",
+                            fallback_provider
+                        );
+                        Ok((
+                            fallback_backend,
+                            Some(LlmFallbackInfo {
+                                primary_provider: provider.to_string(),
+                                fallback_provider: fallback_provider.to_string(),
+                                reason,
+                            }),
+                        ))
+                    }
+                    Err(fallback_error) => {
+                        // Both primary and fallback failed
+                        eprintln!(
+                            "Error: Fallback provider '{}' also failed: {}",
+                            fallback_provider,
+                            redact_error_for_logging(&fallback_error)
+                        );
+                        // Return the primary error as it's more relevant
+                        Err(primary_error)
+                    }
+                }
+            } else {
+                // No fallback configured, return primary error
+                Err(primary_error)
+            }
+        }
+    }
+}
+
 /// Create an LLM backend from configuration.
 ///
 /// This factory function constructs the appropriate backend based on the provider
@@ -136,65 +223,8 @@ fn construct_backend_for_provider(
 /// ```
 #[doc(hidden)]
 pub fn from_config(config: &Config) -> Result<Box<dyn LlmBackend>, LlmError> {
-    let provider = config.llm.provider.as_deref().unwrap_or("claude-cli");
-
-    // Validate execution strategy - must be "controlled" in V11-V14
-    let execution_strategy = config
-        .llm
-        .execution_strategy
-        .as_deref()
-        .unwrap_or("controlled");
-
-    if execution_strategy != "controlled" {
-        return Err(LlmError::Unsupported(format!(
-            "Execution strategy '{}' is not supported in V11-V14. Only 'controlled' is supported. \
-                 Other strategies like 'externaltool' are reserved for future versions.",
-            execution_strategy
-        )));
-    }
-
-    // Attempt to construct primary backend
-    let primary_result = construct_backend_for_provider(provider, config);
-
-    match primary_result {
-        Ok(backend) => Ok(backend),
-        Err(primary_error) => {
-            // Check if fallback provider is configured
-            if let Some(fallback_provider) = config.llm.fallback_provider.as_deref() {
-                // Log warning about fallback usage (redacted)
-                eprintln!(
-                    "Warning: Primary provider '{}' failed during construction: {}. Attempting fallback provider '{}'.",
-                    provider,
-                    redact_error_for_logging(&primary_error),
-                    fallback_provider
-                );
-
-                // Attempt to construct fallback backend
-                match construct_backend_for_provider(fallback_provider, config) {
-                    Ok(fallback_backend) => {
-                        eprintln!(
-                            "Successfully constructed fallback provider '{}'. This usage will be recorded in receipt warnings.",
-                            fallback_provider
-                        );
-                        Ok(fallback_backend)
-                    }
-                    Err(fallback_error) => {
-                        // Both primary and fallback failed
-                        eprintln!(
-                            "Error: Fallback provider '{}' also failed: {}",
-                            fallback_provider,
-                            redact_error_for_logging(&fallback_error)
-                        );
-                        // Return the primary error as it's more relevant
-                        Err(primary_error)
-                    }
-                }
-            } else {
-                // No fallback configured, return primary error
-                Err(primary_error)
-            }
-        }
-    }
+    let (backend, _fallback_info) = from_config_with_fallback(config)?;
+    Ok(backend)
 }
 
 /// Redact error messages for logging to avoid exposing sensitive information.
@@ -723,6 +753,66 @@ mod factory_tests {
                     "Expected Misconfiguration error for missing API key, got error: {}",
                     e
                 );
+            }
+        }
+    }
+
+    /// Test that fallback metadata is returned when fallback is used.
+    #[test]
+    fn test_fallback_info_returned_when_fallback_used() {
+        use std::env;
+        let _guard = env_guard();
+
+        // Ensure primary provider API key env var is missing.
+        // SAFETY: This is a test function that runs in isolation.
+        unsafe {
+            env::remove_var("MISSING_OPENROUTER_KEY");
+            env::set_var("ANTHROPIC_API_KEY", "test-key");
+        }
+
+        let mut config = Config::minimal_for_testing();
+        config.llm.provider = Some("openrouter".to_string());
+        config.llm.fallback_provider = Some("anthropic".to_string());
+        config.llm.execution_strategy = Some("controlled".to_string());
+
+        config.llm.openrouter = Some(crate::config::OpenRouterConfig {
+            base_url: Some("https://openrouter.ai/api/v1/chat/completions".to_string()),
+            api_key_env: Some("MISSING_OPENROUTER_KEY".to_string()),
+            model: Some("google/gemini-2.0-flash-lite".to_string()),
+            max_tokens: Some(256),
+            temperature: Some(0.2),
+            budget: None,
+        });
+
+        config.llm.anthropic = Some(crate::config::AnthropicConfig {
+            base_url: Some("https://api.anthropic.com/v1/messages".to_string()),
+            api_key_env: Some("ANTHROPIC_API_KEY".to_string()),
+            model: Some("haiku".to_string()),
+            max_tokens: Some(256),
+            temperature: Some(0.2),
+        });
+
+        let result = from_config_with_fallback(&config);
+
+        // Clean up
+        // SAFETY: Cleaning up the environment variable we set above
+        unsafe {
+            env::remove_var("ANTHROPIC_API_KEY");
+        }
+
+        match result {
+            Ok((_backend, fallback_info)) => {
+                let info = fallback_info.expect("Expected fallback info when fallback is used");
+                assert_eq!(info.primary_provider, "openrouter");
+                assert_eq!(info.fallback_provider, "anthropic");
+
+                let warning = info.warning_message();
+                assert!(warning.contains("llm_fallback"));
+                assert!(warning.contains("openrouter"));
+                assert!(warning.contains("anthropic"));
+            }
+            Err(e) => {
+                panic!("Expected fallback backend to be constructed, got error: {e}");
             }
         }
     }

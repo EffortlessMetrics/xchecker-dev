@@ -665,10 +665,7 @@ Fallback usage will be recorded in receipt warnings:
 ```json
 {
   "warnings": [
-    {
-      "type": "llm_fallback",
-      "message": "Primary provider 'claude-cli' failed: binary not found. Using fallback 'openrouter'."
-    }
+    "llm_fallback: Primary provider 'claude-cli' failed: binary not found. Using fallback 'openrouter'."
   ]
 }
 ```

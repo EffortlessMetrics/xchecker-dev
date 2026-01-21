@@ -17,7 +17,7 @@ use crate::phase::{Phase, PhaseContext};
 use crate::phases::{DesignPhase, FixupPhase, RequirementsPhase, ReviewPhase, TasksPhase};
 use crate::types::{ErrorKind, FileType, LlmInfo, PacketEvidence, PhaseId, PipelineInfo};
 
-use super::llm::ClaudeExecutionMetadata;
+use super::llm::{ClaudeExecutionMetadata, LlmInvocationError};
 use super::{OrchestratorConfig, PhaseOrchestrator, PhaseTimeout};
 
 /// Result of executing a phase through the orchestrator.
@@ -151,6 +151,8 @@ pub(crate) struct PhaseCoreOutput {
     pub claude_metadata: Option<ClaudeExecutionMetadata>,
     /// Structured LLM result that converts to LlmInfo on receipts
     pub llm_result: Option<crate::llm::LlmResult>,
+    /// Warning message when a fallback provider was used
+    pub llm_fallback_warning: Option<String>,
     /// Postprocessed artifacts with parsed content from LLM response
     pub phase_result: crate::phase::PhaseResult,
 }
@@ -568,7 +570,8 @@ impl PhaseOrchestrator {
         }
 
         // Step 5: Execute LLM (or simulate in dry-run mode)
-        let (claude_response, claude_exit_code, claude_metadata, llm_result) = if config.dry_run {
+        let (claude_response, claude_exit_code, claude_metadata, llm_result, llm_fallback_warning) =
+            if config.dry_run {
             let simulated_llm = self.simulate_llm_result(phase_id);
             let simulated_metadata = super::llm::ClaudeExecutionMetadata {
                 model_alias: None,
@@ -584,6 +587,7 @@ impl PhaseOrchestrator {
                 0,
                 Some(simulated_metadata),
                 Some(simulated_llm),
+                None,
             )
         } else {
             // Use new LLM backend abstraction (V11: Claude CLI only)
@@ -637,6 +641,7 @@ impl PhaseOrchestrator {
             claude_exit_code,
             claude_metadata,
             llm_result,
+            llm_fallback_warning,
             phase_result,
         })
     }
@@ -925,6 +930,7 @@ impl PhaseOrchestrator {
         }
 
         // Execute LLM (or simulate in dry-run mode)
+        let mut llm_fallback_warning: Option<String> = None;
         let (claude_response, claude_exit_code, claude_metadata, llm_result) = if config.dry_run {
             let simulated_llm = self.simulate_llm_result(phase_id);
             let simulated_metadata = super::llm::ClaudeExecutionMetadata {
@@ -948,12 +954,27 @@ impl PhaseOrchestrator {
                 .run_llm_invocation(&prompt, &packet.content, phase_id, config)
                 .await
             {
-                Ok(result) => result,
+                Ok((response, exit_code, metadata, result, fallback_warning)) => {
+                    llm_fallback_warning = fallback_warning;
+                    (response, exit_code, metadata, result)
+                }
                 Err(e) => {
+                    let (xchecker_err, fallback_warning) =
+                        if let Some(invocation_err) = e.downcast_ref::<LlmInvocationError>() {
+                            (
+                                invocation_err.error(),
+                                invocation_err.fallback_warning().map(|s| s.to_string()),
+                            )
+                        } else if let Some(xchecker_err) = e.downcast_ref::<XCheckerError>() {
+                            (xchecker_err, None)
+                        } else {
+                            return Err(e);
+                        };
+
+                    llm_fallback_warning = fallback_warning;
+
                     // Check if this is a budget exhaustion error by downcasting
-                    if let Some(xchecker_err) = e.downcast_ref::<XCheckerError>()
-                        && let XCheckerError::Llm(llm_err) = xchecker_err
-                    {
+                    if let XCheckerError::Llm(llm_err) = xchecker_err {
                         if matches!(llm_err, crate::llm::LlmError::BudgetExceeded { .. }) {
                             // Handle budget exhaustion specially - create receipt with budget_exhausted flag
                             let packet_evidence = packet.evidence.clone();
@@ -967,6 +988,11 @@ impl PhaseOrchestrator {
                                 .config
                                 .get("runner_mode")
                                 .map_or("unknown", |s| s.as_str());
+
+                            let mut warnings = vec![format!("LLM budget exhausted: {}", llm_err)];
+                            if let Some(ref warning) = llm_fallback_warning {
+                                warnings.push(warning.clone());
+                            }
 
                             let mut receipt = self.receipt_manager().create_receipt_with_redactor(
                                 config.redactor.as_ref(),
@@ -982,7 +1008,7 @@ impl PhaseOrchestrator {
                                 packet_evidence,
                                 None, // No stderr_tail
                                 None, // No stderr_redacted
-                                vec![format!("LLM budget exhausted: {}", llm_err)],
+                                warnings,
                                 None, // No fallback
                                 configured_runner,
                                 None, // No runner distro
@@ -1055,6 +1081,9 @@ impl PhaseOrchestrator {
                                 llm_info.timed_out = Some(false);
                                 warnings.push(format!("llm_error:{}", llm_err));
                             }
+                        }
+                        if let Some(ref warning) = llm_fallback_warning {
+                            warnings.push(warning.clone());
                         }
 
                         let mut receipt = self.receipt_manager().create_receipt_with_redactor(
@@ -1135,6 +1164,11 @@ impl PhaseOrchestrator {
                 (None, "haiku".to_string())
             };
 
+            let mut warnings = vec!["Phase execution failed with non-zero exit code".to_string()];
+            if let Some(ref warning) = llm_fallback_warning {
+                warnings.push(warning.clone());
+            }
+
             let mut receipt = self.receipt_manager().create_receipt_with_redactor(
                 config.redactor.as_ref(),
                 self.spec_id(),
@@ -1151,7 +1185,7 @@ impl PhaseOrchestrator {
                 packet_evidence,
                 Some("Claude CLI execution failed".to_string()), // stderr_tail
                 None,                                            // stderr_redacted
-                vec!["Phase execution failed with non-zero exit code".to_string()], // warnings
+                warnings,
                 claude_metadata.as_ref().map(|m| m.fallback_used),
                 claude_metadata
                     .as_ref()
@@ -1284,6 +1318,14 @@ impl PhaseOrchestrator {
             (None, "haiku".to_string())
         };
 
+        let mut warnings: Vec<String> = atomic_write_warnings
+            .into_iter()
+            .chain(hook_warnings.iter().cloned())
+            .collect();
+        if let Some(warning) = llm_fallback_warning {
+            warnings.push(warning);
+        }
+
         let mut receipt = self.receipt_manager().create_receipt_with_redactor(
             config.redactor.as_ref(),
             self.spec_id(),
@@ -1300,11 +1342,7 @@ impl PhaseOrchestrator {
             packet_evidence,
             None, // No stderr_tail for successful execution
             None, // No stderr_redacted for successful execution
-            // Merge hook warnings with atomic write warnings
-            atomic_write_warnings
-                .into_iter()
-                .chain(hook_warnings.iter().cloned())
-                .collect(), // Include atomic write warnings and hook warnings
+            warnings, // Include atomic write warnings, hook warnings, and LLM fallback warning
             claude_metadata.as_ref().map(|m| m.fallback_used),
             claude_metadata
                 .as_ref()
