@@ -172,6 +172,14 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub llm_provider: Option<String>,
 
+    /// Fallback LLM provider to use if primary provider fails to initialize
+    #[arg(long, global = true)]
+    pub llm_fallback_provider: Option<String>,
+
+    /// Prompt template to use for LLM interactions
+    #[arg(long, global = true)]
+    pub prompt_template: Option<String>,
+
     /// Path to Claude CLI binary (for claude-cli provider)
     #[arg(long, global = true)]
     pub llm_claude_binary: Option<String>,
@@ -179,6 +187,10 @@ pub struct Cli {
     /// Path to Gemini CLI binary (for gemini-cli provider)
     #[arg(long, global = true)]
     pub llm_gemini_binary: Option<String>,
+
+    /// Default Gemini model to use when no per-phase override is set
+    #[arg(long, global = true)]
+    pub llm_gemini_default_model: Option<String>,
 
     /// Execution strategy: controlled (default, LLMs cannot write directly)
     #[arg(long, global = true)]
@@ -680,8 +692,11 @@ pub fn run() -> Result<(), ExitCode> {
             None
         },
         llm_provider: cli.llm_provider.clone(),
+        llm_fallback_provider: cli.llm_fallback_provider.clone(),
+        prompt_template: cli.prompt_template.clone(),
         llm_claude_binary: cli.llm_claude_binary.clone(),
         llm_gemini_binary: cli.llm_gemini_binary.clone(),
+        llm_gemini_default_model: cli.llm_gemini_default_model.clone(),
         execution_strategy: cli.execution_strategy.clone(),
     };
 

@@ -700,6 +700,7 @@ mod factory_tests {
     #[test]
     fn test_fallback_on_missing_api_key() {
         use std::env;
+        let _guard = env_guard();
 
         // Clean up environment first
         // SAFETY: This is a test function that runs in isolation

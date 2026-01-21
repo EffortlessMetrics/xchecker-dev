@@ -445,6 +445,15 @@ All configuration options can be overridden via CLI flags:
 # Override model
 xchecker spec my-feature --model claude-3-opus-20240229
 
+# Override LLM provider and fallback
+xchecker spec my-feature --llm-provider openrouter --llm-fallback-provider anthropic
+
+# Override prompt template
+xchecker spec my-feature --prompt-template claude-optimized
+
+# Override Gemini default model
+xchecker spec my-feature --llm-gemini-default-model gemini-2.0-pro
+
 # Override packet limits
 xchecker spec my-feature --packet-max-bytes 32768 --packet-max-lines 800
 

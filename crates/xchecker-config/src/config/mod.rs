@@ -139,6 +139,7 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -148,12 +149,25 @@ mod tests {
     // Tests that use `config_env_guard()` will be serialized.
     static CONFIG_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
+    fn clear_config_env_vars() {
+        // SAFETY: Test-only helper for clearing process env vars under the config lock.
+        unsafe {
+            env::remove_var("XCHECKER_LLM_PROVIDER");
+            env::remove_var("XCHECKER_EXECUTION_STRATEGY");
+            env::remove_var("XCHECKER_LLM_FALLBACK_PROVIDER");
+            env::remove_var("XCHECKER_LLM_PROMPT_TEMPLATE");
+            env::remove_var("XCHECKER_LLM_GEMINI_DEFAULT_MODEL");
+        }
+    }
+
     #[allow(dead_code)] // Ready for use when #[ignore]d tests are enabled
     fn config_env_guard() -> MutexGuard<'static, ()> {
-        CONFIG_ENV_LOCK
+        let guard = CONFIG_ENV_LOCK
             .get_or_init(|| Mutex::new(()))
             .lock()
-            .unwrap()
+            .unwrap();
+        clear_config_env_vars();
+        guard
     }
 
     fn create_test_config_file(dir: &Path, content: &str) -> PathBuf {
@@ -226,6 +240,9 @@ mode = "native"
             llm_provider: None,
             llm_claude_binary: None,
             llm_gemini_binary: None,
+            llm_gemini_default_model: None,
+            llm_fallback_provider: None,
+            prompt_template: None,
             execution_strategy: None,
         };
 
@@ -2292,3 +2309,4 @@ ignore_secret_patterns = ["github_pat", "aws_access_key"]
         );
     }
 }
+
