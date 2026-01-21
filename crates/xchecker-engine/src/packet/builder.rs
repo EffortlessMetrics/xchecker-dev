@@ -1297,4 +1297,100 @@ mod packet_builder_tests {
 
         Ok(())
     }
+
+    // ===== Filename Redaction Security Tests =====
+
+    #[test]
+    fn test_filename_with_secret_is_redacted_in_packet_content() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create a file with a GitHub PAT in the filename
+        // Note: We use a valid token format that will be detected by the secret patterns
+        let secret_token = test_support::github_pat();
+        let filename_with_secret = format!("config_{}.yaml", secret_token);
+        fs::write(base_path.join(&filename_with_secret), "key: value")?;
+
+        let mut builder = PacketBuilder::new()?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // Packet should have included the file
+        assert_eq!(packet.evidence.files.len(), 1);
+
+        // The packet CONTENT should NOT contain the raw secret in the filename header
+        // It should be redacted to "***"
+        assert!(
+            !packet.content.contains(&secret_token),
+            "Packet content should NOT contain the raw secret token in filename"
+        );
+
+        // The redacted filename should be in the content (with *** replacing the secret)
+        assert!(
+            packet.content.contains("config_***"),
+            "Packet content should contain redacted filename with ***"
+        );
+
+        // The file evidence path should still contain the original path
+        // (evidence is internal, not sent to LLM)
+        assert!(packet.evidence.files[0].path.contains(&secret_token));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filename_with_aws_key_is_redacted_in_packet_content() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create a file with an AWS access key in the filename
+        let aws_key = test_support::aws_access_key_id();
+        let filename_with_secret = format!("backup_{}.md", aws_key);
+        fs::write(base_path.join(&filename_with_secret), "# Backup data")?;
+
+        let mut builder = PacketBuilder::new()?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // The packet content should NOT contain the raw AWS key
+        assert!(
+            !packet.content.contains(&aws_key),
+            "Packet content should NOT contain the raw AWS access key in filename"
+        );
+
+        // Should contain redacted marker
+        assert!(
+            packet.content.contains("***"),
+            "Packet content should contain redacted marker"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filename_without_secret_unchanged_in_packet_content() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create a file with a normal filename (no secrets)
+        fs::write(base_path.join("normal_config.yaml"), "key: value")?;
+
+        let mut builder = PacketBuilder::new()?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // The packet content should contain the normal filename unchanged
+        assert!(
+            packet.content.contains("normal_config.yaml"),
+            "Packet content should contain normal filename unchanged"
+        );
+
+        // Should NOT contain redaction markers for this file
+        assert!(
+            !packet.content.contains("normal_config*"),
+            "Normal filename should not be redacted"
+        );
+
+        Ok(())
+    }
 }
