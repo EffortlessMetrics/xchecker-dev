@@ -75,3 +75,24 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/paths.rs` - Added `validate_ancestor_within_sandbox()` and called it for non-existent paths
+
+---
+
+## 2026-01-21 - Information Exposure via Filenames in Packet
+
+**Vulnerability:** Secrets in filenames were not being redacted when building the packet context. While file *content* was scanned and redacted, the `packet_content.push_str(&format!("=== {} ===\n", file.path));` line exposed the raw filename. This could leak sensitive information (e.g., `config_AWS_SECRET=...`) to the LLM.
+
+**Severity:** MEDIUM
+
+**Root Cause:** The `SecretRedactor` was only applied to file content, but filenames are also user-controlled data included in the packet.
+
+**Learning:** All user-controlled data entering a trusted boundary (or leaving via an egress channel like an LLM API) must be sanitized. Filenames are often overlooked but can contain sensitive data.
+
+**Fix Applied:**
+1. Refactored `PacketBuilder` to ensure `SecretRedactor` is accessible for filename redaction.
+2. Applied `redactor.redact_string(file.path.as_str())` before adding the filename header to the packet.
+
+**Prevention:** Ensure that all components of a data packet (headers, metadata, content) pass through the sanitization layer.
+
+**Files Changed:**
+- `crates/xchecker-engine/src/packet/builder.rs`
