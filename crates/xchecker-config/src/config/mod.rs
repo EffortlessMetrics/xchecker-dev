@@ -893,10 +893,7 @@ fallback_provider = "anthropic"
 
         let config = Config::discover(&cli_args).unwrap();
 
-        assert_eq!(
-            config.llm.fallback_provider,
-            Some("anthropic".to_string())
-        );
+        assert_eq!(config.llm.fallback_provider, Some("anthropic".to_string()));
         assert_eq!(
             config.source_attribution.get("llm_fallback_provider"),
             Some(&ConfigSource::Config)
@@ -2309,4 +2306,3 @@ ignore_secret_patterns = ["github_pat", "aws_access_key"]
         );
     }
 }
-

@@ -2,9 +2,9 @@
 //!
 //! This module contains LLM-related code extracted from mod.rs.
 
+use anyhow::Result;
 use std::collections::HashMap;
 use std::fmt;
-use anyhow::Result;
 
 use crate::config::{
     ClaudeConfig, Config, Defaults, GeminiConfig, LlmConfig, PhaseConfig, PhasesConfig,
@@ -365,7 +365,7 @@ impl PhaseOrchestrator {
                 .gemini
                 .as_ref()
                 .and_then(|gemini| gemini.profiles.as_ref())
-                .map_or(false, |profiles| profiles.contains_key(phase_id.as_str()));
+                .is_some_and(|profiles| profiles.contains_key(phase_id.as_str()));
 
             if has_profile {
                 invocation.metadata.insert(
@@ -524,11 +524,8 @@ mod tests {
 
     #[test]
     fn build_messages_openai_compatible_omits_empty_packet() {
-        let messages = build_messages_from_template(
-            PromptTemplate::OpenAiCompatible,
-            "Write summary",
-            "   ",
-        );
+        let messages =
+            build_messages_from_template(PromptTemplate::OpenAiCompatible, "Write summary", "   ");
 
         assert_eq!(messages.len(), 2);
         assert_eq!(messages[0].role, Role::System);

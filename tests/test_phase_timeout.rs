@@ -271,9 +271,7 @@ mod integration_tests {
         assert!(!result.success, "Phase should time out");
         assert_eq!(result.exit_code, codes::PHASE_TIMEOUT);
 
-        let receipt_path = result
-            .receipt_path
-            .expect("Receipt path should be present");
+        let receipt_path = result.receipt_path.expect("Receipt path should be present");
         let receipt_contents = fs::read_to_string(&receipt_path)?;
         let receipt: Receipt = serde_json::from_str(&receipt_contents)?;
 
@@ -286,7 +284,7 @@ mod integration_tests {
 
         let partial_path = result
             .artifact_paths
-            .get(0)
+            .first()
             .expect("Partial artifact path should be present");
         assert!(partial_path.exists(), "Partial artifact should exist");
         assert!(

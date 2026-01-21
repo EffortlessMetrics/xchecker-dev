@@ -677,4 +677,3 @@ fn test_cli_run_error_path_smoke() {
     assert_eq!(ExitCode::CLI_ARGS.as_i32(), 2);
     assert_eq!(ExitCode::INTERNAL.as_i32(), 1);
 }
-

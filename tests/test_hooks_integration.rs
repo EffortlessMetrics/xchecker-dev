@@ -10,7 +10,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use anyhow::Result;
 use tempfile::TempDir;
 use xchecker::exit_codes;
-use xchecker::hooks::{HookConfig, HooksConfig, OnFail, DEFAULT_HOOK_TIMEOUT_SECS};
+use xchecker::hooks::{DEFAULT_HOOK_TIMEOUT_SECS, HookConfig, HooksConfig, OnFail};
 use xchecker::orchestrator::{OrchestratorConfig, OrchestratorHandle};
 use xchecker::types::PhaseId;
 
@@ -31,10 +31,7 @@ fn hook_env_command(output_file: &str) -> String {
 static HOOK_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
 fn hook_env_guard() -> MutexGuard<'static, ()> {
-    HOOK_ENV_LOCK
-        .get_or_init(|| Mutex::new(()))
-        .lock()
-        .unwrap()
+    HOOK_ENV_LOCK.get_or_init(|| Mutex::new(())).lock().unwrap()
 }
 
 fn failing_command() -> String {
@@ -58,6 +55,7 @@ fn unique_spec_id(test_name: &str) -> String {
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)] // Lock serializes tests; safe in single-threaded test context
 async fn test_pre_and_post_hooks_execute() -> Result<()> {
     let _guard = hook_env_guard();
     let _home = xchecker::paths::with_isolated_home();
@@ -89,7 +87,10 @@ async fn test_pre_and_post_hooks_execute() -> Result<()> {
         },
     );
 
-    let hooks = HooksConfig { pre_phase, post_phase };
+    let hooks = HooksConfig {
+        pre_phase,
+        post_phase,
+    };
 
     let config = OrchestratorConfig {
         dry_run: true,
@@ -116,6 +117,7 @@ async fn test_pre_and_post_hooks_execute() -> Result<()> {
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)] // Lock serializes tests; safe in single-threaded test context
 async fn test_pre_phase_hook_failure_aborts_phase() -> Result<()> {
     let _guard = hook_env_guard();
     let _home = xchecker::paths::with_isolated_home();

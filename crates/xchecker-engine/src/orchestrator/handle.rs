@@ -251,22 +251,19 @@ impl OrchestratorHandle {
                 .insert("phase_timeout".to_string(), timeout.to_string());
         }
         if let Some(stdout_cap_bytes) = config.defaults.stdout_cap_bytes {
-            orch_config.config.insert(
-                "stdout_cap_bytes".to_string(),
-                stdout_cap_bytes.to_string(),
-            );
+            orch_config
+                .config
+                .insert("stdout_cap_bytes".to_string(), stdout_cap_bytes.to_string());
         }
         if let Some(stderr_cap_bytes) = config.defaults.stderr_cap_bytes {
-            orch_config.config.insert(
-                "stderr_cap_bytes".to_string(),
-                stderr_cap_bytes.to_string(),
-            );
+            orch_config
+                .config
+                .insert("stderr_cap_bytes".to_string(), stderr_cap_bytes.to_string());
         }
         if let Some(lock_ttl_seconds) = config.defaults.lock_ttl_seconds {
-            orch_config.config.insert(
-                "lock_ttl_seconds".to_string(),
-                lock_ttl_seconds.to_string(),
-            );
+            orch_config
+                .config
+                .insert("lock_ttl_seconds".to_string(), lock_ttl_seconds.to_string());
         }
         if let Some(debug_packet) = config.defaults.debug_packet
             && debug_packet
@@ -303,15 +300,15 @@ impl OrchestratorHandle {
                 .insert("llm_provider".to_string(), provider.clone());
         }
         if let Some(fallback_provider) = &config.llm.fallback_provider {
-            orch_config
-                .config
-                .insert("llm_fallback_provider".to_string(), fallback_provider.clone());
+            orch_config.config.insert(
+                "llm_fallback_provider".to_string(),
+                fallback_provider.clone(),
+            );
         }
         if let Some(execution_strategy) = &config.llm.execution_strategy {
-            orch_config.config.insert(
-                "execution_strategy".to_string(),
-                execution_strategy.clone(),
-            );
+            orch_config
+                .config
+                .insert("execution_strategy".to_string(), execution_strategy.clone());
         }
         if let Some(prompt_template) = &config.llm.prompt_template {
             orch_config

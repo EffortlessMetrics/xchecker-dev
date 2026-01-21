@@ -2399,24 +2399,15 @@ fn create_default_config(
     }
 
     if let Some(stdout_cap_bytes) = config.defaults.stdout_cap_bytes {
-        config_map.insert(
-            "stdout_cap_bytes".to_string(),
-            stdout_cap_bytes.to_string(),
-        );
+        config_map.insert("stdout_cap_bytes".to_string(), stdout_cap_bytes.to_string());
     }
 
     if let Some(stderr_cap_bytes) = config.defaults.stderr_cap_bytes {
-        config_map.insert(
-            "stderr_cap_bytes".to_string(),
-            stderr_cap_bytes.to_string(),
-        );
+        config_map.insert("stderr_cap_bytes".to_string(), stderr_cap_bytes.to_string());
     }
 
     if let Some(lock_ttl_seconds) = config.defaults.lock_ttl_seconds {
-        config_map.insert(
-            "lock_ttl_seconds".to_string(),
-            lock_ttl_seconds.to_string(),
-        );
+        config_map.insert("lock_ttl_seconds".to_string(), lock_ttl_seconds.to_string());
     }
 
     if let Some(debug_packet) = config.defaults.debug_packet
@@ -2448,7 +2439,10 @@ fn create_default_config(
     }
 
     if let Some(fallback_provider) = &config.llm.fallback_provider {
-        config_map.insert("llm_fallback_provider".to_string(), fallback_provider.clone());
+        config_map.insert(
+            "llm_fallback_provider".to_string(),
+            fallback_provider.clone(),
+        );
     }
 
     if let Some(execution_strategy) = &config.llm.execution_strategy {
@@ -2470,7 +2464,10 @@ fn create_default_config(
             config_map.insert("llm_gemini_binary".to_string(), binary.clone());
         }
         if let Some(default_model) = &gemini_config.default_model {
-            config_map.insert("llm_gemini_default_model".to_string(), default_model.clone());
+            config_map.insert(
+                "llm_gemini_default_model".to_string(),
+                default_model.clone(),
+            );
         }
     }
 

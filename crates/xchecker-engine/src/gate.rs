@@ -101,10 +101,10 @@ pub fn resolve_policy_path(explicit: Option<&Path>) -> Result<Option<PathBuf>> {
         return Ok(Some(path));
     }
 
-    if let Some(path) = global_policy_path() {
-        if path.exists() {
-            return Ok(Some(path));
-        }
+    if let Some(path) = global_policy_path()
+        && path.exists()
+    {
+        return Ok(Some(path));
     }
 
     Ok(None)
@@ -130,10 +130,7 @@ pub fn load_policy_from_path(path: &Path) -> Result<GatePolicy> {
 fn parse_policy_overrides(gate: &GatePolicyFile) -> Result<GatePolicyOverrides> {
     let mut overrides = GatePolicyOverrides::default();
 
-    let phase_value = gate
-        .require_phase
-        .as_ref()
-        .or(gate.min_phase.as_ref());
+    let phase_value = gate.require_phase.as_ref().or(gate.min_phase.as_ref());
     if let Some(phase_str) = phase_value {
         overrides.min_phase = Some(parse_phase(phase_str)?);
     }
@@ -184,13 +181,13 @@ fn discover_policy_file_from(start_dir: &Path) -> Result<Option<PathBuf>> {
 }
 
 fn global_policy_path() -> Option<PathBuf> {
-    if cfg!(windows) {
-        if let Some(appdata) = std::env::var_os("APPDATA") {
-            let mut path = PathBuf::from(appdata);
-            path.push("xchecker");
-            path.push("policy.toml");
-            return Some(path);
-        }
+    if cfg!(windows)
+        && let Some(appdata) = std::env::var_os("APPDATA")
+    {
+        let mut path = PathBuf::from(appdata);
+        path.push("xchecker");
+        path.push("policy.toml");
+        return Some(path);
     }
 
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {

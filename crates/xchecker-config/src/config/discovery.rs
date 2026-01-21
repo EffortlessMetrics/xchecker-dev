@@ -346,14 +346,12 @@ impl Config {
             && !env_fallback.is_empty()
         {
             llm.fallback_provider = Some(env_fallback);
-            source_attribution
-                .insert("llm_fallback_provider".to_string(), ConfigSource::Config);
+            source_attribution.insert("llm_fallback_provider".to_string(), ConfigSource::Config);
         }
 
         if let Some(fallback_provider) = &cli_args.llm_fallback_provider {
             llm.fallback_provider = Some(fallback_provider.clone());
-            source_attribution
-                .insert("llm_fallback_provider".to_string(), ConfigSource::Cli);
+            source_attribution.insert("llm_fallback_provider".to_string(), ConfigSource::Cli);
         }
 
         // Apply prompt template configuration with precedence: CLI > env > config

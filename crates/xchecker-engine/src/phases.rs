@@ -8,10 +8,10 @@ use camino::Utf8PathBuf;
 use std::collections::HashMap;
 
 use crate::artifact::{Artifact, ArtifactType};
+use crate::cache::InsightCache;
 use crate::extraction::{summarize_design, summarize_requirements, summarize_tasks};
 use crate::fixup::{FixupMode, FixupParser};
-use crate::cache::InsightCache;
-use crate::packet::{PacketBuilder, DEFAULT_PACKET_MAX_BYTES, DEFAULT_PACKET_MAX_LINES};
+use crate::packet::{DEFAULT_PACKET_MAX_BYTES, DEFAULT_PACKET_MAX_LINES, PacketBuilder};
 use crate::paths;
 use crate::phase::{
     BudgetUsage, NextStep, Packet, Phase, PhaseContext, PhaseMetadata, PhaseResult,

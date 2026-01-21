@@ -407,8 +407,8 @@ impl PhaseOrchestrator {
             model_alias,
             flags,
             core.packet_evidence.clone(),
-            None,   // No stderr_tail for successful execution
-            None,   // No stderr_redacted for successful execution
+            None, // No stderr_tail for successful execution
+            None, // No stderr_redacted for successful execution
             warnings,
             core.claude_metadata.as_ref().map(|m| m.fallback_used),
             core.claude_metadata

@@ -147,7 +147,10 @@ impl Config {
 
         // Validate LLM provider - supported providers in V14: claude-cli, gemini-cli, openrouter, anthropic
         let is_supported_provider = |provider: &str| {
-            matches!(provider, "claude-cli" | "gemini-cli" | "openrouter" | "anthropic")
+            matches!(
+                provider,
+                "claude-cli" | "gemini-cli" | "openrouter" | "anthropic"
+            )
         };
 
         if let Some(provider) = &self.llm.provider {
@@ -166,15 +169,15 @@ impl Config {
             )));
         }
 
-        if let Some(fallback_provider) = &self.llm.fallback_provider {
-            if !is_supported_provider(fallback_provider.as_str()) {
-                return Err(XCheckerError::Config(ConfigError::InvalidValue {
-                    key: "llm.fallback_provider".to_string(),
-                    value: format!(
-                        "'{fallback_provider}' is not supported. Supported providers: claude-cli, gemini-cli, openrouter, anthropic"
-                    ),
-                }));
-            }
+        if let Some(fallback_provider) = &self.llm.fallback_provider
+            && !is_supported_provider(fallback_provider.as_str())
+        {
+            return Err(XCheckerError::Config(ConfigError::InvalidValue {
+                key: "llm.fallback_provider".to_string(),
+                value: format!(
+                    "'{fallback_provider}' is not supported. Supported providers: claude-cli, gemini-cli, openrouter, anthropic"
+                ),
+            }));
         }
 
         // Validate execution strategy - must be "controlled" (V11-V14 requirement)

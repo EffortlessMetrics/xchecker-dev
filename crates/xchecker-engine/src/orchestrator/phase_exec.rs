@@ -572,28 +572,28 @@ impl PhaseOrchestrator {
         // Step 5: Execute LLM (or simulate in dry-run mode)
         let (claude_response, claude_exit_code, claude_metadata, llm_result, llm_fallback_warning) =
             if config.dry_run {
-            let simulated_llm = self.simulate_llm_result(phase_id);
-            let simulated_metadata = super::llm::ClaudeExecutionMetadata {
-                model_alias: None,
-                model_full_name: "haiku".to_string(),
-                claude_cli_version: "0.8.1".to_string(),
-                fallback_used: false,
-                runner: "simulated".to_string(),
-                runner_distro: None,
-                stderr_tail: None,
+                let simulated_llm = self.simulate_llm_result(phase_id);
+                let simulated_metadata = super::llm::ClaudeExecutionMetadata {
+                    model_alias: None,
+                    model_full_name: "haiku".to_string(),
+                    claude_cli_version: "0.8.1".to_string(),
+                    fallback_used: false,
+                    runner: "simulated".to_string(),
+                    runner_distro: None,
+                    stderr_tail: None,
+                };
+                (
+                    self.simulate_claude_response(phase_id, &prompt),
+                    0,
+                    Some(simulated_metadata),
+                    Some(simulated_llm),
+                    None,
+                )
+            } else {
+                // Use new LLM backend abstraction (V11: Claude CLI only)
+                self.run_llm_invocation(&prompt, &packet.content, phase_id, config)
+                    .await?
             };
-            (
-                self.simulate_claude_response(phase_id, &prompt),
-                0,
-                Some(simulated_metadata),
-                Some(simulated_llm),
-                None,
-            )
-        } else {
-            // Use new LLM backend abstraction (V11: Claude CLI only)
-            self.run_llm_invocation(&prompt, &packet.content, phase_id, config)
-                .await?
-        };
 
         // Step 6: Postprocess Claude response (only if LLM succeeded)
         let phase_result = if claude_exit_code == 0 {
@@ -1340,8 +1340,8 @@ impl PhaseOrchestrator {
             model_alias,
             flags,
             packet_evidence,
-            None, // No stderr_tail for successful execution
-            None, // No stderr_redacted for successful execution
+            None,     // No stderr_tail for successful execution
+            None,     // No stderr_redacted for successful execution
             warnings, // Include atomic write warnings, hook warnings, and LLM fallback warning
             claude_metadata.as_ref().map(|m| m.fallback_used),
             claude_metadata
