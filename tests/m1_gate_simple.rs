@@ -46,6 +46,7 @@ async fn test_m1_gate_requirements_phase_integration() -> Result<()> {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

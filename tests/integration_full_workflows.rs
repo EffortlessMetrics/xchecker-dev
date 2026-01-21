@@ -94,6 +94,7 @@ impl WorkflowTestEnvironment {
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },
+            full_config: None,
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),
@@ -113,6 +114,7 @@ impl WorkflowTestEnvironment {
                 map.insert("claude_scenario".to_string(), "error".to_string());
                 map
             },
+            full_config: None,
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),
@@ -366,6 +368,7 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
             map.insert("verbose".to_string(), "false".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

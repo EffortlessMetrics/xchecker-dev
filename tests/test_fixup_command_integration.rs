@@ -49,6 +49,7 @@ async fn test_fixup_command_parsing() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

@@ -584,7 +584,8 @@ impl PhaseOrchestrator {
             )
         } else {
             // Use new LLM backend abstraction (V11: Claude CLI only)
-            self.run_llm_invocation(&prompt, phase_id, config).await?
+            self.run_llm_invocation(&prompt, &packet.content, phase_id, config)
+                .await?
         };
 
         // Step 6: Postprocess Claude response (only if LLM succeeded)
@@ -937,7 +938,10 @@ impl PhaseOrchestrator {
             )
         } else {
             // Use new LLM backend abstraction (V11: Claude CLI only)
-            match self.run_llm_invocation(&prompt, phase_id, config).await {
+            match self
+                .run_llm_invocation(&prompt, &packet.content, phase_id, config)
+                .await
+            {
                 Ok(result) => result,
                 Err(e) => {
                     // Check if this is a budget exhaustion error by downcasting

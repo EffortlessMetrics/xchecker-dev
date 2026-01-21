@@ -53,6 +53,7 @@ fn create_success_config() -> OrchestratorConfig {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

@@ -77,6 +77,7 @@ impl GoldenPipelineTestEnvironment {
                 map.insert("verbose".to_string(), "true".to_string());
                 map
             },
+            full_config: None,
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),

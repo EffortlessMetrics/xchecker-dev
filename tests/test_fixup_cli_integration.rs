@@ -136,6 +136,7 @@ async fn test_fixup_phase_preview_mode() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true, // Use dry-run to avoid actual Claude calls
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -183,6 +184,7 @@ async fn test_fixup_phase_apply_mode() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true, // Use dry-run to avoid actual Claude calls
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -234,6 +236,7 @@ async fn test_fixup_phase_validates_dependencies() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -268,6 +271,7 @@ async fn test_fixup_phase_creates_artifacts() -> Result<()> {
     let config = OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

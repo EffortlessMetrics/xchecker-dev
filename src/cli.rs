@@ -2371,6 +2371,86 @@ fn create_default_config(
         config_map.insert("output_format".to_string(), output_format.clone());
     }
 
+    if let Some(phase_timeout) = config.defaults.phase_timeout {
+        config_map.insert("phase_timeout".to_string(), phase_timeout.to_string());
+    }
+
+    if let Some(stdout_cap_bytes) = config.defaults.stdout_cap_bytes {
+        config_map.insert(
+            "stdout_cap_bytes".to_string(),
+            stdout_cap_bytes.to_string(),
+        );
+    }
+
+    if let Some(stderr_cap_bytes) = config.defaults.stderr_cap_bytes {
+        config_map.insert(
+            "stderr_cap_bytes".to_string(),
+            stderr_cap_bytes.to_string(),
+        );
+    }
+
+    if let Some(lock_ttl_seconds) = config.defaults.lock_ttl_seconds {
+        config_map.insert(
+            "lock_ttl_seconds".to_string(),
+            lock_ttl_seconds.to_string(),
+        );
+    }
+
+    if let Some(debug_packet) = config.defaults.debug_packet
+        && debug_packet
+    {
+        config_map.insert("debug_packet".to_string(), "true".to_string());
+    }
+
+    if let Some(allow_links) = config.defaults.allow_links
+        && allow_links
+    {
+        config_map.insert("allow_links".to_string(), "true".to_string());
+    }
+
+    if let Some(runner_mode) = &config.runner.mode {
+        config_map.insert("runner_mode".to_string(), runner_mode.clone());
+    }
+
+    if let Some(runner_distro) = &config.runner.distro {
+        config_map.insert("runner_distro".to_string(), runner_distro.clone());
+    }
+
+    if let Some(claude_path) = &config.runner.claude_path {
+        config_map.insert("claude_path".to_string(), claude_path.clone());
+    }
+
+    if let Some(provider) = &config.llm.provider {
+        config_map.insert("llm_provider".to_string(), provider.clone());
+    }
+
+    if let Some(fallback_provider) = &config.llm.fallback_provider {
+        config_map.insert("llm_fallback_provider".to_string(), fallback_provider.clone());
+    }
+
+    if let Some(execution_strategy) = &config.llm.execution_strategy {
+        config_map.insert("execution_strategy".to_string(), execution_strategy.clone());
+    }
+
+    if let Some(prompt_template) = &config.llm.prompt_template {
+        config_map.insert("prompt_template".to_string(), prompt_template.clone());
+    }
+
+    if let Some(claude_config) = &config.llm.claude
+        && let Some(binary) = &claude_config.binary
+    {
+        config_map.insert("llm_claude_binary".to_string(), binary.clone());
+    }
+
+    if let Some(gemini_config) = &config.llm.gemini {
+        if let Some(binary) = &gemini_config.binary {
+            config_map.insert("llm_gemini_binary".to_string(), binary.clone());
+        }
+        if let Some(default_model) = &gemini_config.default_model {
+            config_map.insert("llm_gemini_default_model".to_string(), default_model.clone());
+        }
+    }
+
     // Add new CLI arguments (R7.2, R7.4, R9.2)
     if !cli_args.allow.is_empty() {
         config_map.insert("allowed_tools".to_string(), cli_args.allow.join(","));
@@ -2401,7 +2481,7 @@ fn create_default_config(
         );
     }
 
-    // Add debug_packet flag (FR-PKT-006, FR-PKT-007)
+    // Add debug_packet flag (FR-PKT-006, FR-PKT-007) for CLI-only overrides
     if cli_args.debug_packet {
         config_map.insert("debug_packet".to_string(), "true".to_string());
     }
@@ -2442,6 +2522,7 @@ fn build_orchestrator_config(
     OrchestratorConfig {
         dry_run,
         config: config_map,
+        full_config: Some(config.clone()),
         selectors: Some(config.selectors.clone()),
         strict_validation: config.strict_validation(),
         redactor,

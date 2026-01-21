@@ -389,6 +389,7 @@ fn test_phase_timeout_configuration() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: HashMap::new(),
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -403,6 +404,7 @@ fn test_phase_timeout_configuration() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -417,6 +419,7 @@ fn test_phase_timeout_configuration() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

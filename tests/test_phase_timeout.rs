@@ -78,6 +78,7 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -92,6 +93,7 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -104,6 +106,7 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: HashMap::new(),
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -118,6 +121,7 @@ fn test_phase_timeout_from_config() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -141,6 +145,7 @@ async fn test_timeout_creates_partial_and_receipt() -> Result<()> {
     let _config = OrchestratorConfig {
         dry_run: false, // Use real execution to test timeout
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

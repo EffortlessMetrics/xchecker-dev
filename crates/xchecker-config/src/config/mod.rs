@@ -324,8 +324,6 @@ max_turns = 8
     }
 
     // ===== Edge Case Tests (Task 9.7) =====
-
-    // TODO: This test has environment isolation issues - needs to be fixed
     #[test]
     fn test_config_with_invalid_toml_syntax() {
         let _home = crate::paths::with_isolated_home();
@@ -348,7 +346,7 @@ max_turns = 8
                 config_path: Some(config_path),
                 ..Default::default()
             };
-            let result = Config::discover(&cli_args);
+            let result = Config::discover_from(temp_dir.path(), &cli_args);
 
             assert!(
                 result.is_err(),

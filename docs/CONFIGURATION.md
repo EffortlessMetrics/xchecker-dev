@@ -203,6 +203,30 @@ xchecker spec my-feature --no-strict-validation
 
 **Applicable phases:** Requirements, Design, Tasks (generative phases only)
 
+### [phases]
+
+Per-phase overrides for model, max_turns, and phase_timeout.
+
+Phase keys: `requirements`, `design`, `tasks`, `review`, `fixup`, `final`.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `model` | String | `null` | Override `defaults.model` for the phase |
+| `max_turns` | Integer | `null` | Override `defaults.max_turns` for the phase |
+| `phase_timeout` | Integer | `null` | Override `defaults.phase_timeout` for the phase |
+
+**Example configuration:**
+
+```toml
+[phases.requirements]
+model = "haiku"
+
+[phases.design]
+model = "sonnet"
+max_turns = 8
+phase_timeout = 900
+```
+
 ### [selectors]
 
 Controls which files are included in context packets.
@@ -226,7 +250,9 @@ LLM provider and execution strategy configuration.
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `provider` | String | `"claude-cli"` | LLM provider to use |
+| `fallback_provider` | String | `null` | Provider to use if the primary provider fails to initialize |
 | `execution_strategy` | String | `"controlled"` | Execution strategy |
+| `prompt_template` | String | `"default"` | Prompt template selection (see below) |
 
 **Supported Values:**
 
@@ -240,13 +266,25 @@ LLM provider and execution strategy configuration.
   - `controlled` (default): LLMs propose changes via structured output and xchecker applies them.
   - `externaltool`: (Planned V15+) Allows direct tool use.
 
+- **`fallback_provider`**:
+  - Optional provider name used if the primary provider fails to construct.
+  - Does not retry individual requests; it only switches providers during initialization.
+
+- **`prompt_template`**:
+  - `default`: Works across all providers
+  - `claude-optimized`: For `claude-cli` and `anthropic`
+  - `openai-compatible`: For `openrouter` and `gemini-cli`
+  - Incompatible combinations are rejected during config validation.
+
 **Valid Configuration Example:**
 
 ```toml
 # Explicit configuration (can be omitted, uses defaults)
 [llm]
 provider = "claude-cli"
+fallback_provider = "anthropic"
 execution_strategy = "controlled"
+prompt_template = "claude-optimized"
 
 # Optional: Claude CLI binary path
 [llm.claude]
@@ -260,6 +298,7 @@ binary = "/usr/local/bin/claude"
 [llm]
 provider = "claude-cli"
 execution_strategy = "controlled"
+prompt_template = "default"
 ```
 
 For detailed information on all providers, including authentication, testing, and cost control, see [LLM_PROVIDERS.md](LLM_PROVIDERS.md).
@@ -333,6 +372,46 @@ Platform-specific execution configuration.
 - `auto`: Auto-detect best available option (tries native first, falls back to WSL on Windows)
 
 **Note:** For production use, explicitly specifying `native` or `wsl` is recommended for predictable behavior. The `auto` mode is useful for development environments where the runner may vary.
+
+### [hooks]
+
+Configure pre-phase and post-phase hooks (optional). Hook entries are keyed by phase name:
+`requirements`, `design`, `tasks`, `review`, `fixup`, `final`.
+
+Hooks run from the invocation working directory and are executed via the platform shell
+(`sh -c` on Unix, `cmd /C` on Windows). Each hook receives context through environment
+variables and a JSON payload on stdin.
+
+**Environment variables:**
+- `XCHECKER_SPEC_ID`
+- `XCHECKER_PHASE`
+- `XCHECKER_HOOK_TYPE` (`pre_phase` or `post_phase`)
+
+**Stdin JSON payload fields:**
+- `spec_id`
+- `phase`
+- `hook_type`
+
+**Hook configuration keys:**
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `command` | String | Required | Shell command or script to execute |
+| `on_fail` | String | `"warn"` | `warn` logs and continues, `fail` aborts the phase |
+| `timeout` | Integer | `60` | Timeout in seconds |
+
+**Example configuration:**
+
+```toml
+[hooks.pre_phase.design]
+command = "./scripts/pre_design.sh"
+on_fail = "warn"
+timeout = 60
+
+[hooks.post_phase.requirements]
+command = "./scripts/post_requirements.sh"
+on_fail = "fail"
+```
 
 ### [security]
 

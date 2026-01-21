@@ -88,6 +88,7 @@ async fn test_complete_requirements_phase_with_claude_integration() -> Result<()
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -178,6 +179,7 @@ async fn test_receipt_metadata_completeness() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -459,6 +461,7 @@ async fn test_error_handling_and_partial_outputs() -> Result<()> {
             map.insert("claude_scenario".to_string(), "error".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -518,6 +521,7 @@ async fn test_end_to_end_m1_gate_validation() -> Result<()> {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
