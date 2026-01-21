@@ -240,7 +240,7 @@ impl ContentSelector {
         // Impact: Reduced packet assembly time from ~14ms to ~13ms for 100 files (benchmarked).
         // Scales linearly with core count for larger workloads.
         let num_threads = thread::available_parallelism().map_or(4, |n| n.get());
-        let chunk_size = (candidates.len() + num_threads - 1) / num_threads;
+        let chunk_size = candidates.len().div_ceil(num_threads);
 
         let results = thread::scope(|s| {
             let mut handles = Vec::new();
@@ -250,8 +250,9 @@ impl ContentSelector {
                     for candidate in chunk {
                         // DoS protection: check file size before reading to prevent memory exhaustion
                         // Note: fs::metadata follows symlinks, which is correct here (we want target size)
-                        let metadata = fs::metadata(&candidate.path)
-                            .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
+                        let metadata = fs::metadata(&candidate.path).with_context(|| {
+                            format!("Failed to get file metadata: {}", candidate.path)
+                        })?;
 
                         if !metadata.is_file() {
                             // Skip special files (pipes, devices, etc.) that might block reading
