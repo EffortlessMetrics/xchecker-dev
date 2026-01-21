@@ -962,20 +962,6 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     );
     println!();
 
-    // Helper to convert snake_case to Title Case
-    fn to_title_case(s: &str) -> String {
-        s.split('_')
-            .map(|word| {
-                let mut c = word.chars();
-                match c.next() {
-                    None => String::new(),
-                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                }
-            })
-            .collect::<Vec<String>>()
-            .join(" ")
-    }
-
     for check in &report.checks {
         let (status_symbol, color) = match check.status {
             CheckStatus::Pass => ("✓", Color::Green),
@@ -1030,6 +1016,32 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
         "Overall status: {}",
         overall_text.with(overall_color).attribute(Attribute::Bold)
     );
+}
+
+// Helper to convert snake_case to Title Case with acronym support
+fn to_title_case(s: &str) -> String {
+    // List of known acronyms that should be fully uppercase
+    const ACRONYMS: &[&str] = &[
+        "CLI", "LLM", "WSL", "API", "URL", "JSON", "YAML", "GH", "FS", "HTTP",
+    ];
+
+    s.split('_')
+        .map(|word| {
+            // Check if word (case-insensitive) matches any known acronym
+            let upper_word = word.to_uppercase();
+            if ACRONYMS.contains(&upper_word.as_str()) {
+                return upper_word;
+            }
+
+            // Otherwise standard title case
+            let mut c = word.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(" ")
 }
 
 /// Log cache statistics (standalone function for use outside Logger)
@@ -1485,5 +1497,22 @@ mod tests {
         logger.verbose_fmt(format_args!("Token: {}", token));
 
         // Should not panic and should redact
+    }
+
+    #[test]
+    fn test_to_title_case() {
+        assert_eq!(to_title_case("claude_path"), "Claude Path");
+        assert_eq!(to_title_case("claude_cli_version"), "Claude CLI Version");
+        assert_eq!(to_title_case("wsl_availability"), "WSL Availability");
+        assert_eq!(to_title_case("llm_provider"), "LLM Provider");
+        assert_eq!(
+            to_title_case("http_provider_config"),
+            "HTTP Provider Config"
+        );
+        assert_eq!(to_title_case("json_output"), "JSON Output");
+        assert_eq!(to_title_case("simple_test"), "Simple Test");
+        assert_eq!(to_title_case("api_key"), "API Key");
+        assert_eq!(to_title_case("gh_repo"), "GH Repo");
+        assert_eq!(to_title_case("fs_path"), "FS Path");
     }
 }
