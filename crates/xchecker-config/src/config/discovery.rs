@@ -183,6 +183,11 @@ impl Config {
                     llm.provider = file_llm.provider;
                     source_attribution.insert("llm_provider".to_string(), config_source.clone());
                 }
+                if file_llm.fallback_provider.is_some() {
+                    llm.fallback_provider = file_llm.fallback_provider;
+                    source_attribution
+                        .insert("llm_fallback_provider".to_string(), config_source.clone());
+                }
                 if let Some(file_claude) = file_llm.claude
                     && file_claude.binary.is_some()
                 {

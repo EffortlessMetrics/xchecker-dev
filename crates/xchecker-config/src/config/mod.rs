@@ -857,6 +857,110 @@ max_turns = 10
     }
 
     #[test]
+    fn test_llm_fallback_provider_from_config_file() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[llm]
+provider = "claude-cli"
+fallback_provider = "anthropic"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+
+        assert_eq!(
+            config.llm.fallback_provider,
+            Some("anthropic".to_string())
+        );
+        assert_eq!(
+            config.source_attribution.get("llm_fallback_provider"),
+            Some(&ConfigSource::Config)
+        );
+    }
+
+    #[test]
+    fn test_llm_fallback_provider_rejects_invalid_provider() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[llm]
+provider = "claude-cli"
+fallback_provider = "invalid"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let result = Config::discover(&cli_args);
+        assert!(result.is_err(), "Should reject invalid fallback provider");
+
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
+                assert_eq!(key, "llm.fallback_provider");
+                assert!(
+                    value.contains("invalid"),
+                    "Error message should mention the invalid provider: {}",
+                    value
+                );
+            }
+            _ => panic!("Expected Config InvalidValue error for llm.fallback_provider"),
+        }
+    }
+
+    #[test]
+    fn test_llm_fallback_provider_prompt_template_incompatible() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[llm]
+provider = "claude-cli"
+fallback_provider = "openrouter"
+prompt_template = "claude-optimized"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let result = Config::discover(&cli_args);
+        assert!(
+            result.is_err(),
+            "Should reject incompatible prompt_template for fallback provider"
+        );
+
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
+                assert_eq!(key, "llm.prompt_template");
+                assert!(
+                    value.contains("openrouter"),
+                    "Error should mention fallback provider, got: {}",
+                    value
+                );
+            }
+            _ => panic!("Expected Config InvalidValue error for llm.prompt_template"),
+        }
+    }
+
+    #[test]
     fn test_execution_strategy_rejects_invalid_strategies() {
         let _home = crate::paths::with_isolated_home();
 

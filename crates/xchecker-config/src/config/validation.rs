@@ -146,25 +146,35 @@ impl Config {
         self.selectors.validate()?;
 
         // Validate LLM provider - supported providers in V14: claude-cli, gemini-cli, openrouter, anthropic
+        let is_supported_provider = |provider: &str| {
+            matches!(provider, "claude-cli" | "gemini-cli" | "openrouter" | "anthropic")
+        };
+
         if let Some(provider) = &self.llm.provider {
-            match provider.as_str() {
-                "claude-cli" | "gemini-cli" | "openrouter" | "anthropic" => {
-                    // Supported providers in V14
-                }
-                _ => {
-                    return Err(XCheckerError::Config(ConfigError::InvalidValue {
-                        key: "llm.provider".to_string(),
-                        value: format!(
-                            "'{provider}' is not supported. Supported providers: claude-cli, gemini-cli, openrouter, anthropic"
-                        ),
-                    }));
-                }
+            if !is_supported_provider(provider.as_str()) {
+                return Err(XCheckerError::Config(ConfigError::InvalidValue {
+                    key: "llm.provider".to_string(),
+                    value: format!(
+                        "'{provider}' is not supported. Supported providers: claude-cli, gemini-cli, openrouter, anthropic"
+                    ),
+                }));
             }
         } else {
             // This should never happen due to default enforcement, but guard against it
             return Err(XCheckerError::Config(ConfigError::MissingRequired(
                 "llm.provider is required (should default to 'claude-cli')".to_string(),
             )));
+        }
+
+        if let Some(fallback_provider) = &self.llm.fallback_provider {
+            if !is_supported_provider(fallback_provider.as_str()) {
+                return Err(XCheckerError::Config(ConfigError::InvalidValue {
+                    key: "llm.fallback_provider".to_string(),
+                    value: format!(
+                        "'{fallback_provider}' is not supported. Supported providers: claude-cli, gemini-cli, openrouter, anthropic"
+                    ),
+                }));
+            }
         }
 
         // Validate execution strategy - must be "controlled" (V11-V14 requirement)
@@ -188,19 +198,22 @@ impl Config {
         // If a phase is configured with a prompt template that is incompatible with
         // the selected provider, xchecker fails during configuration validation.
         // No "best effort" adaptation; explicit failure prevents silent misbehavior.
-        if let Some(template_name) = &self.llm.prompt_template {
-            // Parse the template name
-            let template = PromptTemplate::parse(template_name).map_err(|e| {
+        let template = if let Some(template_name) = &self.llm.prompt_template {
+            Some(PromptTemplate::parse(template_name).map_err(|e| {
                 XCheckerError::Config(ConfigError::InvalidValue {
                     key: "llm.prompt_template".to_string(),
                     value: e,
                 })
-            })?;
+            })?)
+        } else {
+            None
+        };
 
+        if let Some(template) = template {
             // Get the provider (should always be set due to earlier validation)
             let provider = self.llm.provider.as_deref().unwrap_or("claude-cli");
 
-            // Validate compatibility
+            // Validate compatibility for primary provider
             template
                 .validate_provider_compatibility(provider)
                 .map_err(|e| {
@@ -209,6 +222,18 @@ impl Config {
                         value: e,
                     })
                 })?;
+
+            // Validate compatibility for fallback provider when configured
+            if let Some(fallback_provider) = &self.llm.fallback_provider {
+                template
+                    .validate_provider_compatibility(fallback_provider)
+                    .map_err(|e| {
+                        XCheckerError::Config(ConfigError::InvalidValue {
+                            key: "llm.prompt_template".to_string(),
+                            value: e,
+                        })
+                    })?;
+            }
         }
 
         Ok(())

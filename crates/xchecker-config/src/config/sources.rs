@@ -57,6 +57,10 @@ impl Config {
         add_config("runner_mode", self.runner.mode.as_deref());
         add_config("runner_distro", self.runner.distro.as_deref());
         add_config("claude_path", self.runner.claude_path.as_deref());
+        add_config("llm_provider", self.llm.provider.as_deref());
+        add_config("llm_fallback_provider", self.llm.fallback_provider.as_deref());
+        add_config("execution_strategy", self.llm.execution_strategy.as_deref());
+        add_config("prompt_template", self.llm.prompt_template.as_deref());
 
         // Add selector information
         let include_patterns = self.selectors.include.join(", ");
