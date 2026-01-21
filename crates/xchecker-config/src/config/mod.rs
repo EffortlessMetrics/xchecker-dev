@@ -1946,6 +1946,7 @@ strict_validation = false
 
     #[test]
     fn test_discover_from_env_and_fs_uses_defaults() {
+        let _guard = config_env_guard();
         // Use isolated home to avoid picking up real config files
         let _home = crate::paths::with_isolated_home();
 
@@ -1975,6 +1976,7 @@ strict_validation = false
 
     #[test]
     fn test_discover_from_env_and_fs_reads_config_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -2019,6 +2021,7 @@ packet_max_bytes = 32768
 
     #[test]
     fn test_discover_from_env_and_fs_matches_discover_with_empty_cli_args() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         // Both methods should produce equivalent configs when no config file exists
