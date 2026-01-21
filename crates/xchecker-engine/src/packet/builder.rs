@@ -269,92 +269,15 @@ impl PacketBuilder {
         // Get max_file_size limit for DoS protection
         let max_file_size = self.selector.get_max_file_size();
 
-        // Helper to process a candidate file
-        // Returns Option<(SelectedFile, String, usize, usize)> if successful (file, content, size, lines)
-        // Returns Ok(None) to skip non-critical files that exceed size limit
-        let mut process_candidate =
-            |candidate: &CandidateFile| -> Result<Option<(SelectedFile, String, usize, usize)>> {
-                // DoS protection: check file size before reading to prevent memory exhaustion
-                let metadata = fs::metadata(&candidate.path)
-                    .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
-
-                if !metadata.is_file() {
-                    // Skip special files (pipes, devices, etc.) that might block reading
-                    return Ok(None);
-                }
-
-                if metadata.len() > max_file_size {
-                    // For upstream files (critical context), fail hard if they exceed the limit
-                    if candidate.priority == Priority::Upstream {
-                        return Err(anyhow::anyhow!(
-                            "Upstream file {} exceeds size limit of {} bytes (size: {}). \
-                             Critical context files must fit within the configured limit.",
-                            candidate.path,
-                            max_file_size,
-                            metadata.len()
-                        ));
-                    }
-
-                    tracing::warn!(
-                        "Skipping large file: {} ({} bytes > limit {})",
-                        candidate.path,
-                        metadata.len(),
-                        max_file_size
-                    );
-                    return Ok(None);
-                }
-
-                // Read content (lazy load)
-                let content = fs::read_to_string(&candidate.path)
-                    .with_context(|| format!("Failed to read file: {}", candidate.path))?;
-
-                // Scan for secrets immediately after reading
-                if self
-                    .redactor
-                    .has_secrets(&content, candidate.path.as_ref())?
-                {
-                    let matches = self
-                        .redactor
-                        .scan_for_secrets(&content, candidate.path.as_ref())?;
-                    return Err(create_secret_detected_error(&matches).into());
-                }
-
-                // Calculate pre-redaction hash
-                let mut hasher = Hasher::new();
-                hasher.update(content.as_bytes());
-                let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
-
-                let line_count_raw = content.lines().count();
-                let byte_count_raw = content.len();
-
-                let selected_file = SelectedFile {
-                    path: candidate.path.clone(),
-                    content,
-                    priority: candidate.priority,
-                    blake3_pre_redaction,
-                    line_count: line_count_raw,
-                    byte_count: byte_count_raw,
-                };
-
-                let file_content = self.process_file_with_cache(&selected_file, phase, logger)?;
-                let content_size = file_content.len() + candidate.path.as_str().len() + 10;
-                let line_count = file_content.lines().count() + 3;
-
-                Ok(Some((
-                    selected_file,
-                    file_content,
-                    content_size,
-                    line_count,
-                )))
-            };
-
         // First pass: Add all upstream files (never evicted)
         for candidate in upstream_candidates {
             if let Some((file, file_content, content_size, line_count)) =
-                process_candidate(&candidate)?
+                self.process_candidate(&candidate, max_file_size, phase, logger)?
             {
                 // Add file content to packet
-                packet_content.push_str(&format!("=== {} ===\n", file.path));
+                // Secure file path display: redact potentially sensitive info in filenames
+                let redacted_path = self.redactor.redact_string(file.path.as_str());
+                packet_content.push_str(&format!("=== {} ===\n", redacted_path));
                 packet_content.push_str(&file_content);
                 packet_content.push_str("\n\n");
 
@@ -405,7 +328,7 @@ impl PacketBuilder {
 
             // Read and process the file
             if let Some((file, file_content, content_size, line_count)) =
-                process_candidate(&candidate)?
+                self.process_candidate(&candidate, max_file_size, phase, logger)?
             {
                 // Check if this file would exceed budget
                 if budget.would_exceed(content_size, line_count) {
@@ -414,7 +337,9 @@ impl PacketBuilder {
                 }
 
                 // Add file content to packet
-                packet_content.push_str(&format!("=== {} ===\n", file.path));
+                // Secure file path display: redact potentially sensitive info in filenames
+                let redacted_path = self.redactor.redact_string(file.path.as_str());
+                packet_content.push_str(&format!("=== {} ===\n", redacted_path));
                 packet_content.push_str(&file_content);
                 packet_content.push_str("\n\n");
 
@@ -535,6 +460,90 @@ impl PacketBuilder {
 impl Default for PacketBuilder {
     fn default() -> Self {
         Self::new().expect("Failed to create default PacketBuilder")
+    }
+}
+
+impl PacketBuilder {
+    /// Process a single candidate file
+    fn process_candidate(
+        &mut self,
+        candidate: &CandidateFile,
+        max_file_size: u64,
+        phase: &str,
+        logger: Option<&Logger>,
+    ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
+        // DoS protection: check file size before reading to prevent memory exhaustion
+        let metadata = fs::metadata(&candidate.path)
+            .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
+
+        if !metadata.is_file() {
+            // Skip special files (pipes, devices, etc.) that might block reading
+            return Ok(None);
+        }
+
+        if metadata.len() > max_file_size {
+            // For upstream files (critical context), fail hard if they exceed the limit
+            if candidate.priority == Priority::Upstream {
+                return Err(anyhow::anyhow!(
+                    "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                     Critical context files must fit within the configured limit.",
+                    candidate.path,
+                    max_file_size,
+                    metadata.len()
+                ));
+            }
+
+            tracing::warn!(
+                "Skipping large file: {} ({} bytes > limit {})",
+                candidate.path,
+                metadata.len(),
+                max_file_size
+            );
+            return Ok(None);
+        }
+
+        // Read content (lazy load)
+        let content = fs::read_to_string(&candidate.path)
+            .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+        // Scan for secrets immediately after reading
+        if self
+            .redactor
+            .has_secrets(&content, candidate.path.as_ref())?
+        {
+            let matches = self
+                .redactor
+                .scan_for_secrets(&content, candidate.path.as_ref())?;
+            return Err(create_secret_detected_error(&matches).into());
+        }
+
+        // Calculate pre-redaction hash
+        let mut hasher = Hasher::new();
+        hasher.update(content.as_bytes());
+        let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
+
+        let line_count_raw = content.lines().count();
+        let byte_count_raw = content.len();
+
+        let selected_file = SelectedFile {
+            path: candidate.path.clone(),
+            content,
+            priority: candidate.priority,
+            blake3_pre_redaction,
+            line_count: line_count_raw,
+            byte_count: byte_count_raw,
+        };
+
+        let file_content = self.process_file_with_cache(&selected_file, phase, logger)?;
+        let content_size = file_content.len() + candidate.path.as_str().len() + 10;
+        let line_count = file_content.lines().count() + 3;
+
+        Ok(Some((
+            selected_file,
+            file_content,
+            content_size,
+            line_count,
+        )))
     }
 }
 
@@ -1284,6 +1293,102 @@ mod packet_builder_tests {
                 .files
                 .iter()
                 .any(|f| f.path.ends_with(".yaml"))
+        );
+
+        Ok(())
+    }
+
+    // ===== Filename Redaction Security Tests =====
+
+    #[test]
+    fn test_filename_with_secret_is_redacted_in_packet_content() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create a file with a GitHub PAT in the filename
+        // Note: We use a valid token format that will be detected by the secret patterns
+        let secret_token = test_support::github_pat();
+        let filename_with_secret = format!("config_{}.yaml", secret_token);
+        fs::write(base_path.join(&filename_with_secret), "key: value")?;
+
+        let mut builder = PacketBuilder::new()?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // Packet should have included the file
+        assert_eq!(packet.evidence.files.len(), 1);
+
+        // The packet CONTENT should NOT contain the raw secret in the filename header
+        // It should be redacted to "***"
+        assert!(
+            !packet.content.contains(&secret_token),
+            "Packet content should NOT contain the raw secret token in filename"
+        );
+
+        // The redacted filename should be in the content (with *** replacing the secret)
+        assert!(
+            packet.content.contains("config_***"),
+            "Packet content should contain redacted filename with ***"
+        );
+
+        // The file evidence path should still contain the original path
+        // (evidence is internal, not sent to LLM)
+        assert!(packet.evidence.files[0].path.contains(&secret_token));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filename_with_aws_key_is_redacted_in_packet_content() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create a file with an AWS access key in the filename
+        let aws_key = test_support::aws_access_key_id();
+        let filename_with_secret = format!("backup_{}.md", aws_key);
+        fs::write(base_path.join(&filename_with_secret), "# Backup data")?;
+
+        let mut builder = PacketBuilder::new()?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // The packet content should NOT contain the raw AWS key
+        assert!(
+            !packet.content.contains(&aws_key),
+            "Packet content should NOT contain the raw AWS access key in filename"
+        );
+
+        // Should contain redacted marker
+        assert!(
+            packet.content.contains("***"),
+            "Packet content should contain redacted marker"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filename_without_secret_unchanged_in_packet_content() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+        let context_dir = base_path.join("context");
+
+        // Create a file with a normal filename (no secrets)
+        fs::write(base_path.join("normal_config.yaml"), "key: value")?;
+
+        let mut builder = PacketBuilder::new()?;
+        let packet = builder.build_packet(&base_path, "requirements", &context_dir, None)?;
+
+        // The packet content should contain the normal filename unchanged
+        assert!(
+            packet.content.contains("normal_config.yaml"),
+            "Packet content should contain normal filename unchanged"
+        );
+
+        // Should NOT contain redaction markers for this file
+        assert!(
+            !packet.content.contains("normal_config*"),
+            "Normal filename should not be redacted"
         );
 
         Ok(())
