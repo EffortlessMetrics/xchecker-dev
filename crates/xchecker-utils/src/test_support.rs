@@ -19,6 +19,26 @@ fn make_from(alphabet: &[u8], len: usize, seed: usize) -> String {
     output
 }
 
+/// Check whether real LLM integration tests should run.
+///
+/// `XCHECKER_SKIP_LLM_TESTS=1` always disables real LLM tests.
+/// `XCHECKER_REAL_LLM_TESTS=1` enables real LLM tests.
+#[must_use]
+pub fn llm_tests_enabled() -> bool {
+    let skip = std::env::var("XCHECKER_SKIP_LLM_TESTS")
+        .ok()
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+    if skip {
+        return false;
+    }
+
+    std::env::var("XCHECKER_REAL_LLM_TESTS")
+        .ok()
+        .map(|value| value == "1" || value.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 pub fn github_pat() -> String {
     format!("ghp_{}", make_from(ALNUM, 36, 1))
 }

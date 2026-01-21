@@ -315,6 +315,7 @@ impl LlmBackend for GeminiCliBackend {
 
         // Set timeout status
         result = result.with_timeout(false);
+        result = result.with_timeout_seconds(inv.timeout.as_secs());
 
         // Add stderr to extensions if present (already redacted to ≤ 2 KiB)
         if !stderr_redacted.is_empty() {

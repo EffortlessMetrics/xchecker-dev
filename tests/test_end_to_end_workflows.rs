@@ -26,13 +26,15 @@ use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::{PhaseId, Receipt};
 
 /// Require explicit opt-in for real LLM tests to prevent accidental runs.
-/// Set `XCHECKER_RUN_REAL_LLM_TESTS=1` to enable.
-fn require_llm_tests_enabled() {
-    if std::env::var("XCHECKER_RUN_REAL_LLM_TESTS").ok().as_deref() != Some("1") {
-        panic!(
-            "LLM tests are disabled. Set XCHECKER_RUN_REAL_LLM_TESTS=1 to run.\n\
-             See tests/LLM_TESTING.md for detailed instructions."
+/// Set `XCHECKER_REAL_LLM_TESTS=1` to enable (and ensure XCHECKER_SKIP_LLM_TESTS is unset).
+fn should_run_real_llm_tests() -> bool {
+    if xchecker::test_support::llm_tests_enabled() {
+        true
+    } else {
+        eprintln!(
+            "Skipping real LLM tests. Set XCHECKER_REAL_LLM_TESTS=1 to enable (and ensure XCHECKER_SKIP_LLM_TESTS is unset). See tests/LLM_TESTING.md."
         );
+        false
     }
 }
 
@@ -70,7 +72,9 @@ fn create_success_config() -> OrchestratorConfig {
 #[tokio::test]
 #[ignore = "requires_real_claude"]
 async fn test_full_spec_generation_workflow_requires_real_claude() -> Result<()> {
-    require_llm_tests_enabled();
+    if !should_run_real_llm_tests() {
+        return Ok(());
+    }
     let (orchestrator, temp_dir) = setup_test_environment("full-workflow");
     let config = create_success_config();
 
@@ -109,7 +113,9 @@ async fn test_full_spec_generation_workflow_requires_real_claude() -> Result<()>
 #[tokio::test]
 #[ignore = "requires_real_claude"]
 async fn test_resume_from_requirements_requires_real_claude() -> Result<()> {
-    require_llm_tests_enabled();
+    if !should_run_real_llm_tests() {
+        return Ok(());
+    }
     let (orchestrator, _temp_dir) = setup_test_environment("resume-req");
     let config = create_success_config();
 
@@ -155,7 +161,9 @@ async fn test_lock_conflict_prevention() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_real_claude"]
 async fn test_complete_end_to_end_integration_requires_real_claude() -> Result<()> {
-    require_llm_tests_enabled();
+    if !should_run_real_llm_tests() {
+        return Ok(());
+    }
     let (orchestrator, temp_dir) = setup_test_environment("complete-e2e");
     let spec_dir = temp_dir.path().join(".xchecker/specs/e2e-complete-e2e");
     let config = create_success_config();

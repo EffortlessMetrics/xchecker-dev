@@ -3,8 +3,6 @@
 //! This module contains LLM-related code extracted from mod.rs.
 
 use std::collections::HashMap;
-use std::time::Duration;
-
 use anyhow::Result;
 
 use crate::config::{
@@ -16,7 +14,7 @@ use crate::hooks::HooksConfig;
 use crate::llm::{LlmBackend, LlmInvocation, LlmResult, Message};
 use crate::types::PhaseId;
 
-use super::{OrchestratorConfig, PhaseOrchestrator};
+use super::{OrchestratorConfig, PhaseOrchestrator, PhaseTimeout};
 
 /// Metadata from Claude CLI execution for receipt generation.
 ///
@@ -261,7 +259,7 @@ impl PhaseOrchestrator {
     /// Uses per-phase model configuration with precedence:
     /// 1. Phase-specific override (`[phases.<phase>].model`)
     /// 2. Global default (`[defaults].model`)
-    /// 3. Hard default: `"haiku"`
+    /// 3. Provider default (Claude CLI falls back to `"haiku"` when unset)
     ///
     /// This is not part of the public API.
     pub(crate) fn build_llm_invocation(
@@ -274,16 +272,34 @@ impl PhaseOrchestrator {
         // Build Config from OrchestratorConfig to use model_for_phase
         let cfg = self.config_from_orchestrator_config(orc_config);
 
-        // Get model for this specific phase using the precedence rules
-        let model = cfg.model_for_phase(phase_id);
+        let provider = cfg.llm.provider.as_deref().unwrap_or("claude-cli");
 
-        // Get timeout from config (default 600 seconds)
-        let timeout_secs = orc_config
-            .config
-            .get("phase_timeout")
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(600);
-        let timeout = Duration::from_secs(timeout_secs);
+        // Resolve model with explicit overrides when provided, otherwise defer to provider defaults.
+        let phase_model = match phase_id {
+            PhaseId::Requirements => cfg.phases.requirements.as_ref(),
+            PhaseId::Design => cfg.phases.design.as_ref(),
+            PhaseId::Tasks => cfg.phases.tasks.as_ref(),
+            PhaseId::Review => cfg.phases.review.as_ref(),
+            PhaseId::Fixup => cfg.phases.fixup.as_ref(),
+            PhaseId::Final => cfg.phases.final_.as_ref(),
+        }
+        .and_then(|pc| pc.model.clone())
+        .filter(|model| !model.is_empty());
+
+        let model = if let Some(model) = phase_model {
+            model
+        } else if provider == "claude-cli" {
+            cfg.defaults
+                .model
+                .clone()
+                .filter(|model| !model.is_empty())
+                .unwrap_or_else(|| "haiku".to_string())
+        } else {
+            String::new()
+        };
+
+        // Get timeout from config with minimum enforcement
+        let timeout = PhaseTimeout::from_config(orc_config).duration;
 
         // Build messages using the configured prompt template, including packet context.
         let template = cfg
@@ -304,6 +320,22 @@ impl PhaseOrchestrator {
                 "claude_scenario".to_string(),
                 serde_json::Value::String(scenario.clone()),
             );
+        }
+
+        if provider == "gemini-cli" {
+            let has_profile = cfg
+                .llm
+                .gemini
+                .as_ref()
+                .and_then(|gemini| gemini.profiles.as_ref())
+                .map_or(false, |profiles| profiles.contains_key(phase_id.as_str()));
+
+            if has_profile {
+                invocation.metadata.insert(
+                    "profile".to_string(),
+                    serde_json::Value::String(phase_id.as_str().to_string()),
+                );
+            }
         }
 
         invocation

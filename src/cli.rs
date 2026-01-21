@@ -436,6 +436,7 @@ pub enum Commands {
     ///   xchecker gate my-spec --min-phase design
     ///   xchecker gate my-spec --fail-on-pending-fixups
     ///   xchecker gate my-spec --max-phase-age 7d
+    ///   xchecker gate my-spec --policy .xchecker/policy.toml
     ///   xchecker gate my-spec --json
     ///
     /// Per FR-GATE (Requirements 4.5.1, 4.5.2, 4.5.3, 4.5.4)
@@ -443,10 +444,15 @@ pub enum Commands {
         /// Spec ID to evaluate
         id: String,
 
+        /// Policy file path (TOML)
+        /// Defaults to .xchecker/policy.toml in the repo or ~/.config/xchecker/policy.toml
+        #[arg(long)]
+        policy: Option<PathBuf>,
+
         /// Minimum phase that must be completed (default: tasks)
         /// Valid phases: requirements, design, tasks, review, fixup, final
-        #[arg(long, default_value = "tasks")]
-        min_phase: String,
+        #[arg(long)]
+        min_phase: Option<String>,
 
         /// Fail if any pending fixups exist
         #[arg(long)]
@@ -865,6 +871,7 @@ pub fn run() -> Result<(), ExitCode> {
             Commands::Project(project_cmd) => execute_project_command(project_cmd),
             Commands::Gate {
                 id,
+                policy,
                 min_phase,
                 fail_on_pending_fixups,
                 max_phase_age,
@@ -879,7 +886,8 @@ pub fn run() -> Result<(), ExitCode> {
                 })?;
                 execute_gate_command(
                     &sanitized_id,
-                    &min_phase,
+                    policy.as_deref(),
+                    min_phase.as_deref(),
                     fail_on_pending_fixups,
                     max_phase_age.as_deref(),
                     json,
@@ -2753,39 +2761,56 @@ fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Res
 /// Per FR-GATE (Requirements 4.5.1, 4.5.2, 4.5.3, 4.5.4)
 fn execute_gate_command(
     spec_id: &str,
-    min_phase: &str,
+    policy_path: Option<&std::path::Path>,
+    min_phase: Option<&str>,
     fail_on_pending_fixups: bool,
     max_phase_age: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    use crate::gate::{GateCommand, GatePolicy, emit_gate_json, parse_duration, parse_phase};
+    use crate::gate::{
+        GateCommand, GatePolicy, emit_gate_json, load_policy_from_path, parse_duration,
+        parse_phase, resolve_policy_path,
+    };
 
-    // Parse min_phase
-    let min_phase_id = parse_phase(min_phase).map_err(|e| {
+    let policy_path = resolve_policy_path(policy_path).map_err(|e| {
         XCheckerError::Config(ConfigError::InvalidValue {
-            key: "min_phase".to_string(),
+            key: "policy".to_string(),
             value: e.to_string(),
         })
     })?;
 
-    // Parse max_phase_age if provided
-    let max_age = if let Some(age_str) = max_phase_age {
-        Some(parse_duration(age_str).map_err(|e| {
+    let mut policy = if let Some(path) = policy_path {
+        load_policy_from_path(&path).map_err(|e| {
+            XCheckerError::Config(ConfigError::InvalidValue {
+                key: "policy".to_string(),
+                value: e.to_string(),
+            })
+        })?
+    } else {
+        GatePolicy::default()
+    };
+
+    if let Some(min_phase) = min_phase {
+        policy.min_phase = parse_phase(min_phase).map_err(|e| {
+            XCheckerError::Config(ConfigError::InvalidValue {
+                key: "min_phase".to_string(),
+                value: e.to_string(),
+            })
+        })?;
+    }
+
+    if fail_on_pending_fixups {
+        policy.fail_on_pending_fixups = true;
+    }
+
+    if let Some(age_str) = max_phase_age {
+        policy.max_phase_age = Some(parse_duration(age_str).map_err(|e| {
             XCheckerError::Config(ConfigError::InvalidValue {
                 key: "max_phase_age".to_string(),
                 value: e.to_string(),
             })
-        })?)
-    } else {
-        None
-    };
-
-    // Build policy
-    let policy = GatePolicy {
-        min_phase: min_phase_id,
-        fail_on_pending_fixups,
-        max_phase_age: max_age,
-    };
+        })?);
+    }
 
     // Execute gate evaluation
     let gate = GateCommand::new(spec_id.to_string(), policy);

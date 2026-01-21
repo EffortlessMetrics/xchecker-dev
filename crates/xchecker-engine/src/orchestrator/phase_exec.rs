@@ -15,7 +15,7 @@ use crate::hooks::{HookContext, HookExecutor, HookType, execute_and_process_hook
 use crate::packet::PacketBuilder;
 use crate::phase::{Phase, PhaseContext};
 use crate::phases::{DesignPhase, FixupPhase, RequirementsPhase, ReviewPhase, TasksPhase};
-use crate::types::{ErrorKind, FileType, PacketEvidence, PhaseId, PipelineInfo};
+use crate::types::{ErrorKind, FileType, LlmInfo, PacketEvidence, PhaseId, PipelineInfo};
 
 use super::llm::ClaudeExecutionMetadata;
 use super::{OrchestratorConfig, PhaseOrchestrator, PhaseTimeout};
@@ -368,6 +368,9 @@ impl PhaseOrchestrator {
         flags.insert("phase".to_string(), phase_id.as_str().to_string());
 
         let warnings = vec![format!("phase_timeout:{}", timeout_seconds)];
+        let pipeline_info = Some(PipelineInfo {
+            execution_strategy: Some("controlled".to_string()),
+        });
 
         // Use config values for truthful failure receipts (no hard-coded metadata)
         let configured_model = config.config.get("model").map_or("unknown", |s| s.as_str());
@@ -397,7 +400,7 @@ impl PhaseOrchestrator {
             Some(ErrorKind::PhaseTimeout),
             Some(format!("Phase timed out after {timeout_seconds} seconds")),
             None, // No diff_context,
-            None, // pipeline
+            pipeline_info,
         );
 
         let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
@@ -645,6 +648,9 @@ impl PhaseOrchestrator {
         config: &OrchestratorConfig,
     ) -> Result<ExecutionResult> {
         let phase_id = phase.id();
+        let pipeline_info = Some(PipelineInfo {
+            execution_strategy: Some("controlled".to_string()),
+        });
 
         // Step 0: Remove stale .partial/ directories (FR-ORC-003, FR-ORC-007)
         self.artifact_manager()
@@ -730,7 +736,7 @@ impl PhaseOrchestrator {
                             Some(ErrorKind::ClaudeFailure),
                             Some(error_reason.clone()),
                             None,
-                            None,
+                            pipeline_info.clone(),
                         );
 
                         let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
@@ -788,7 +794,7 @@ impl PhaseOrchestrator {
                         Some(ErrorKind::ClaudeFailure),
                         Some(error_reason.clone()),
                         None,
-                        None,
+                        pipeline_info.clone(),
                     );
 
                     let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
@@ -870,7 +876,7 @@ impl PhaseOrchestrator {
                 Some(ErrorKind::SecretDetected),
                 Some(error_reason.clone()),
                 None, // No diff_context,
-                None, // pipeline
+                pipeline_info.clone(),
             );
 
             let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
@@ -947,9 +953,60 @@ impl PhaseOrchestrator {
                     // Check if this is a budget exhaustion error by downcasting
                     if let Some(xchecker_err) = e.downcast_ref::<XCheckerError>()
                         && let XCheckerError::Llm(llm_err) = xchecker_err
-                        && matches!(llm_err, crate::llm::LlmError::BudgetExceeded { .. })
                     {
-                        // Handle budget exhaustion specially - create receipt with budget_exhausted flag
+                        if matches!(llm_err, crate::llm::LlmError::BudgetExceeded { .. }) {
+                            // Handle budget exhaustion specially - create receipt with budget_exhausted flag
+                            let packet_evidence = packet.evidence.clone();
+                            let mut flags = HashMap::new();
+                            flags.insert("phase".to_string(), phase_id.as_str().to_string());
+
+                            // Use config values for truthful failure receipts (no hard-coded metadata)
+                            let configured_model =
+                                config.config.get("model").map_or("unknown", |s| s.as_str());
+                            let configured_runner = config
+                                .config
+                                .get("runner_mode")
+                                .map_or("unknown", |s| s.as_str());
+
+                            let mut receipt = self.receipt_manager().create_receipt_with_redactor(
+                                config.redactor.as_ref(),
+                                self.spec_id(),
+                                phase_id,
+                                exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
+                                vec![],                            // No successful outputs
+                                env!("CARGO_PKG_VERSION"),
+                                "unknown", // Claude hasn't completed, so version is unknown
+                                configured_model,
+                                None, // No model alias
+                                flags,
+                                packet_evidence,
+                                None, // No stderr_tail
+                                None, // No stderr_redacted
+                                vec![format!("LLM budget exhausted: {}", llm_err)],
+                                None, // No fallback
+                                configured_runner,
+                                None, // No runner distro
+                                Some(ErrorKind::ClaudeFailure),
+                                Some(llm_err.to_string()),
+                                None, // No diff_context
+                                pipeline_info.clone(),
+                            );
+
+                            // Attach LlmInfo with budget_exhausted flag
+                            receipt.llm = Some(LlmInfo::for_budget_exhaustion());
+
+                            let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
+
+                            return Ok(ExecutionResult {
+                                phase: phase_id,
+                                success: false,
+                                exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                                artifact_paths: vec![],
+                                receipt_path: Some(receipt_path.into_std_path_buf()),
+                                error: Some(llm_err.to_string()),
+                            });
+                        }
+
                         let packet_evidence = packet.evidence.clone();
                         let mut flags = HashMap::new();
                         flags.insert("phase".to_string(), phase_id.as_str().to_string());
@@ -962,12 +1019,50 @@ impl PhaseOrchestrator {
                             .get("runner_mode")
                             .map_or("unknown", |s| s.as_str());
 
+                        let (exit_code, error_kind) =
+                            exit_codes::error_to_exit_code_and_kind(xchecker_err);
+
+                        let invocation =
+                            self.build_llm_invocation(phase_id, &prompt, &packet.content, config);
+                        let provider = self
+                            .config_from_orchestrator_config(config)
+                            .llm
+                            .provider
+                            .unwrap_or_else(|| "claude-cli".to_string());
+
+                        let mut llm_info = LlmInfo {
+                            provider: Some(provider),
+                            model_used: if invocation.model.is_empty() {
+                                None
+                            } else {
+                                Some(invocation.model.clone())
+                            },
+                            tokens_input: None,
+                            tokens_output: None,
+                            timed_out: None,
+                            timeout_seconds: Some(invocation.timeout.as_secs()),
+                            budget_exhausted: None,
+                        };
+
+                        let mut warnings = Vec::new();
+                        match llm_err {
+                            crate::llm::LlmError::Timeout { duration } => {
+                                llm_info.timed_out = Some(true);
+                                llm_info.timeout_seconds = Some(duration.as_secs());
+                                warnings.push(format!("phase_timeout:{}", duration.as_secs()));
+                            }
+                            _ => {
+                                llm_info.timed_out = Some(false);
+                                warnings.push(format!("llm_error:{}", llm_err));
+                            }
+                        }
+
                         let mut receipt = self.receipt_manager().create_receipt_with_redactor(
                             config.redactor.as_ref(),
                             self.spec_id(),
                             phase_id,
-                            exit_codes::codes::CLAUDE_FAILURE, // Exit code 70
-                            vec![],                            // No successful outputs
+                            exit_code,
+                            vec![], // No successful outputs
                             env!("CARGO_PKG_VERSION"),
                             "unknown", // Claude hasn't completed, so version is unknown
                             configured_model,
@@ -976,25 +1071,24 @@ impl PhaseOrchestrator {
                             packet_evidence,
                             None, // No stderr_tail
                             None, // No stderr_redacted
-                            vec![format!("LLM budget exhausted: {}", llm_err)],
+                            warnings,
                             None, // No fallback
                             configured_runner,
                             None, // No runner distro
-                            Some(ErrorKind::ClaudeFailure),
+                            Some(error_kind),
                             Some(llm_err.to_string()),
                             None, // No diff_context
-                            None, // No pipeline info
+                            pipeline_info.clone(),
                         );
 
-                        // Attach LlmInfo with budget_exhausted flag
-                        receipt.llm = Some(crate::types::LlmInfo::for_budget_exhaustion());
+                        receipt.llm = Some(llm_info);
 
                         let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
 
                         return Ok(ExecutionResult {
                             phase: phase_id,
                             success: false,
-                            exit_code: exit_codes::codes::CLAUDE_FAILURE,
+                            exit_code,
                             artifact_paths: vec![],
                             receipt_path: Some(receipt_path.into_std_path_buf()),
                             error: Some(llm_err.to_string()),
@@ -1041,7 +1135,7 @@ impl PhaseOrchestrator {
                 (None, "haiku".to_string())
             };
 
-            let receipt = self.receipt_manager().create_receipt_with_redactor(
+            let mut receipt = self.receipt_manager().create_receipt_with_redactor(
                 config.redactor.as_ref(),
                 self.spec_id(),
                 phase_id,
@@ -1068,8 +1162,10 @@ impl PhaseOrchestrator {
                 Some(ErrorKind::ClaudeFailure),
                 Some("Claude CLI execution failed".to_string()),
                 None, // No diff_context
-                None, // No pipeline info for Claude failure errors
+                pipeline_info.clone(),
             );
+
+            receipt.llm = llm_result.map(|result| result.into_llm_info());
 
             let receipt_path = self.receipt_manager().write_receipt(&receipt)?;
 
@@ -1219,9 +1315,7 @@ impl PhaseOrchestrator {
             None, // No error_kind for successful execution
             None, // No error_reason for successful execution
             None, // No diff_context
-            Some(PipelineInfo {
-                execution_strategy: Some("controlled".to_string()),
-            }),
+            pipeline_info.clone(),
         );
         // Set LLM info from the invocation result (V11+ multi-provider support)
         receipt.llm = llm_result.map(|r| r.into_llm_info());
