@@ -1021,13 +1021,11 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
         println!();
         println!(
             "{}",
-            "Tip: Run 'xchecker doctor --verbose' for detailed diagnostics,"
-                .with(Color::Yellow)
+            "Tip: Run 'xchecker doctor --verbose' for detailed diagnostics.".with(Color::Yellow)
         );
         println!(
             "{}",
-            "     or check docs/DOCTOR.md for troubleshooting steps."
-                .with(Color::Yellow)
+            "     See docs/DOCTOR.md for troubleshooting steps.".with(Color::Yellow)
         );
     }
 }
