@@ -296,7 +296,7 @@ impl PhaseOrchestrator {
     /// Uses per-phase model configuration with precedence:
     /// 1. Phase-specific override (`[phases.<phase>].model`)
     /// 2. Global default (`[defaults].model`)
-    /// 3. Provider default (Claude CLI falls back to `"haiku"` when unset)
+    /// 3. Empty string (backend handles its own default)
     ///
     /// This is not part of the public API.
     pub(crate) fn build_llm_invocation(

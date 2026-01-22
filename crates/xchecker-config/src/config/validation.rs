@@ -184,76 +184,11 @@ impl Config {
         // These providers require a model to be explicitly configured since they
         // don't have a safe default like CLI providers do.
         let provider = self.llm.provider.as_deref().unwrap_or("claude-cli");
-
-        if provider == "openrouter" {
-            let has_model = self
-                .llm
-                .openrouter
-                .as_ref()
-                .and_then(|or| or.model.as_ref())
-                .is_some_and(|m| !m.is_empty());
-            if !has_model {
-                return Err(XCheckerError::Config(ConfigError::InvalidValue {
-                    key: "llm.openrouter.model".to_string(),
-                    value: "OpenRouter provider requires a model to be configured. \
-                            Please set [llm.openrouter] model = \"model-name\"."
-                        .to_string(),
-                }));
-            }
-        }
-
-        if provider == "anthropic" {
-            let has_model = self
-                .llm
-                .anthropic
-                .as_ref()
-                .and_then(|a| a.model.as_ref())
-                .is_some_and(|m| !m.is_empty());
-            if !has_model {
-                return Err(XCheckerError::Config(ConfigError::InvalidValue {
-                    key: "llm.anthropic.model".to_string(),
-                    value: "Anthropic provider requires a model to be configured. \
-                            Please set [llm.anthropic] model = \"model-name\"."
-                        .to_string(),
-                }));
-            }
-        }
+        self.validate_http_provider_model(provider, false)?;
 
         // Also validate fallback provider model requirements
         if let Some(fallback_provider) = &self.llm.fallback_provider {
-            if fallback_provider == "openrouter" {
-                let has_model = self
-                    .llm
-                    .openrouter
-                    .as_ref()
-                    .and_then(|or| or.model.as_ref())
-                    .is_some_and(|m| !m.is_empty());
-                if !has_model {
-                    return Err(XCheckerError::Config(ConfigError::InvalidValue {
-                        key: "llm.openrouter.model".to_string(),
-                        value: "Fallback provider 'openrouter' requires a model to be configured. \
-                                Please set [llm.openrouter] model = \"model-name\"."
-                            .to_string(),
-                    }));
-                }
-            }
-
-            if fallback_provider == "anthropic" {
-                let has_model = self
-                    .llm
-                    .anthropic
-                    .as_ref()
-                    .and_then(|a| a.model.as_ref())
-                    .is_some_and(|m| !m.is_empty());
-                if !has_model {
-                    return Err(XCheckerError::Config(ConfigError::InvalidValue {
-                        key: "llm.anthropic.model".to_string(),
-                        value: "Fallback provider 'anthropic' requires a model to be configured. \
-                                Please set [llm.anthropic] model = \"model-name\"."
-                            .to_string(),
-                    }));
-                }
-            }
+            self.validate_http_provider_model(fallback_provider, true)?;
         }
 
         // Validate execution strategy - must be "controlled" (V11-V14 requirement)
@@ -316,5 +251,58 @@ impl Config {
         }
 
         Ok(())
+    }
+
+    /// Validate that HTTP providers (openrouter, anthropic) have a model configured.
+    ///
+    /// HTTP providers don't have safe defaults like CLI providers do, so a model
+    /// must be explicitly configured.
+    fn validate_http_provider_model(
+        &self,
+        provider: &str,
+        is_fallback: bool,
+    ) -> Result<(), XCheckerError> {
+        let config_key = match provider {
+            "openrouter" => {
+                let has_model = self
+                    .llm
+                    .openrouter
+                    .as_ref()
+                    .and_then(|or| or.model.as_ref())
+                    .is_some_and(|m| !m.is_empty());
+                if has_model {
+                    return Ok(());
+                }
+                "llm.openrouter.model"
+            }
+            "anthropic" => {
+                let has_model = self
+                    .llm
+                    .anthropic
+                    .as_ref()
+                    .and_then(|a| a.model.as_ref())
+                    .is_some_and(|m| !m.is_empty());
+                if has_model {
+                    return Ok(());
+                }
+                "llm.anthropic.model"
+            }
+            // CLI providers don't require explicit model configuration
+            _ => return Ok(()),
+        };
+
+        let context = if is_fallback {
+            "Fallback provider"
+        } else {
+            "Provider"
+        };
+        Err(XCheckerError::Config(ConfigError::InvalidValue {
+            key: config_key.to_string(),
+            value: format!(
+                "{context} '{provider}' requires a model to be configured. \
+                 Please set [llm.{provider}] model = \"model-name\".",
+                provider = provider.to_lowercase()
+            ),
+        }))
     }
 }
