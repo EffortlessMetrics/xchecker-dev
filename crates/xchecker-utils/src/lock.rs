@@ -234,27 +234,53 @@ impl FileLock {
                         Ok(()) => {
                             // Lock is stale/overridable - attempt atomic removal and retry
                             if Self::try_remove_stale_lock(lock_path, spec_id).is_ok() {
-                                // Successfully removed, apply exponential backoff with jitter before retry
-                                if attempt + 1 < max_retries {
-                                    let base_delay_ms =
-                                        10u64.saturating_mul(2u64.saturating_pow(attempt));
-                                    // Deterministic jitter based on PID to avoid lockstep retries
-                                    // without requiring RNG (0-6ms based on attempt and PID)
-                                    let jitter_ms = ((attempt as u64)
-                                        .wrapping_mul(3)
-                                        .wrapping_add((process::id() as u64) % 7))
-                                        % 7;
-                                    let delay_ms = base_delay_ms.saturating_add(jitter_ms);
-                                    std::thread::sleep(std::time::Duration::from_millis(
-                                        delay_ms.min(100),
-                                    ));
-                                    continue;
+                                // Immediately attempt acquisition after removing stale lock
+                                match fs::OpenOptions::new()
+                                    .create_new(true)
+                                    .write(true)
+                                    .open(lock_path)
+                                {
+                                    Ok(lock_file) => {
+                                        return Self::finalize_lock(
+                                            lock_path.to_path_buf(),
+                                            lock_file,
+                                            lock_info,
+                                        );
+                                    }
+                                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                                        // Another process grabbed it - apply backoff if retries remain
+                                        if attempt + 1 < max_retries {
+                                            let base_delay_ms =
+                                                10u64.saturating_mul(2u64.saturating_pow(attempt));
+                                            // Deterministic jitter based on PID to avoid lockstep retries
+                                            // without requiring RNG (0-6ms based on attempt and PID)
+                                            let jitter_ms = ((attempt as u64)
+                                                .wrapping_mul(3)
+                                                .wrapping_add((process::id() as u64) % 7))
+                                                % 7;
+                                            let delay_ms = base_delay_ms.saturating_add(jitter_ms);
+                                            std::thread::sleep(std::time::Duration::from_millis(
+                                                delay_ms.min(100),
+                                            ));
+                                            continue;
+                                        }
+                                    }
+                                    Err(e) => {
+                                        return Err(LockError::AcquisitionFailed {
+                                            reason: format!(
+                                                "Failed to create lock for spec '{}' after removing stale lock: {e}",
+                                                spec_id
+                                            ),
+                                        });
+                                    }
                                 }
                             }
-                            // Failed to remove or max retries reached
+                            // Failed to remove stale lock or max retries reached after another process grabbed it
                             return Err(LockError::AcquisitionFailed {
-                                reason: "Failed to acquire lock after removing stale lock"
-                                    .to_string(),
+                                reason: format!(
+                                    "Failed to acquire lock for spec '{}' after removing stale lock",
+                                    spec_id
+                                ),
                             });
                         }
                         Err(e) => return Err(e),
