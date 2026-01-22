@@ -143,8 +143,8 @@ pub mod test_utils {
 
     /// Clear all xchecker config-related environment variables.
     ///
-    /// Call this at the start of tests that manipulate env vars to ensure
-    /// test isolation. This prevents env vars from leaking between tests.
+    /// Clears all environment variables starting with `XCHECKER_` to ensure
+    /// test isolation. This approach prevents drift as new env vars are added.
     ///
     /// # Safety
     ///
@@ -167,13 +167,19 @@ pub mod test_utils {
         // SAFETY: We're only removing xchecker-specific env vars in test contexts.
         // The env var operations are thread-unsafe but tests using this function
         // should be serialized via config_env_guard or similar synchronization.
-        unsafe {
-            env::remove_var("XCHECKER_LLM_PROVIDER");
-            env::remove_var("XCHECKER_EXECUTION_STRATEGY");
-            env::remove_var("XCHECKER_LLM_FALLBACK_PROVIDER");
-            env::remove_var("XCHECKER_LLM_PROMPT_TEMPLATE");
-            env::remove_var("XCHECKER_LLM_GEMINI_DEFAULT_MODEL");
-            env::remove_var("XCHECKER_HOME");
+
+        // Collect keys first to avoid iterator invalidation
+        let keys: Vec<String> = env::vars()
+            .map(|(k, _)| k)
+            .filter(|k| k.starts_with("XCHECKER_"))
+            .collect();
+
+        // Remove all XCHECKER_* environment variables
+        for key in keys {
+            // SAFETY: Called only in test contexts with proper synchronization
+            unsafe {
+                env::remove_var(&key);
+            }
         }
     }
 }

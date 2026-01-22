@@ -234,8 +234,13 @@ impl FileLock {
                         Ok(()) => {
                             // Lock is stale/overridable - attempt atomic removal and retry
                             if Self::try_remove_stale_lock(lock_path, spec_id).is_ok() {
-                                // Successfully removed, retry acquisition
+                                // Successfully removed, apply exponential backoff before retry
                                 if attempt + 1 < max_retries {
+                                    let delay_ms =
+                                        10u64.saturating_mul(2u64.saturating_pow(attempt));
+                                    std::thread::sleep(std::time::Duration::from_millis(
+                                        delay_ms.min(100),
+                                    ));
                                     continue;
                                 }
                             }
@@ -304,7 +309,8 @@ impl FileLock {
 
     /// Attempt to remove a stale lock file atomically
     ///
-    /// Uses rename-to-stale then delete pattern to minimize race window
+    /// Uses rename-to-stale then delete pattern to minimize race window.
+    /// Treats `NotFound` as success since another process may have already removed it.
     fn try_remove_stale_lock(lock_path: &Path, spec_id: &str) -> Result<(), LockError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -313,14 +319,20 @@ impl FileLock {
         let stale_path = lock_path.with_extension(format!("stale.{timestamp}"));
 
         // Atomic rename to mark as stale
-        fs::rename(lock_path, &stale_path).map_err(|e| LockError::AcquisitionFailed {
-            reason: format!("Failed to rename stale lock for spec '{spec_id}': {e}"),
-        })?;
-
-        // Best-effort cleanup of stale file (ignore errors)
-        let _ = fs::remove_file(&stale_path);
-
-        Ok(())
+        match fs::rename(lock_path, &stale_path) {
+            Ok(()) => {
+                // Best-effort cleanup of stale file (ignore errors)
+                let _ = fs::remove_file(&stale_path);
+                Ok(())
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                // Another process already removed/renamed it - that's fine
+                Ok(())
+            }
+            Err(e) => Err(LockError::AcquisitionFailed {
+                reason: format!("Failed to rename stale lock for spec '{spec_id}': {e}"),
+            }),
+        }
     }
 
     /// Check if a lock exists for the given spec ID
