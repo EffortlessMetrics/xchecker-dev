@@ -56,6 +56,10 @@ impl ContentSelector {
         exclude_builder.add(Glob::new("**/target/**")?);
         exclude_builder.add(Glob::new("**/node_modules/**")?);
         exclude_builder.add(Glob::new("**/.git/**")?);
+        // Add directory-level exclusions to allow pruning
+        exclude_builder.add(Glob::new("**/target")?);
+        exclude_builder.add(Glob::new("**/node_modules")?);
+        exclude_builder.add(Glob::new("**/.git")?);
         // Note: .xchecker/** is excluded for repo-level searches,
         // but when building packets from spec_dir, we're already inside .xchecker/specs/<id>
 
@@ -178,13 +182,19 @@ impl ContentSelector {
         }
     }
 
+    /// Check if a path is excluded by patterns
+    #[must_use]
+    fn is_excluded(&self, path: &Utf8Path) -> bool {
+        self.exclude_patterns.is_match(path.as_str())
+    }
+
     /// Check if a file should be included based on include/exclude patterns
     #[must_use]
     pub fn should_include(&self, path: &Utf8Path) -> bool {
         let path_str = path.as_str();
 
         // First check if excluded
-        if self.exclude_patterns.is_match(path_str) {
+        if self.is_excluded(path) {
             return false;
         }
 
@@ -368,6 +378,10 @@ impl ContentSelector {
 
             // Recurse into directories (including validated symlinked directories)
             if path.is_dir() {
+                // Optimization: Check if directory itself is excluded to prune recursion
+                if self.is_excluded(&path) {
+                    continue;
+                }
                 self.walk_directory_paths(root, &path, paths)?;
             } else if self.should_include(&path) {
                 // Just collect the path; DoS protection happens in select_files
