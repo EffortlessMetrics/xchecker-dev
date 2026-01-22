@@ -1016,6 +1016,20 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
         "Overall status: {}",
         overall_text.with(overall_color).attribute(Attribute::Bold)
     );
+
+    if !report.ok {
+        println!();
+        println!(
+            "{}",
+            "Tip: Run 'xchecker doctor --verbose' for detailed diagnostics,"
+                .with(Color::Yellow)
+        );
+        println!(
+            "{}",
+            "     or check docs/DOCTOR.md for troubleshooting steps."
+                .with(Color::Yellow)
+        );
+    }
 }
 
 // Helper to convert snake_case to Title Case with acronym support
