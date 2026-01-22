@@ -28,5 +28,8 @@ pub struct CliArgs {
     pub llm_provider: Option<String>,
     pub llm_claude_binary: Option<String>,
     pub llm_gemini_binary: Option<String>,
+    pub llm_gemini_default_model: Option<String>,
+    pub llm_fallback_provider: Option<String>,
+    pub prompt_template: Option<String>,
     pub execution_strategy: Option<String>,
 }

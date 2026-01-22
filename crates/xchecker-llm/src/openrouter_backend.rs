@@ -266,6 +266,7 @@ impl LlmBackend for OpenRouterBackend {
 
         // Set timeout status (false since we got a response)
         result.timed_out = Some(false);
+        result.timeout_seconds = Some(inv.timeout.as_secs());
 
         debug!(
             provider = "openrouter",

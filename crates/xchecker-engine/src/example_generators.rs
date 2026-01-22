@@ -16,8 +16,8 @@ use std::collections::{BTreeMap, HashMap};
 
 use crate::doctor::{CheckStatus, DoctorCheck, DoctorOutput};
 use crate::types::{
-    ArtifactInfo, ConfigSource, ConfigValue, DriftPair, FileEvidence, FileHash, LockDrift,
-    PacketEvidence, Priority, Receipt, StatusOutput,
+    ArtifactInfo, ConfigSource, ConfigValue, DriftPair, FileEvidence, FileHash, LlmInfo, LockDrift,
+    PacketEvidence, PipelineInfo, Priority, Receipt, StatusOutput,
 };
 
 /// Fixed timestamp for deterministic examples
@@ -138,8 +138,18 @@ pub fn make_example_receipt_full() -> Receipt {
         warnings: vec!["rename_retry_count: 2".to_string()],
         fallback_used: Some(true),
         diff_context: Some(3),
-        llm: None,
-        pipeline: None,
+        llm: Some(LlmInfo {
+            provider: Some("claude-cli".to_string()),
+            model_used: Some("haiku".to_string()),
+            tokens_input: Some(1234),
+            tokens_output: Some(567),
+            timed_out: Some(false),
+            timeout_seconds: Some(600),
+            budget_exhausted: None,
+        }),
+        pipeline: Some(PipelineInfo {
+            execution_strategy: Some("controlled".to_string()),
+        }),
     }
 }
 

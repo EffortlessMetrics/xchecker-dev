@@ -149,12 +149,25 @@ mod tests {
     // Tests that use `config_env_guard()` will be serialized.
     static CONFIG_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
+    fn clear_config_env_vars() {
+        // SAFETY: Test-only helper for clearing process env vars under the config lock.
+        unsafe {
+            env::remove_var("XCHECKER_LLM_PROVIDER");
+            env::remove_var("XCHECKER_EXECUTION_STRATEGY");
+            env::remove_var("XCHECKER_LLM_FALLBACK_PROVIDER");
+            env::remove_var("XCHECKER_LLM_PROMPT_TEMPLATE");
+            env::remove_var("XCHECKER_LLM_GEMINI_DEFAULT_MODEL");
+        }
+    }
+
     #[allow(dead_code)] // Ready for use when #[ignore]d tests are enabled
     fn config_env_guard() -> MutexGuard<'static, ()> {
-        CONFIG_ENV_LOCK
+        let guard = CONFIG_ENV_LOCK
             .get_or_init(|| Mutex::new(()))
             .lock()
-            .unwrap()
+            .unwrap();
+        clear_config_env_vars();
+        guard
     }
 
     fn create_test_config_file(dir: &Path, content: &str) -> PathBuf {
@@ -184,9 +197,7 @@ mod tests {
         assert_eq!(runner.mode, Some("auto".to_string()));
     }
 
-    // TODO: This test has environment isolation issues when run with other tests
     #[test]
-    #[ignore]
     fn test_config_discovery_with_cli_override() {
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
@@ -202,10 +213,6 @@ packet_max_bytes = 32768
 mode = "native"
 "#,
         );
-
-        // Change to temp directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp_dir.path()).unwrap();
 
         let cli_args = CliArgs {
             config_path: None,
@@ -233,10 +240,13 @@ mode = "native"
             llm_provider: None,
             llm_claude_binary: None,
             llm_gemini_binary: None,
+            llm_gemini_default_model: None,
+            llm_fallback_provider: None,
+            prompt_template: None,
             execution_strategy: None,
         };
 
-        let config = Config::discover(&cli_args).unwrap();
+        let config = Config::discover_from(temp_dir.path(), &cli_args).unwrap();
 
         // CLI overrides should take precedence
         assert_eq!(config.defaults.model, Some("opus".to_string()));
@@ -256,9 +266,6 @@ mode = "native"
             config.source_attribution.get("verbose"),
             Some(&ConfigSource::Cli)
         );
-
-        // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
     }
 
     #[test]
@@ -281,9 +288,7 @@ mode = "native"
         }
     }
 
-    // TODO: This test has environment isolation issues - needs to be fixed
     #[test]
-    #[ignore]
     fn test_effective_config() {
         let temp_dir = TempDir::new().unwrap();
         let _config_path = create_test_config_file(
@@ -295,16 +300,12 @@ max_turns = 8
 "#,
         );
 
-        // Change to temp directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp_dir.path()).unwrap();
-
         let cli_args = CliArgs {
             verbose: Some(true),
             ..Default::default()
         };
 
-        let config = Config::discover(&cli_args).unwrap();
+        let config = Config::discover_from(temp_dir.path(), &cli_args).unwrap();
         let effective = config.effective_config();
 
         // Check that values and sources are correctly reported
@@ -316,14 +317,9 @@ max_turns = 8
 
         assert_eq!(effective.get("max_turns").unwrap().0, "8");
         assert_eq!(effective.get("max_turns").unwrap().1, "config");
-
-        // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
     }
 
-    // TODO: This test has environment isolation issues - needs to be fixed
     #[test]
-    #[ignore]
     fn test_invalid_toml_config() {
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
@@ -333,27 +329,18 @@ max_turns = 8
         let config_path = xchecker_dir.join("config.toml");
         fs::write(&config_path, "invalid toml content [[[").unwrap();
 
-        // Change to temp directory
-        let original_dir = env::current_dir().unwrap();
-        env::set_current_dir(temp_dir.path()).unwrap();
-
         let cli_args = CliArgs::default();
 
-        let result = Config::discover(&cli_args);
+        let result = Config::discover_from(temp_dir.path(), &cli_args);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         assert!(
             error_msg.contains("Invalid configuration file")
                 || error_msg.contains("Failed to parse TOML config file")
         );
-
-        // Restore original directory
-        env::set_current_dir(original_dir).unwrap();
     }
 
     // ===== Edge Case Tests (Task 9.7) =====
-
-    // TODO: This test has environment isolation issues - needs to be fixed
     #[test]
     fn test_config_with_invalid_toml_syntax() {
         let _home = crate::paths::with_isolated_home();
@@ -376,7 +363,7 @@ max_turns = 8
                 config_path: Some(config_path),
                 ..Default::default()
             };
-            let result = Config::discover(&cli_args);
+            let result = Config::discover_from(temp_dir.path(), &cli_args);
 
             assert!(
                 result.is_err(),
@@ -883,6 +870,107 @@ max_turns = 10
                 }
                 _ => panic!("Expected Config InvalidValue error for llm.provider"),
             }
+        }
+    }
+
+    #[test]
+    fn test_llm_fallback_provider_from_config_file() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[llm]
+provider = "claude-cli"
+fallback_provider = "anthropic"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let config = Config::discover(&cli_args).unwrap();
+
+        assert_eq!(config.llm.fallback_provider, Some("anthropic".to_string()));
+        assert_eq!(
+            config.source_attribution.get("llm_fallback_provider"),
+            Some(&ConfigSource::Config)
+        );
+    }
+
+    #[test]
+    fn test_llm_fallback_provider_rejects_invalid_provider() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[llm]
+provider = "claude-cli"
+fallback_provider = "invalid"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let result = Config::discover(&cli_args);
+        assert!(result.is_err(), "Should reject invalid fallback provider");
+
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
+                assert_eq!(key, "llm.fallback_provider");
+                assert!(
+                    value.contains("invalid"),
+                    "Error message should mention the invalid provider: {}",
+                    value
+                );
+            }
+            _ => panic!("Expected Config InvalidValue error for llm.fallback_provider"),
+        }
+    }
+
+    #[test]
+    fn test_llm_fallback_provider_prompt_template_incompatible() {
+        let _home = crate::paths::with_isolated_home();
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = create_test_config_file(
+            temp_dir.path(),
+            r#"
+[llm]
+provider = "claude-cli"
+fallback_provider = "openrouter"
+prompt_template = "claude-optimized"
+"#,
+        );
+
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
+
+        let result = Config::discover(&cli_args);
+        assert!(
+            result.is_err(),
+            "Should reject incompatible prompt_template for fallback provider"
+        );
+
+        let error = result.unwrap_err();
+        match error {
+            XCheckerError::Config(ConfigError::InvalidValue { key, value }) => {
+                assert_eq!(key, "llm.prompt_template");
+                assert!(
+                    value.contains("openrouter"),
+                    "Error should mention fallback provider, got: {}",
+                    value
+                );
+            }
+            _ => panic!("Expected Config InvalidValue error for llm.prompt_template"),
         }
     }
 
@@ -1976,6 +2064,7 @@ strict_validation = false
 
     #[test]
     fn test_discover_from_env_and_fs_uses_defaults() {
+        let _guard = config_env_guard();
         // Use isolated home to avoid picking up real config files
         let _home = crate::paths::with_isolated_home();
 
@@ -2005,6 +2094,7 @@ strict_validation = false
 
     #[test]
     fn test_discover_from_env_and_fs_reads_config_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -2049,6 +2139,7 @@ packet_max_bytes = 32768
 
     #[test]
     fn test_discover_from_env_and_fs_matches_discover_with_empty_cli_args() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         // Both methods should produce equivalent configs when no config file exists

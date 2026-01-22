@@ -32,6 +32,7 @@ strum = { workspace = true, optional = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+strum = { workspace = true }  # For test access to VariantNames trait
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }

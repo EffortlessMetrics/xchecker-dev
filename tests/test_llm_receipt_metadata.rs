@@ -250,6 +250,7 @@ async fn test_dry_run_receipt_has_llm_metadata() {
     let config = xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -338,6 +339,7 @@ async fn test_dry_run_receipt_has_full_llm_metadata() {
     let config = xchecker::orchestrator::OrchestratorConfig {
         dry_run: true,
         config: HashMap::new(),
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

@@ -58,6 +58,7 @@ fn create_config_with_timeout(timeout_secs: u64, dry_run: bool) -> OrchestratorC
     OrchestratorConfig {
         dry_run,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -78,6 +79,7 @@ fn create_stub_timeout_config(timeout_secs: u64) -> Option<OrchestratorConfig> {
     Some(OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -413,6 +415,7 @@ fn test_timeout_invalid_config_uses_default() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -436,6 +439,7 @@ fn test_timeout_negative_config_uses_default() {
     let config = OrchestratorConfig {
         dry_run: false,
         config: config_map,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

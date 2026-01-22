@@ -214,23 +214,128 @@ impl OrchestratorHandle {
         // Convert Config to OrchestratorConfig
         let mut orch_config = OrchestratorConfig {
             redactor: std::sync::Arc::new(redactor),
+            full_config: Some(config.clone()),
+            hooks: Some(config.hooks.clone()),
             ..Default::default()
         };
 
         // Apply config values to orchestrator config
+        if let Some(packet_max_bytes) = config.defaults.packet_max_bytes {
+            orch_config
+                .config
+                .insert("packet_max_bytes".to_string(), packet_max_bytes.to_string());
+        }
+        if let Some(packet_max_lines) = config.defaults.packet_max_lines {
+            orch_config
+                .config
+                .insert("packet_max_lines".to_string(), packet_max_lines.to_string());
+        }
+        if let Some(max_turns) = config.defaults.max_turns {
+            orch_config
+                .config
+                .insert("max_turns".to_string(), max_turns.to_string());
+        }
         if let Some(model) = &config.defaults.model {
             orch_config
                 .config
                 .insert("model".to_string(), model.clone());
+        }
+        if let Some(output_format) = &config.defaults.output_format {
+            orch_config
+                .config
+                .insert("output_format".to_string(), output_format.clone());
         }
         if let Some(timeout) = config.defaults.phase_timeout {
             orch_config
                 .config
                 .insert("phase_timeout".to_string(), timeout.to_string());
         }
-        if let Some(strict) = config.defaults.strict_validation {
-            orch_config.strict_validation = strict;
+        if let Some(stdout_cap_bytes) = config.defaults.stdout_cap_bytes {
+            orch_config
+                .config
+                .insert("stdout_cap_bytes".to_string(), stdout_cap_bytes.to_string());
         }
+        if let Some(stderr_cap_bytes) = config.defaults.stderr_cap_bytes {
+            orch_config
+                .config
+                .insert("stderr_cap_bytes".to_string(), stderr_cap_bytes.to_string());
+        }
+        if let Some(lock_ttl_seconds) = config.defaults.lock_ttl_seconds {
+            orch_config
+                .config
+                .insert("lock_ttl_seconds".to_string(), lock_ttl_seconds.to_string());
+        }
+        if let Some(debug_packet) = config.defaults.debug_packet
+            && debug_packet
+        {
+            orch_config
+                .config
+                .insert("debug_packet".to_string(), "true".to_string());
+        }
+        if let Some(allow_links) = config.defaults.allow_links
+            && allow_links
+        {
+            orch_config
+                .config
+                .insert("allow_links".to_string(), "true".to_string());
+        }
+        if let Some(runner_mode) = &config.runner.mode {
+            orch_config
+                .config
+                .insert("runner_mode".to_string(), runner_mode.clone());
+        }
+        if let Some(runner_distro) = &config.runner.distro {
+            orch_config
+                .config
+                .insert("runner_distro".to_string(), runner_distro.clone());
+        }
+        if let Some(claude_path) = &config.runner.claude_path {
+            orch_config
+                .config
+                .insert("claude_path".to_string(), claude_path.clone());
+        }
+        if let Some(provider) = &config.llm.provider {
+            orch_config
+                .config
+                .insert("llm_provider".to_string(), provider.clone());
+        }
+        if let Some(fallback_provider) = &config.llm.fallback_provider {
+            orch_config.config.insert(
+                "llm_fallback_provider".to_string(),
+                fallback_provider.clone(),
+            );
+        }
+        if let Some(execution_strategy) = &config.llm.execution_strategy {
+            orch_config
+                .config
+                .insert("execution_strategy".to_string(), execution_strategy.clone());
+        }
+        if let Some(prompt_template) = &config.llm.prompt_template {
+            orch_config
+                .config
+                .insert("prompt_template".to_string(), prompt_template.clone());
+        }
+        if let Some(claude_config) = &config.llm.claude
+            && let Some(binary) = &claude_config.binary
+        {
+            orch_config
+                .config
+                .insert("llm_claude_binary".to_string(), binary.clone());
+        }
+        if let Some(gemini_config) = &config.llm.gemini {
+            if let Some(binary) = &gemini_config.binary {
+                orch_config
+                    .config
+                    .insert("llm_gemini_binary".to_string(), binary.clone());
+            }
+            if let Some(default_model) = &gemini_config.default_model {
+                orch_config.config.insert(
+                    "llm_gemini_default_model".to_string(),
+                    default_model.clone(),
+                );
+            }
+        }
+        orch_config.strict_validation = config.strict_validation();
 
         // Copy selectors
         orch_config.selectors = Some(config.selectors.clone());

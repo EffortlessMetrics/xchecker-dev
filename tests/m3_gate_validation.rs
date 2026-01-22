@@ -218,6 +218,7 @@ async fn test_complete_multi_phase_flow() -> Result<()> {
             map.insert("verbose".to_string(), "true".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -425,6 +426,7 @@ async fn test_resume_functionality_from_intermediate_phases() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -554,6 +556,7 @@ async fn test_generated_core_yaml_canonicalization() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -634,6 +637,7 @@ async fn test_resume_dependency_validation() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -714,6 +718,7 @@ async fn test_canonicalization_metadata_in_receipts() -> Result<()> {
             map.insert("claude_scenario".to_string(), "success".to_string());
             map
         },
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

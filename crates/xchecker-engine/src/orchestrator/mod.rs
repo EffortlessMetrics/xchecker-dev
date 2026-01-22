@@ -89,6 +89,11 @@ pub struct OrchestratorConfig {
     pub dry_run: bool,
     /// Additional configuration parameters
     pub config: HashMap<String, String>,
+    /// Full configuration snapshot for LLM backends (when available).
+    ///
+    /// When set, this allows LLM backend construction to use the complete
+    /// configuration model instead of the flattened config map.
+    pub full_config: Option<crate::config::Config>,
     /// Content selectors for packet building
     ///
     /// If `Some`, phases use these selectors when building packets.
@@ -562,6 +567,7 @@ mod tests {
         let config = OrchestratorConfig {
             dry_run: true,
             config: HashMap::new(),
+            full_config: None,
             selectors: None,
             strict_validation: false,
             redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
@@ -849,6 +855,7 @@ This is a generated requirements document for spec {}. The system will provide c
         let config = OrchestratorConfig {
             dry_run: true,
             config: HashMap::new(),
+            full_config: None,
             selectors: None,
             strict_validation: false,
             redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),

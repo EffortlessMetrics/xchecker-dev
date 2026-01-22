@@ -183,6 +183,11 @@ impl Config {
                     llm.provider = file_llm.provider;
                     source_attribution.insert("llm_provider".to_string(), config_source.clone());
                 }
+                if file_llm.fallback_provider.is_some() {
+                    llm.fallback_provider = file_llm.fallback_provider;
+                    source_attribution
+                        .insert("llm_fallback_provider".to_string(), config_source.clone());
+                }
                 if let Some(file_claude) = file_llm.claude
                     && file_claude.binary.is_some()
                 {
@@ -336,6 +341,32 @@ impl Config {
             source_attribution.insert("llm_provider".to_string(), ConfigSource::Default);
         }
 
+        // Apply fallback provider configuration with precedence: CLI > env > config
+        if let Ok(env_fallback) = env::var("XCHECKER_LLM_FALLBACK_PROVIDER")
+            && !env_fallback.is_empty()
+        {
+            llm.fallback_provider = Some(env_fallback);
+            source_attribution.insert("llm_fallback_provider".to_string(), ConfigSource::Config);
+        }
+
+        if let Some(fallback_provider) = &cli_args.llm_fallback_provider {
+            llm.fallback_provider = Some(fallback_provider.clone());
+            source_attribution.insert("llm_fallback_provider".to_string(), ConfigSource::Cli);
+        }
+
+        // Apply prompt template configuration with precedence: CLI > env > config
+        if let Ok(env_template) = env::var("XCHECKER_LLM_PROMPT_TEMPLATE")
+            && !env_template.is_empty()
+        {
+            llm.prompt_template = Some(env_template);
+            source_attribution.insert("prompt_template".to_string(), ConfigSource::Config);
+        }
+
+        if let Some(prompt_template) = &cli_args.prompt_template {
+            llm.prompt_template = Some(prompt_template.clone());
+            source_attribution.insert("prompt_template".to_string(), ConfigSource::Cli);
+        }
+
         // Apply Claude binary configuration
         if let Some(binary) = &cli_args.llm_claude_binary {
             if llm.claude.is_none() {
@@ -359,6 +390,39 @@ impl Config {
             if let Some(gemini_config) = &mut llm.gemini {
                 gemini_config.binary = Some(binary.clone());
                 source_attribution.insert("llm_gemini_binary".to_string(), ConfigSource::Cli);
+            }
+        }
+
+        // Apply Gemini default model configuration with precedence: CLI > env > config
+        if let Ok(env_default_model) = env::var("XCHECKER_LLM_GEMINI_DEFAULT_MODEL")
+            && !env_default_model.is_empty()
+        {
+            if llm.gemini.is_none() {
+                llm.gemini = Some(GeminiConfig {
+                    binary: None,
+                    default_model: None,
+                    profiles: None,
+                });
+            }
+            if let Some(gemini_config) = &mut llm.gemini {
+                gemini_config.default_model = Some(env_default_model);
+                source_attribution
+                    .insert("llm_gemini_default_model".to_string(), ConfigSource::Config);
+            }
+        }
+
+        if let Some(default_model) = &cli_args.llm_gemini_default_model {
+            if llm.gemini.is_none() {
+                llm.gemini = Some(GeminiConfig {
+                    binary: None,
+                    default_model: None,
+                    profiles: None,
+                });
+            }
+            if let Some(gemini_config) = &mut llm.gemini {
+                gemini_config.default_model = Some(default_model.clone());
+                source_attribution
+                    .insert("llm_gemini_default_model".to_string(), ConfigSource::Cli);
             }
         }
 

@@ -46,6 +46,7 @@ fn dry_run_config() -> OrchestratorConfig {
     OrchestratorConfig {
         dry_run: true,
         config: Default::default(),
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -199,6 +200,7 @@ async fn test_single_phase_vs_workflow_receipt_parity() -> Result<()> {
         xchecker::orchestrator::OrchestratorConfig {
             dry_run: true,
             config: Default::default(),
+            full_config: None,
             selectors: None,
             strict_validation: false,
             redactor: Default::default(),

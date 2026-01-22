@@ -19,6 +19,7 @@ fn test_apply_fixups_config_handling() -> Result<()> {
     let orchestrator_config_preview = OrchestratorConfig {
         dry_run: false,
         config: config_preview,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),
@@ -46,6 +47,7 @@ fn test_apply_fixups_config_handling() -> Result<()> {
     let orchestrator_config_apply = OrchestratorConfig {
         dry_run: false,
         config: config_apply,
+        full_config: None,
         selectors: None,
         strict_validation: false,
         redactor: Default::default(),

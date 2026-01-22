@@ -9,6 +9,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tempfile::TempDir;
+use xchecker::test_support;
 
 /// Helper to run xchecker command and capture exit code
 fn run_xchecker_command(args: &[&str], temp_dir: &TempDir) -> (i32, PathBuf) {
@@ -169,6 +170,13 @@ fn test_lock_held_error_alignment_requires_xchecker_binary() {
 #[test]
 #[ignore = "requires_real_claude"]
 fn test_claude_failure_error_alignment_requires_real_claude() {
+    if !test_support::llm_tests_enabled() {
+        println!(
+            "Skipping real LLM exit alignment test. Set XCHECKER_REAL_LLM_TESTS=1 to enable (and ensure XCHECKER_SKIP_LLM_TESTS is unset)."
+        );
+        return;
+    }
+
     let temp_dir = TempDir::new().unwrap();
 
     // Trigger Claude failure by using invalid model

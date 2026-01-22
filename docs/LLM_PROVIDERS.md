@@ -54,6 +54,11 @@ provider = "claude-cli"
 prompt_template = "default"  # Optional, defaults to "default"
 ```
 
+**CLI override:**
+```bash
+xchecker spec my-feature --prompt-template claude-optimized
+```
+
 **Template aliases** (case-insensitive):
 - `default`: Universal template
 - `claude-optimized`, `claude_optimized`, `claude`: Claude-optimized template
@@ -148,6 +153,12 @@ xchecker spec my-feature --llm-provider claude-cli
 
 # Override execution strategy
 xchecker spec my-feature --execution-strategy controlled
+
+# Set fallback provider
+xchecker spec my-feature --llm-fallback-provider openrouter
+
+# Set prompt template
+xchecker spec my-feature --prompt-template claude-optimized
 ```
 
 **Environment Variables:**
@@ -157,6 +168,12 @@ export XCHECKER_LLM_PROVIDER=claude-cli
 
 # Override execution strategy
 export XCHECKER_EXECUTION_STRATEGY=controlled
+
+# Set fallback provider
+export XCHECKER_LLM_FALLBACK_PROVIDER=openrouter
+
+# Set prompt template
+export XCHECKER_LLM_PROMPT_TEMPLATE=claude-optimized
 
 xchecker spec my-feature
 ```
@@ -250,6 +267,18 @@ max_tokens = 1024
 [llm.gemini.profiles.design]
 model = "gemini-2.0-pro"
 max_tokens = 2048
+```
+
+**CLI Flags:**
+```bash
+xchecker spec my-feature --llm-provider gemini-cli
+xchecker spec my-feature --llm-gemini-binary /usr/local/bin/gemini
+xchecker spec my-feature --llm-gemini-default-model gemini-2.0-pro
+```
+
+**Environment Variables:**
+```bash
+export XCHECKER_LLM_GEMINI_DEFAULT_MODEL=gemini-2.0-pro
 ```
 
 ### Authentication
@@ -665,10 +694,7 @@ Fallback usage will be recorded in receipt warnings:
 ```json
 {
   "warnings": [
-    {
-      "type": "llm_fallback",
-      "message": "Primary provider 'claude-cli' failed: binary not found. Using fallback 'openrouter'."
-    }
+    "llm_fallback: Primary provider 'claude-cli' failed: binary not found. Using fallback 'openrouter'."
   ]
 }
 ```

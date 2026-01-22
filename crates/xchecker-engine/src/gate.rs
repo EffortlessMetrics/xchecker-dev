@@ -13,6 +13,7 @@
 use anyhow::{Context, Result};
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
 use crate::orchestrator::OrchestratorHandle;
 use crate::types::{PhaseId, Receipt};
@@ -37,6 +38,23 @@ pub struct GatePolicy {
     pub max_phase_age: Option<Duration>,
 }
 
+impl GatePolicy {
+    /// Apply policy overrides (from policy file) to the current policy.
+    #[must_use]
+    pub fn apply_overrides(mut self, overrides: GatePolicyOverrides) -> Self {
+        if let Some(min_phase) = overrides.min_phase {
+            self.min_phase = min_phase;
+        }
+        if let Some(fail_on_pending_fixups) = overrides.fail_on_pending_fixups {
+            self.fail_on_pending_fixups = fail_on_pending_fixups;
+        }
+        if let Some(max_phase_age) = overrides.max_phase_age {
+            self.max_phase_age = Some(max_phase_age);
+        }
+        self
+    }
+}
+
 impl Default for GatePolicy {
     fn default() -> Self {
         Self {
@@ -45,6 +63,149 @@ impl Default for GatePolicy {
             max_phase_age: None,
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct GatePolicyOverrides {
+    min_phase: Option<PhaseId>,
+    fail_on_pending_fixups: Option<bool>,
+    max_phase_age: Option<Duration>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PolicyFile {
+    gate: Option<GatePolicyFile>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GatePolicyFile {
+    require_phase: Option<String>,
+    min_phase: Option<String>,
+    allow_fixups: Option<bool>,
+    fail_on_pending_fixups: Option<bool>,
+    max_age_days: Option<i64>,
+    max_phase_age: Option<String>,
+}
+
+/// Resolve policy file path from CLI override, repo-local policy, or global config.
+pub fn resolve_policy_path(explicit: Option<&Path>) -> Result<Option<PathBuf>> {
+    if let Some(path) = explicit {
+        if !path.exists() {
+            anyhow::bail!("Policy file not found: {}", path.display());
+        }
+        return Ok(Some(path.to_path_buf()));
+    }
+
+    let cwd = std::env::current_dir().context("Failed to get current directory")?;
+    if let Some(path) = discover_policy_file_from(&cwd)? {
+        return Ok(Some(path));
+    }
+
+    if let Some(path) = global_policy_path()
+        && path.exists()
+    {
+        return Ok(Some(path));
+    }
+
+    Ok(None)
+}
+
+/// Load gate policy configuration from a TOML policy file.
+pub fn load_policy_from_path(path: &Path) -> Result<GatePolicy> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read policy file: {}", path.display()))?;
+    let parsed: PolicyFile = toml::from_str(&content)
+        .with_context(|| format!("Failed to parse policy file: {}", path.display()))?;
+
+    let overrides = if let Some(gate) = parsed.gate {
+        parse_policy_overrides(&gate)
+            .with_context(|| format!("Invalid gate policy in {}", path.display()))?
+    } else {
+        GatePolicyOverrides::default()
+    };
+
+    Ok(GatePolicy::default().apply_overrides(overrides))
+}
+
+fn parse_policy_overrides(gate: &GatePolicyFile) -> Result<GatePolicyOverrides> {
+    let mut overrides = GatePolicyOverrides::default();
+
+    let phase_value = gate.require_phase.as_ref().or(gate.min_phase.as_ref());
+    if let Some(phase_str) = phase_value {
+        overrides.min_phase = Some(parse_phase(phase_str)?);
+    }
+
+    if let Some(allow_fixups) = gate.allow_fixups {
+        overrides.fail_on_pending_fixups = Some(!allow_fixups);
+    }
+    if let Some(fail_on_pending_fixups) = gate.fail_on_pending_fixups {
+        overrides.fail_on_pending_fixups = Some(fail_on_pending_fixups);
+    }
+
+    if let Some(max_phase_age) = gate.max_phase_age.as_ref() {
+        overrides.max_phase_age = Some(parse_duration(max_phase_age)?);
+    } else if let Some(max_age_days) = gate.max_age_days {
+        if max_age_days < 0 {
+            anyhow::bail!("max_age_days must be >= 0");
+        }
+        overrides.max_phase_age = Some(Duration::days(max_age_days));
+    }
+
+    Ok(overrides)
+}
+
+fn discover_policy_file_from(start_dir: &Path) -> Result<Option<PathBuf>> {
+    let mut current_dir = start_dir.to_path_buf();
+
+    loop {
+        let policy_path = current_dir.join(".xchecker").join("policy.toml");
+        if policy_path.exists() {
+            return Ok(Some(policy_path));
+        }
+
+        if current_dir.parent().is_none() {
+            break;
+        }
+
+        if current_dir.join(".git").exists()
+            || current_dir.join(".hg").exists()
+            || current_dir.join(".svn").exists()
+        {
+            break;
+        }
+
+        current_dir = current_dir.parent().unwrap().to_path_buf();
+    }
+
+    Ok(None)
+}
+
+fn global_policy_path() -> Option<PathBuf> {
+    if cfg!(windows)
+        && let Some(appdata) = std::env::var_os("APPDATA")
+    {
+        let mut path = PathBuf::from(appdata);
+        path.push("xchecker");
+        path.push("policy.toml");
+        return Some(path);
+    }
+
+    if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME") {
+        let mut path = PathBuf::from(xdg);
+        path.push("xchecker");
+        path.push("policy.toml");
+        return Some(path);
+    }
+
+    if let Some(home) = std::env::var_os("HOME") {
+        let mut path = PathBuf::from(home);
+        path.push(".config");
+        path.push("xchecker");
+        path.push("policy.toml");
+        return Some(path);
+    }
+
+    None
 }
 
 /// Result of gate policy evaluation
@@ -456,6 +617,8 @@ pub fn emit_gate_json(result: &GateResult) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn test_default_policy() {
@@ -469,6 +632,43 @@ mod tests {
     fn test_parse_duration_days() {
         let duration = parse_duration("7d").unwrap();
         assert_eq!(duration.num_days(), 7);
+    }
+
+    #[test]
+    fn test_load_policy_from_path_overrides_defaults() {
+        let temp_dir = TempDir::new().unwrap();
+        let policy_path = temp_dir.path().join("policy.toml");
+
+        let content = r#"
+[gate]
+require_phase = "design"
+allow_fixups = false
+max_age_days = 7
+"#;
+
+        fs::write(&policy_path, content).unwrap();
+
+        let policy = load_policy_from_path(&policy_path).unwrap();
+
+        assert_eq!(policy.min_phase, PhaseId::Design);
+        assert!(policy.fail_on_pending_fixups);
+        assert_eq!(policy.max_phase_age, Some(Duration::days(7)));
+    }
+
+    #[test]
+    fn test_discover_policy_file_from_repo() {
+        let temp_dir = TempDir::new().unwrap();
+        let policy_dir = temp_dir.path().join(".xchecker");
+        let policy_path = policy_dir.join("policy.toml");
+        let nested_dir = temp_dir.path().join("nested").join("child");
+
+        fs::create_dir_all(&policy_dir).unwrap();
+        fs::create_dir_all(&nested_dir).unwrap();
+        fs::write(&policy_path, "[gate]\nrequire_phase = \"tasks\"\n").unwrap();
+
+        let found = discover_policy_file_from(&nested_dir).unwrap();
+
+        assert_eq!(found, Some(policy_path));
     }
 
     #[test]
