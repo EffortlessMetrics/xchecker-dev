@@ -166,6 +166,10 @@ pub struct FileLock {
 impl FileLock {
     /// Attempt to acquire an exclusive lock for the given spec ID
     ///
+    /// Uses atomic O_EXCL/create_new semantics to prevent TOCTOU race conditions.
+    /// If the lock file already exists, validates the existing lock before deciding
+    /// whether to override it.
+    ///
     /// # Arguments
     /// * `spec_id` - The spec ID to lock
     /// * `force` - Whether to override stale locks
@@ -187,44 +191,82 @@ impl FileLock {
         })?;
 
         let lock_path = Self::get_lock_path(spec_id);
+        let ttl = ttl_seconds.unwrap_or(DEFAULT_STALE_THRESHOLD_SECS);
 
-        // Check for existing lock
-        if lock_path.exists() {
-            let ttl = ttl_seconds.unwrap_or(DEFAULT_STALE_THRESHOLD_SECS);
-            match Self::check_existing_lock(&lock_path, spec_id, force, ttl) {
-                Ok(()) => {
-                    // Lock is stale and force is enabled, remove it
-                    fs::remove_file(&lock_path).map_err(|e| LockError::AcquisitionFailed {
-                        reason: format!("Failed to remove stale lock: {e}"),
-                    })?;
+        // Attempt atomic lock acquisition with retries for stale lock handling
+        Self::acquire_with_retry(spec_id, &lock_path, force, ttl, 3)
+    }
+
+    /// Internal helper for atomic lock acquisition with retry logic
+    fn acquire_with_retry(
+        spec_id: &str,
+        lock_path: &Path,
+        force: bool,
+        ttl_seconds: u64,
+        max_retries: u32,
+    ) -> Result<Self, LockError> {
+        for attempt in 0..max_retries {
+            // Create lock info for this attempt
+            let lock_info = LockInfo {
+                pid: process::id(),
+                start_time: Self::get_process_start_time()?,
+                created_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+                spec_id: spec_id.to_string(),
+                xchecker_version: env!("CARGO_PKG_VERSION").to_string(),
+            };
+
+            // Attempt atomic file creation with O_EXCL semantics (create_new)
+            match fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(lock_path)
+            {
+                Ok(lock_file) => {
+                    // Successfully created the file atomically - no race possible
+                    return Self::finalize_lock(lock_path.to_path_buf(), lock_file, lock_info);
                 }
-                Err(e) => return Err(e),
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                    // Lock file exists - validate it
+                    match Self::check_existing_lock(lock_path, spec_id, force, ttl_seconds) {
+                        Ok(()) => {
+                            // Lock is stale/overridable - attempt atomic removal and retry
+                            if Self::try_remove_stale_lock(lock_path, spec_id).is_ok() {
+                                // Successfully removed, retry acquisition
+                                if attempt + 1 < max_retries {
+                                    continue;
+                                }
+                            }
+                            // Failed to remove or max retries reached
+                            return Err(LockError::AcquisitionFailed {
+                                reason: "Failed to acquire lock after removing stale lock"
+                                    .to_string(),
+                            });
+                        }
+                        Err(e) => return Err(e),
+                    }
+                }
+                Err(e) => {
+                    return Err(LockError::AcquisitionFailed {
+                        reason: format!("Failed to create lock file: {e}"),
+                    });
+                }
             }
         }
 
-        // Create lock info
-        let lock_info = LockInfo {
-            pid: process::id(),
-            start_time: Self::get_process_start_time()?,
-            created_at: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            spec_id: spec_id.to_string(),
-            xchecker_version: env!("CARGO_PKG_VERSION").to_string(),
-        };
+        Err(LockError::AcquisitionFailed {
+            reason: "Max retries exceeded for lock acquisition".to_string(),
+        })
+    }
 
-        // Create and lock the file
-        let lock_file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&lock_path)
-            .map_err(|e| LockError::AcquisitionFailed {
-                reason: format!("Failed to create lock file: {e}"),
-            })?;
-
-        // Write lock information to the file first
+    /// Finalize lock acquisition by writing lock info and acquiring fd_lock
+    fn finalize_lock(
+        lock_path: PathBuf,
+        lock_file: fs::File,
+        lock_info: LockInfo,
+    ) -> Result<Self, LockError> {
         let lock_json =
             serde_json::to_string_pretty(&lock_info).map_err(|e| LockError::AcquisitionFailed {
                 reason: format!("Failed to serialize lock info: {e}"),
@@ -236,7 +278,7 @@ impl FileLock {
             let fd_lock = rw_lock
                 .try_write()
                 .map_err(|_e| LockError::ConcurrentExecution {
-                    spec_id: spec_id.to_string(),
+                    spec_id: lock_info.spec_id.clone(),
                     pid: 0, // Unknown PID since we couldn't read the lock
                     created_ago: "unknown".to_string(),
                 })?;
@@ -258,6 +300,27 @@ impl FileLock {
             _fd_lock: Some(rw_lock),
             lock_info,
         })
+    }
+
+    /// Attempt to remove a stale lock file atomically
+    ///
+    /// Uses rename-to-stale then delete pattern to minimize race window
+    fn try_remove_stale_lock(lock_path: &Path, spec_id: &str) -> Result<(), LockError> {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+        let stale_path = lock_path.with_extension(format!("stale.{timestamp}"));
+
+        // Atomic rename to mark as stale
+        fs::rename(lock_path, &stale_path).map_err(|e| LockError::AcquisitionFailed {
+            reason: format!("Failed to rename stale lock for spec '{spec_id}': {e}"),
+        })?;
+
+        // Best-effort cleanup of stale file (ignore errors)
+        let _ = fs::remove_file(&stale_path);
+
+        Ok(())
     }
 
     /// Check if a lock exists for the given spec ID

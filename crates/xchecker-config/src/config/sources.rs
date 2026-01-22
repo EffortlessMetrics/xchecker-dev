@@ -6,6 +6,7 @@ use xchecker_utils::types::ConfigSource;
 fn stable_source_label(source: &ConfigSource) -> &'static str {
     match source {
         ConfigSource::Cli => "cli",
+        ConfigSource::Env => "env",
         ConfigSource::Config => "config",
         ConfigSource::Programmatic => "programmatic",
         ConfigSource::Default => "default",
