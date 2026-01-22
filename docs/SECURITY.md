@@ -398,7 +398,7 @@ Receipts are designed to be safe for version control and sharing:
 - Redacted error messages
 - File hashes (BLAKE3)
 - Timestamps (UTC)
-- Configuration sources (cli/config/programmatic/default)
+- Configuration sources (cli/env/config/programmatic/default)
 
 ### Receipt Redaction
 

@@ -234,10 +234,17 @@ impl FileLock {
                         Ok(()) => {
                             // Lock is stale/overridable - attempt atomic removal and retry
                             if Self::try_remove_stale_lock(lock_path, spec_id).is_ok() {
-                                // Successfully removed, apply exponential backoff before retry
+                                // Successfully removed, apply exponential backoff with jitter before retry
                                 if attempt + 1 < max_retries {
-                                    let delay_ms =
+                                    let base_delay_ms =
                                         10u64.saturating_mul(2u64.saturating_pow(attempt));
+                                    // Deterministic jitter based on PID to avoid lockstep retries
+                                    // without requiring RNG (0-6ms based on attempt and PID)
+                                    let jitter_ms = ((attempt as u64)
+                                        .wrapping_mul(3)
+                                        .wrapping_add((process::id() as u64) % 7))
+                                        % 7;
+                                    let delay_ms = base_delay_ms.saturating_add(jitter_ms);
                                     std::thread::sleep(std::time::Duration::from_millis(
                                         delay_ms.min(100),
                                     ));
@@ -311,12 +318,14 @@ impl FileLock {
     ///
     /// Uses rename-to-stale then delete pattern to minimize race window.
     /// Treats `NotFound` as success since another process may have already removed it.
+    /// Includes PID in stale filename to prevent collision under high parallelism.
     fn try_remove_stale_lock(lock_path: &Path, spec_id: &str) -> Result<(), LockError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis();
-        let stale_path = lock_path.with_extension(format!("stale.{timestamp}"));
+        let pid = process::id();
+        let stale_path = lock_path.with_extension(format!("stale.{timestamp}.{pid}"));
 
         // Atomic rename to mark as stale
         match fs::rename(lock_path, &stale_path) {
