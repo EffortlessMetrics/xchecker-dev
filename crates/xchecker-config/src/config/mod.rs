@@ -136,10 +136,51 @@ impl Config {
     }
 }
 
+/// Test utilities for config testing (available via test-utils feature)
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
+    use std::env;
+
+    /// Clear all xchecker config-related environment variables.
+    ///
+    /// Call this at the start of tests that manipulate env vars to ensure
+    /// test isolation. This prevents env vars from leaking between tests.
+    ///
+    /// # Safety
+    ///
+    /// This function removes environment variables, which is inherently
+    /// process-global state. Tests using this should be serialized or use
+    /// appropriate synchronization.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use xchecker_config::config::test_utils::clear_config_env_vars;
+    ///
+    /// #[test]
+    /// fn my_config_test() {
+    ///     clear_config_env_vars();
+    ///     // ... test code that may set XCHECKER_* env vars
+    /// }
+    /// ```
+    pub fn clear_config_env_vars() {
+        // SAFETY: We're only removing xchecker-specific env vars in test contexts.
+        // The env var operations are thread-unsafe but tests using this function
+        // should be serialized via config_env_guard or similar synchronization.
+        unsafe {
+            env::remove_var("XCHECKER_LLM_PROVIDER");
+            env::remove_var("XCHECKER_EXECUTION_STRATEGY");
+            env::remove_var("XCHECKER_LLM_FALLBACK_PROVIDER");
+            env::remove_var("XCHECKER_LLM_PROMPT_TEMPLATE");
+            env::remove_var("XCHECKER_LLM_GEMINI_DEFAULT_MODEL");
+            env::remove_var("XCHECKER_HOME");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::{Mutex, MutexGuard, OnceLock};
@@ -149,24 +190,12 @@ mod tests {
     // Tests that use `config_env_guard()` will be serialized.
     static CONFIG_ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 
-    fn clear_config_env_vars() {
-        // SAFETY: Test-only helper for clearing process env vars under the config lock.
-        unsafe {
-            env::remove_var("XCHECKER_LLM_PROVIDER");
-            env::remove_var("XCHECKER_EXECUTION_STRATEGY");
-            env::remove_var("XCHECKER_LLM_FALLBACK_PROVIDER");
-            env::remove_var("XCHECKER_LLM_PROMPT_TEMPLATE");
-            env::remove_var("XCHECKER_LLM_GEMINI_DEFAULT_MODEL");
-        }
-    }
-
-    #[allow(dead_code)] // Ready for use when #[ignore]d tests are enabled
     fn config_env_guard() -> MutexGuard<'static, ()> {
         let guard = CONFIG_ENV_LOCK
             .get_or_init(|| Mutex::new(()))
             .lock()
             .unwrap();
-        clear_config_env_vars();
+        super::test_utils::clear_config_env_vars();
         guard
     }
 

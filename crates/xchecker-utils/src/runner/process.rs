@@ -74,19 +74,36 @@ impl ProcessOutput {
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// use xchecker_utils::runner::{ProcessRunner, CommandSpec, ProcessOutput};
 /// use xchecker_utils::error::RunnerError;
 /// use std::time::Duration;
 ///
-/// struct MyRunner;
+/// struct SimpleRunner;
 ///
-/// impl ProcessRunner for MyRunner {
-///     fn run(&self, cmd: &CommandSpec, timeout: Duration) -> Result<ProcessOutput, RunnerError> {
-///         // Implementation using argv-style APIs only
-///         todo!()
+/// impl ProcessRunner for SimpleRunner {
+///     fn run(&self, cmd: &CommandSpec, _timeout: Duration) -> Result<ProcessOutput, RunnerError> {
+///         // Use argv-style execution via CommandSpec::to_command()
+///         let output = cmd.to_command()
+///             .output()
+///             .map_err(|e| RunnerError::NativeExecutionFailed {
+///                 reason: e.to_string(),
+///             })?;
+///
+///         Ok(ProcessOutput::new(
+///             output.stdout,
+///             output.stderr,
+///             output.status.code(),
+///             false,
+///         ))
 ///     }
 /// }
+///
+/// // Usage example
+/// let runner = SimpleRunner;
+/// let cmd = CommandSpec::new("echo").arg("hello");
+/// let result = runner.run(&cmd, Duration::from_secs(30));
+/// assert!(result.is_ok());
 /// ```
 pub trait ProcessRunner {
     /// Execute a command with the given timeout.

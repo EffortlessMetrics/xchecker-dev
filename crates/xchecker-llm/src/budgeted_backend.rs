@@ -92,16 +92,50 @@ impl BudgetedBackend {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use xchecker_llm::{BudgetedBackend, LlmBackend};
-    /// # fn example(backend: Box<dyn LlmBackend>) {
-    /// // With config budget of 50
-    /// let budgeted = BudgetedBackend::with_limit_from_config(backend, Some(50));
+    /// ```ignore
+    /// use async_trait::async_trait;
+    /// use std::time::Duration;
+    /// use xchecker_llm::{BudgetedBackend, LlmBackend, LlmError, LlmInvocation, LlmResult, Message, Role};
     ///
-    /// // With no config budget (uses env or default)
-    /// # let backend: Box<dyn LlmBackend> = todo!();
-    /// let budgeted = BudgetedBackend::with_limit_from_config(backend, None);
-    /// # }
+    /// // Define a simple mock backend for demonstration
+    /// struct MockBackend;
+    ///
+    /// #[async_trait]
+    /// impl LlmBackend for MockBackend {
+    ///     async fn invoke(&self, _inv: LlmInvocation) -> Result<LlmResult, LlmError> {
+    ///         Ok(LlmResult::new("mock response", "mock", "mock-model"))
+    ///     }
+    /// }
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     // Create a budgeted backend with a limit of 2 calls
+    ///     let backend = BudgetedBackend::with_limit_from_config(
+    ///         Box::new(MockBackend),
+    ///         Some(2), // Config budget of 2 calls
+    ///     );
+    ///
+    ///     let inv = LlmInvocation::new(
+    ///         "test-spec",
+    ///         "test-phase",
+    ///         "test-model",
+    ///         Duration::from_secs(60),
+    ///         vec![Message::new(Role::User, "Hello")],
+    ///     );
+    ///
+    ///     // First two calls succeed
+    ///     assert!(backend.invoke(inv.clone()).await.is_ok());
+    ///     assert!(backend.invoke(inv.clone()).await.is_ok());
+    ///
+    ///     // Third call fails with BudgetExceeded
+    ///     match backend.invoke(inv).await {
+    ///         Err(LlmError::BudgetExceeded { limit, attempted }) => {
+    ///             assert_eq!(limit, 2);
+    ///             assert_eq!(attempted, 3);
+    ///         }
+    ///         _ => panic!("Expected BudgetExceeded error"),
+    ///     }
+    /// }
     /// ```
     pub fn with_limit_from_config(inner: Box<dyn LlmBackend>, config_budget: Option<u32>) -> Self {
         // Precedence: env var > config file > default
