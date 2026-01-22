@@ -883,6 +883,9 @@ max_turns = 10
 [llm]
 provider = "claude-cli"
 fallback_provider = "anthropic"
+
+[llm.anthropic]
+model = "claude-sonnet-4-20250514"
 "#,
         );
 
@@ -946,6 +949,9 @@ fallback_provider = "invalid"
 provider = "claude-cli"
 fallback_provider = "openrouter"
 prompt_template = "claude-optimized"
+
+[llm.openrouter]
+model = "google/gemini-2.0-flash-lite"
 "#,
         );
 
@@ -1399,6 +1405,9 @@ prompt_template = "claude-optimized"
 [llm]
 provider = "openrouter"
 prompt_template = "openai-compatible"
+
+[llm.openrouter]
+model = "google/gemini-2.0-flash-lite"
 "#,
         );
 
@@ -1426,6 +1435,9 @@ prompt_template = "openai-compatible"
 [llm]
 provider = "openrouter"
 prompt_template = "claude-optimized"
+
+[llm.openrouter]
+model = "google/gemini-2.0-flash-lite"
 "#,
         );
 
