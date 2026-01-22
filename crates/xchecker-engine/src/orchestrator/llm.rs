@@ -312,6 +312,15 @@ impl PhaseOrchestrator {
         let provider = cfg.llm.provider.as_deref().unwrap_or("claude-cli");
 
         // Resolve model with explicit overrides when provided, otherwise defer to provider defaults.
+        // Model resolution precedence:
+        // 1. Phase-specific override ([phases.<phase>].model)
+        // 2. Global default ([defaults].model)
+        // 3. Empty string - backend handles its own default (e.g., claude-cli uses "haiku",
+        //    HTTP backends use their configured [llm.<provider>].model)
+        //
+        // Note: We don't force "haiku" for claude-cli here because:
+        // - If fallback to a different provider happens, the wrong model would be used
+        // - Each backend should handle its own default model selection
         let phase_model = match phase_id {
             PhaseId::Requirements => cfg.phases.requirements.as_ref(),
             PhaseId::Design => cfg.phases.design.as_ref(),
@@ -323,17 +332,13 @@ impl PhaseOrchestrator {
         .and_then(|pc| pc.model.clone())
         .filter(|model| !model.is_empty());
 
-        let model = if let Some(model) = phase_model {
-            model
-        } else if provider == "claude-cli" {
+        let model = phase_model.unwrap_or_else(|| {
             cfg.defaults
                 .model
                 .clone()
-                .filter(|model| !model.is_empty())
-                .unwrap_or_else(|| "haiku".to_string())
-        } else {
-            String::new()
-        };
+                .filter(|m| !m.is_empty())
+                .unwrap_or_default()
+        });
 
         // Get timeout from config with minimum enforcement
         let timeout = PhaseTimeout::from_config(orc_config).duration;

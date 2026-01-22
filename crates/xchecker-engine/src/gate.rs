@@ -135,11 +135,20 @@ fn parse_policy_overrides(gate: &GatePolicyFile) -> Result<GatePolicyOverrides> 
         overrides.min_phase = Some(parse_phase(phase_str)?);
     }
 
-    if let Some(allow_fixups) = gate.allow_fixups {
-        overrides.fail_on_pending_fixups = Some(!allow_fixups);
+    // Validate that allow_fixups and fail_on_pending_fixups are not both set
+    // These are inverse representations of the same policy; specifying both is ambiguous
+    if gate.allow_fixups.is_some() && gate.fail_on_pending_fixups.is_some() {
+        anyhow::bail!(
+            "[gate] cannot specify both allow_fixups and fail_on_pending_fixups; \
+             use fail_on_pending_fixups (canonical) or allow_fixups (legacy alias), not both"
+        );
     }
+
+    // fail_on_pending_fixups is the canonical field; allow_fixups is a legacy alias
     if let Some(fail_on_pending_fixups) = gate.fail_on_pending_fixups {
         overrides.fail_on_pending_fixups = Some(fail_on_pending_fixups);
+    } else if let Some(allow_fixups) = gate.allow_fixups {
+        overrides.fail_on_pending_fixups = Some(!allow_fixups);
     }
 
     if let Some(max_phase_age) = gate.max_phase_age.as_ref() {
@@ -653,6 +662,33 @@ max_age_days = 7
         assert_eq!(policy.min_phase, PhaseId::Design);
         assert!(policy.fail_on_pending_fixups);
         assert_eq!(policy.max_phase_age, Some(Duration::days(7)));
+    }
+
+    #[test]
+    fn test_load_policy_rejects_conflicting_fixup_options() {
+        let temp_dir = TempDir::new().unwrap();
+        let policy_path = temp_dir.path().join("policy.toml");
+
+        // Both allow_fixups and fail_on_pending_fixups set - should error
+        let content = r#"
+[gate]
+allow_fixups = true
+fail_on_pending_fixups = true
+"#;
+
+        fs::write(&policy_path, content).unwrap();
+
+        let result = load_policy_from_path(&policy_path);
+        assert!(result.is_err(), "Should reject conflicting fixup options");
+
+        // Check the full error chain for the expected message
+        let err = result.unwrap_err();
+        let err_chain = format!("{:#}", err);
+        assert!(
+            err_chain.contains("cannot specify both"),
+            "Error chain should mention conflict: {}",
+            err_chain
+        );
     }
 
     #[test]
