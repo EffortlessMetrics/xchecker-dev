@@ -488,11 +488,11 @@ pub struct ConfigValue {
 /// Source of a configuration value.
 ///
 /// Indicates where a configuration value originated from in the precedence chain:
-/// CLI arguments > config file > programmatic overrides > built-in defaults.
+/// CLI arguments > environment variables > config file > programmatic overrides > built-in defaults.
 ///
 /// # Serialization
 ///
-/// Serializes to lowercase strings: `"cli"`, `"config"`, `"programmatic"`, `"default"`.
+/// Serializes to lowercase strings: `"cli"`, `"env"`, `"config"`, `"programmatic"`, `"default"`.
 ///
 /// # Example
 ///
@@ -509,6 +509,8 @@ pub struct ConfigValue {
 pub enum ConfigSource {
     /// Value provided via CLI argument (highest precedence).
     Cli,
+    /// Value loaded from environment variable.
+    Env,
     /// Value loaded from configuration file.
     Config,
     /// Value provided programmatically (e.g., `Config::builder()`).

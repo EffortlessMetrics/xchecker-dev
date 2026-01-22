@@ -326,7 +326,7 @@ impl Config {
             && !env_provider.is_empty()
         {
             llm.provider = Some(env_provider);
-            source_attribution.insert("llm_provider".to_string(), ConfigSource::Config);
+            source_attribution.insert("llm_provider".to_string(), ConfigSource::Env);
         }
 
         // CLI flag overrides environment variable
@@ -346,7 +346,7 @@ impl Config {
             && !env_fallback.is_empty()
         {
             llm.fallback_provider = Some(env_fallback);
-            source_attribution.insert("llm_fallback_provider".to_string(), ConfigSource::Config);
+            source_attribution.insert("llm_fallback_provider".to_string(), ConfigSource::Env);
         }
 
         if let Some(fallback_provider) = &cli_args.llm_fallback_provider {
@@ -359,7 +359,7 @@ impl Config {
             && !env_template.is_empty()
         {
             llm.prompt_template = Some(env_template);
-            source_attribution.insert("prompt_template".to_string(), ConfigSource::Config);
+            source_attribution.insert("prompt_template".to_string(), ConfigSource::Env);
         }
 
         if let Some(prompt_template) = &cli_args.prompt_template {
@@ -407,7 +407,7 @@ impl Config {
             if let Some(gemini_config) = &mut llm.gemini {
                 gemini_config.default_model = Some(env_default_model);
                 source_attribution
-                    .insert("llm_gemini_default_model".to_string(), ConfigSource::Config);
+                    .insert("llm_gemini_default_model".to_string(), ConfigSource::Env);
             }
         }
 
@@ -432,7 +432,7 @@ impl Config {
             && !env_strategy.is_empty()
         {
             llm.execution_strategy = Some(env_strategy);
-            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Config);
+            source_attribution.insert("execution_strategy".to_string(), ConfigSource::Env);
         }
 
         // CLI flag overrides everything
