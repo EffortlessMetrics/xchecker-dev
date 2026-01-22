@@ -296,7 +296,7 @@ Minimal and full examples are provided in `docs/schemas/`:
 
 The `effective_config` field maps configuration keys to objects with:
 - `value`: The effective value (arbitrary JSON type)
-- `source`: Where the value came from ("cli", "config", "programmatic", or "default")
+- `source`: Where the value came from ("cli", "env", "config", "programmatic", or "default")
 
 **Example**:
 ```json
