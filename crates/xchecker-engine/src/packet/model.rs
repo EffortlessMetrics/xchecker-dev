@@ -7,41 +7,54 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 /// LIFO within each priority class
 #[derive(Debug, Clone)]
 pub struct PriorityRules {
-    /// High priority patterns (SPEC/ADR/REPORT)
-    pub high: GlobSet,
-    /// Medium priority patterns (README/SCHEMA)
-    pub medium: GlobSet,
-    /// Low priority patterns (misc files)
-    #[allow(dead_code)] // Reserved for metadata tracking
-    pub low: GlobSet,
+    /// Combined globset for all priorities (High -> Medium -> Low)
+    pub combined: GlobSet,
+    /// Start index for medium priority patterns
+    pub medium_start_index: usize,
+    /// Start index for low priority patterns
+    pub low_start_index: usize,
 }
 
 impl Default for PriorityRules {
     fn default() -> Self {
-        let mut high_builder = GlobSetBuilder::new();
-        high_builder.add(Glob::new("**/SPEC*").unwrap());
-        high_builder.add(Glob::new("**/ADR*").unwrap());
-        high_builder.add(Glob::new("**/REPORT*").unwrap());
-        high_builder.add(Glob::new("**/*SPEC*").unwrap());
-        high_builder.add(Glob::new("**/*ADR*").unwrap());
-        high_builder.add(Glob::new("**/*REPORT*").unwrap());
-        // Problem statement files get high priority - critical context for LLM
-        high_builder.add(Glob::new("**/problem-statement*").unwrap());
-        high_builder.add(Glob::new("**/*problem-statement*").unwrap());
+        let high_patterns = vec![
+            "**/SPEC*",
+            "**/ADR*",
+            "**/REPORT*",
+            "**/*SPEC*",
+            "**/*ADR*",
+            "**/*REPORT*",
+            // Problem statement files get high priority - critical context for LLM
+            "**/problem-statement*",
+            "**/*problem-statement*",
+        ];
 
-        let mut medium_builder = GlobSetBuilder::new();
-        medium_builder.add(Glob::new("**/README*").unwrap());
-        medium_builder.add(Glob::new("**/SCHEMA*").unwrap());
-        medium_builder.add(Glob::new("**/*README*").unwrap());
-        medium_builder.add(Glob::new("**/*SCHEMA*").unwrap());
+        let medium_patterns = vec![
+            "**/README*",
+            "**/SCHEMA*",
+            "**/*README*",
+            "**/*SCHEMA*",
+        ];
 
-        let mut low_builder = GlobSetBuilder::new();
-        low_builder.add(Glob::new("**/*").unwrap()); // Catch-all for misc files
+        let low_patterns = vec![
+            "**/*", // Catch-all for misc files
+        ];
+
+        let mut builder = GlobSetBuilder::new();
+        for p in &high_patterns {
+            builder.add(Glob::new(p).unwrap());
+        }
+        for p in &medium_patterns {
+            builder.add(Glob::new(p).unwrap());
+        }
+        for p in &low_patterns {
+            builder.add(Glob::new(p).unwrap());
+        }
 
         Self {
-            high: high_builder.build().unwrap(),
-            medium: medium_builder.build().unwrap(),
-            low: low_builder.build().unwrap(),
+            combined: builder.build().unwrap(),
+            medium_start_index: high_patterns.len(),
+            low_start_index: high_patterns.len() + medium_patterns.len(),
         }
     }
 }
