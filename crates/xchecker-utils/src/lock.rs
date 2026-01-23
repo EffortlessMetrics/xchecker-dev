@@ -307,6 +307,8 @@ impl FileLock {
             }
         }
 
+        // Reachable only when max_retries == 0 (edge case). All other paths return/continue
+        // within the loop. This provides a safety net for the zero-retry edge case.
         Err(LockError::AcquisitionFailed {
             reason: format!(
                 "Max retries ({}) exceeded for lock acquisition on spec '{}'",
@@ -483,8 +485,6 @@ impl FileLock {
         const MAX_READ_RETRIES: u32 = 3;
         const READ_RETRY_DELAY_MS: u64 = 10;
 
-        let mut last_error: Option<LockError> = None;
-
         for attempt in 0..MAX_READ_RETRIES {
             let lock_content = match fs::read_to_string(lock_path) {
                 Ok(content) => content,
@@ -494,31 +494,29 @@ impl FileLock {
                     return Ok(());
                 }
                 Err(e) => {
-                    last_error = Some(LockError::CorruptedLock {
-                        reason: format!("Failed to read existing lock for spec '{}': {e}", spec_id),
-                    });
                     // IO errors during read might be transient (file being written)
                     if attempt + 1 < MAX_READ_RETRIES {
                         std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
                         continue;
                     }
-                    return Err(last_error.unwrap());
+                    return Err(LockError::CorruptedLock {
+                        reason: format!("Failed to read existing lock for spec '{}': {e}", spec_id),
+                    });
                 }
             };
 
             // Check for empty content (file exists but not yet written)
             if lock_content.is_empty() {
-                last_error = Some(LockError::CorruptedLock {
+                if attempt + 1 < MAX_READ_RETRIES {
+                    std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
+                    continue;
+                }
+                return Err(LockError::CorruptedLock {
                     reason: format!(
                         "Lock file for spec '{}' is empty (may be initializing)",
                         spec_id
                     ),
                 });
-                if attempt + 1 < MAX_READ_RETRIES {
-                    std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
-                    continue;
-                }
-                return Err(last_error.unwrap());
             }
 
             // Try to parse the JSON content
@@ -538,31 +536,24 @@ impl FileLock {
                         || lock_content.trim().is_empty()
                         || (lock_content.starts_with('{') && !lock_content.contains('}'));
 
-                    last_error = Some(LockError::CorruptedLock {
-                        reason: format!(
-                            "Failed to parse existing lock for spec '{}': {e}",
-                            spec_id
-                        ),
-                    });
-
                     // Only retry if it looks like the file might be mid-write
                     if is_likely_incomplete && attempt + 1 < MAX_READ_RETRIES {
                         std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
                         continue;
                     }
 
-                    return Err(last_error.unwrap());
+                    return Err(LockError::CorruptedLock {
+                        reason: format!(
+                            "Failed to parse existing lock for spec '{}': {e}",
+                            spec_id
+                        ),
+                    });
                 }
             }
         }
-
-        // Should not reach here, but handle it gracefully
-        Err(last_error.unwrap_or_else(|| LockError::CorruptedLock {
-            reason: format!(
-                "Failed to read lock file for spec '{}' after {} attempts",
-                spec_id, MAX_READ_RETRIES
-            ),
-        }))
+        // Note: This is unreachable since MAX_READ_RETRIES > 0 and all paths return.
+        // Kept for safety if MAX_READ_RETRIES is ever changed to 0.
+        unreachable!("check_existing_lock loop exhausted without returning")
     }
 
     /// Validate an existing lock and determine if it should be overridden
@@ -1887,10 +1878,10 @@ mod tests {
     }
 
     #[test]
-    fn test_max_retries_error_includes_spec_id_and_count() {
-        // This test verifies error messages include spec_id
-        // Note: We can't easily trigger the max_retries path without complex concurrency,
-        // but we can verify the error format string is correct by checking other error paths
+    fn test_corrupted_json_error_includes_spec_id() {
+        // This test verifies that corrupted lockfile error messages include spec_id
+        // Note: We don't exercise the max_retries path here; instead we validate
+        // the error formatting for a clearly corrupted (non-EOF) lockfile.
 
         let _temp_dir = setup_test_env();
 
@@ -1916,9 +1907,8 @@ mod tests {
     }
 
     #[test]
-    fn test_lock_create_error_includes_spec_id_and_path() {
-        // This test verifies the "Failed to create lock file" error includes spec_id and path
-        // We test this indirectly by checking error messages from other acquisition failures
+    fn test_concurrent_lock_error_includes_spec_id() {
+        // This test verifies the ConcurrentExecution error includes spec_id
 
         let _temp_dir = setup_test_env();
 
