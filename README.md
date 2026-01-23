@@ -10,11 +10,18 @@ A Rust CLI tool for orchestrating spec generation workflows with Claude AI. Tran
 - **Multi-Phase Orchestration**: Requirements -> Design -> Tasks -> Review -> Fixup -> Final with configurable phase_timeout (default: 600s). Phase execution exceeded timeout results in exit code 10.
 - **Lockfile System**: Reproducibility tracking with `--create-lock` and `--strict-lock` flags. Detects lock_drift when model or CLI versions change between executions.
 - **Fixup System**: Secure diff application with Preview Mode (default) and Apply Mode (`--apply-fixups`). Path validation prevents directory traversal attacks.
-- **Hooks (Opt-In)**: Pre/post-phase shell hooks with phase context via environment variables.
+- **Ecosystem Features**:
+  - **Workspace Orchestration**: Manage multi-spec projects with `xchecker project` commands.
+  - **Templates**: Bootstrap new specs instantly with `xchecker template init` (Next.js, Rust, Python support).
+  - **Hooks**: Customize workflows with pre/post-phase shell hooks.
+  - **Policy Gates**: Enforce quality standards in CI/CD with `xchecker gate`.
 - **Controlled Execution**: Only `controlled` strategy is supported; LLMs propose diffs and xchecker applies them.
 - **Standardized Exit Codes**: Process exit codes always match receipt exit_code field for reliable automation and monitoring.
 - **Versioned JSON Contracts**: Stable schemas for receipts, status, and health checks
-- **Multi-Provider Support (V11-V14)**: Claude CLI, Gemini CLI, OpenRouter, Anthropic API
+- **Multi-Provider Support**:
+  - **CLI**: Claude CLI, Gemini CLI
+  - **HTTP**: OpenRouter, Anthropic API
+  - **Resilience**: Robust fallback logic and budget control for HTTP providers
 - **Security First**: Automatic secret detection and redaction
 - **Cross-Platform**: Linux, macOS, Windows with WSL support
 

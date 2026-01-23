@@ -235,6 +235,7 @@ mod tests {
 
     #[test]
     fn test_config_discovery_with_cli_override() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
         let _config_path = create_test_config_file(
@@ -326,6 +327,7 @@ mode = "native"
 
     #[test]
     fn test_effective_config() {
+        let _guard = config_env_guard();
         let temp_dir = TempDir::new().unwrap();
         let _config_path = create_test_config_file(
             temp_dir.path(),
@@ -357,6 +359,7 @@ max_turns = 8
 
     #[test]
     fn test_invalid_toml_config() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
         let xchecker_dir = temp_dir.path().join(".xchecker");
@@ -379,6 +382,7 @@ max_turns = 8
     // ===== Edge Case Tests (Task 9.7) =====
     #[test]
     fn test_config_with_invalid_toml_syntax() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         // Test various invalid TOML syntaxes
@@ -410,6 +414,7 @@ max_turns = 8
 
     #[test]
     fn test_config_with_missing_sections() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -436,6 +441,7 @@ model = "sonnet"
 
     #[test]
     fn test_config_with_empty_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -455,6 +461,7 @@ model = "sonnet"
 
     #[test]
     fn test_config_with_only_comments() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -481,6 +488,7 @@ model = "sonnet"
 
     #[test]
     fn test_config_with_wrong_types() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -507,6 +515,7 @@ max_turns = "not a number"
 
     #[test]
     fn test_config_with_unknown_fields() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -578,6 +587,7 @@ key = "value"
 
     #[test]
     fn test_config_validation_with_invalid_runner_mode() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -601,6 +611,7 @@ mode = "invalid_mode"
 
     #[test]
     fn test_config_validation_with_invalid_glob_patterns() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -634,6 +645,7 @@ exclude = []
 
     #[test]
     fn test_config_with_unicode_values() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -666,6 +678,7 @@ exclude = []
 
     #[test]
     fn test_config_with_very_long_values() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -690,6 +703,7 @@ model = "{long_model}"
 
     #[test]
     fn test_config_with_special_characters() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -722,6 +736,7 @@ exclude = ["**/[test]/**"]
 
     #[test]
     fn test_config_with_boundary_values() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -753,6 +768,7 @@ lock_ttl_seconds = 60
 
     #[test]
     fn test_config_source_attribution_accuracy() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -792,6 +808,7 @@ max_turns = 10
 
     #[test]
     fn test_config_source_attribution() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
         let config_path = create_test_config_file(
@@ -831,6 +848,7 @@ max_turns = 10
 
     #[test]
     fn test_llm_provider_defaults_to_claude_cli() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let cli_args = CliArgs::default();
 
@@ -846,6 +864,7 @@ max_turns = 10
 
     #[test]
     fn test_execution_strategy_defaults_to_controlled() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let cli_args = CliArgs::default();
 
@@ -864,6 +883,7 @@ max_turns = 10
 
     #[test]
     fn test_llm_provider_rejects_invalid_providers() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         // In V14, claude-cli, gemini-cli, openrouter, and anthropic are valid
@@ -911,6 +931,7 @@ max_turns = 10
 
     #[test]
     fn test_llm_fallback_provider_from_config_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
         let config_path = create_test_config_file(
@@ -941,6 +962,7 @@ model = "claude-sonnet-4-20250514"
 
     #[test]
     fn test_llm_fallback_provider_rejects_invalid_provider() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
         let config_path = create_test_config_file(
@@ -976,6 +998,7 @@ fallback_provider = "invalid"
 
     #[test]
     fn test_llm_fallback_provider_prompt_template_incompatible() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
         let config_path = create_test_config_file(
@@ -1018,6 +1041,7 @@ model = "google/gemini-2.0-flash-lite"
 
     #[test]
     fn test_execution_strategy_rejects_invalid_strategies() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         let invalid_strategies = vec!["externaltool", "external_tool", "agent", "batch", "invalid"];
@@ -1057,6 +1081,7 @@ model = "google/gemini-2.0-flash-lite"
 
     #[test]
     fn test_llm_provider_accepts_claude_cli() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         let cli_args = CliArgs {
@@ -1070,6 +1095,7 @@ model = "google/gemini-2.0-flash-lite"
 
     #[test]
     fn test_execution_strategy_accepts_controlled() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
 
         let cli_args = CliArgs {
@@ -1086,6 +1112,7 @@ model = "google/gemini-2.0-flash-lite"
 
     #[test]
     fn test_llm_config_from_config_file_with_invalid_provider() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1121,6 +1148,7 @@ provider = "invalid-provider-xyz"
 
     #[test]
     fn test_llm_config_from_config_file_with_invalid_strategy() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1155,6 +1183,7 @@ execution_strategy = "externaltool"
 
     #[test]
     fn test_llm_config_from_config_file_with_valid_values() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1193,6 +1222,7 @@ execution_strategy = "controlled"
 
     #[test]
     fn test_llm_config_cli_overrides_config_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1382,6 +1412,7 @@ execution_strategy = "controlled"
 
     #[test]
     fn test_config_with_valid_prompt_template() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1406,6 +1437,7 @@ prompt_template = "default"
 
     #[test]
     fn test_config_with_claude_optimized_template_and_claude_provider() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1432,6 +1464,7 @@ prompt_template = "claude-optimized"
 
     #[test]
     fn test_config_with_openai_compatible_template_and_openrouter_provider() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1461,6 +1494,7 @@ model = "google/gemini-2.0-flash-lite"
 
     #[test]
     fn test_config_rejects_incompatible_template_and_provider() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1501,6 +1535,7 @@ model = "google/gemini-2.0-flash-lite"
 
     #[test]
     fn test_config_rejects_openai_template_with_claude_provider() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1538,6 +1573,7 @@ prompt_template = "openai-compatible"
 
     #[test]
     fn test_config_rejects_invalid_template_name() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1571,6 +1607,7 @@ prompt_template = "invalid-template-name"
 
     #[test]
     fn test_config_without_prompt_template_uses_default() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1711,6 +1748,7 @@ provider = "claude-cli"
 
     #[test]
     fn test_phases_config_from_toml_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1748,6 +1786,7 @@ model = "sonnet"
 
     #[test]
     fn test_phases_config_with_all_fields() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1786,6 +1825,7 @@ phase_timeout = 1200
 
     #[test]
     fn test_phases_config_empty_section() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1815,6 +1855,7 @@ model = "haiku"
 
     #[test]
     fn test_phases_final_uses_serde_rename() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1867,6 +1908,7 @@ model = "opus"
 
     #[test]
     fn test_strict_validation_from_toml_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -1889,6 +1931,7 @@ strict_validation = true
 
     #[test]
     fn test_strict_validation_from_toml_file_false() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -2235,6 +2278,7 @@ packet_max_bytes = 32768
 
     #[test]
     fn test_security_config_from_toml_file() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
@@ -2292,6 +2336,7 @@ ignore_secret_patterns = ["github_pat", "aws_access_key"]
 
     #[test]
     fn test_security_config_empty_section() {
+        let _guard = config_env_guard();
         let _home = crate::paths::with_isolated_home();
         let temp_dir = TempDir::new().unwrap();
 
