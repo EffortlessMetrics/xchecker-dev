@@ -20,6 +20,15 @@ impl Default for Selectors {
                 "node_modules/**".to_string(),
                 ".git/**".to_string(),
                 "**/.DS_Store".to_string(),
+                // Mandatory security exclusions (mirrored from xchecker-engine)
+                "**/.env".to_string(),
+                "**/.env.*".to_string(),
+                "**/*.pem".to_string(),
+                "**/id_rsa".to_string(),
+                "**/id_ed25519".to_string(),
+                "**/.ssh/**".to_string(),
+                "**/*.pfx".to_string(),
+                "**/*.p12".to_string(),
             ],
         }
     }
