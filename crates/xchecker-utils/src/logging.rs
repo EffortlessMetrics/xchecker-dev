@@ -1013,7 +1013,10 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     }
 
     // Add separator
-    println!("{}", "─────────────────────────────────────".with(Color::DarkGrey));
+    println!(
+        "{}",
+        "─────────────────────────────────────".with(Color::DarkGrey)
+    );
 
     let (overall_text, overall_color) = if report.ok {
         ("✓ HEALTHY: All systems operational", Color::Green)
