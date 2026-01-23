@@ -7,41 +7,49 @@ use globset::{Glob, GlobSet, GlobSetBuilder};
 /// LIFO within each priority class
 #[derive(Debug, Clone)]
 pub struct PriorityRules {
-    /// High priority patterns (SPEC/ADR/REPORT)
-    pub high: GlobSet,
-    /// Medium priority patterns (README/SCHEMA)
-    pub medium: GlobSet,
-    /// Low priority patterns (misc files)
-    #[allow(dead_code)] // Reserved for metadata tracking
-    pub low: GlobSet,
+    /// Combined globset for all priorities (High -> Medium -> Low)
+    pub combined: GlobSet,
+    /// Start index for medium priority patterns
+    pub medium_start_index: usize,
+    /// Start index for low priority patterns
+    pub low_start_index: usize,
 }
 
 impl Default for PriorityRules {
     fn default() -> Self {
-        let mut high_builder = GlobSetBuilder::new();
-        high_builder.add(Glob::new("**/SPEC*").unwrap());
-        high_builder.add(Glob::new("**/ADR*").unwrap());
-        high_builder.add(Glob::new("**/REPORT*").unwrap());
-        high_builder.add(Glob::new("**/*SPEC*").unwrap());
-        high_builder.add(Glob::new("**/*ADR*").unwrap());
-        high_builder.add(Glob::new("**/*REPORT*").unwrap());
-        // Problem statement files get high priority - critical context for LLM
-        high_builder.add(Glob::new("**/problem-statement*").unwrap());
-        high_builder.add(Glob::new("**/*problem-statement*").unwrap());
+        // Use const slices to avoid heap allocation for static pattern data
+        const HIGH_PATTERNS: &[&str] = &[
+            "**/SPEC*",
+            "**/ADR*",
+            "**/REPORT*",
+            "**/*SPEC*",
+            "**/*ADR*",
+            "**/*REPORT*",
+            // Problem statement files get high priority - critical context for LLM
+            "**/problem-statement*",
+            "**/*problem-statement*",
+        ];
 
-        let mut medium_builder = GlobSetBuilder::new();
-        medium_builder.add(Glob::new("**/README*").unwrap());
-        medium_builder.add(Glob::new("**/SCHEMA*").unwrap());
-        medium_builder.add(Glob::new("**/*README*").unwrap());
-        medium_builder.add(Glob::new("**/*SCHEMA*").unwrap());
+        const MEDIUM_PATTERNS: &[&str] =
+            &["**/README*", "**/SCHEMA*", "**/*README*", "**/*SCHEMA*"];
 
-        let mut low_builder = GlobSetBuilder::new();
-        low_builder.add(Glob::new("**/*").unwrap()); // Catch-all for misc files
+        const LOW_PATTERNS: &[&str] = &[
+            "**/*", // Catch-all for misc files
+        ];
+
+        let mut builder = GlobSetBuilder::new();
+        for p in HIGH_PATTERNS
+            .iter()
+            .chain(MEDIUM_PATTERNS)
+            .chain(LOW_PATTERNS)
+        {
+            builder.add(Glob::new(p).unwrap());
+        }
 
         Self {
-            high: high_builder.build().unwrap(),
-            medium: medium_builder.build().unwrap(),
-            low: low_builder.build().unwrap(),
+            combined: builder.build().unwrap(),
+            medium_start_index: HIGH_PATTERNS.len(),
+            low_start_index: HIGH_PATTERNS.len() + MEDIUM_PATTERNS.len(),
         }
     }
 }
