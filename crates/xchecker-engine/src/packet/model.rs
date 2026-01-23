@@ -29,12 +29,7 @@ impl Default for PriorityRules {
             "**/*problem-statement*",
         ];
 
-        let medium_patterns = vec![
-            "**/README*",
-            "**/SCHEMA*",
-            "**/*README*",
-            "**/*SCHEMA*",
-        ];
+        let medium_patterns = vec!["**/README*", "**/SCHEMA*", "**/*README*", "**/*SCHEMA*"];
 
         let low_patterns = vec![
             "**/*", // Catch-all for misc files

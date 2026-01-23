@@ -172,15 +172,21 @@ impl ContentSelector {
             return Priority::Upstream;
         }
 
-        // Check priority patterns
+        // Check priority patterns using combined GlobSet (single automaton pass)
         let matches = self.priority_rules.combined.matches(path_str);
 
+        // Note: This branch is defensive - the `**/*` catch-all in low_patterns means
+        // matches should never be empty. But if PriorityRules is modified to remove
+        // the catch-all, this provides safe fallback behavior.
         if matches.is_empty() {
             return Priority::Low;
         }
 
-        // Find the lowest index match (highest priority)
-        let min_index = matches.iter().min().copied().unwrap_or(usize::MAX);
+        // Find the lowest index match (highest priority class wins)
+        // High patterns are at indices [0, medium_start_index)
+        // Medium patterns are at indices [medium_start_index, low_start_index)
+        // Low patterns are at indices [low_start_index, ...)
+        let min_index = matches.iter().min().copied().expect("matches is non-empty");
 
         if min_index < self.priority_rules.medium_start_index {
             Priority::High
