@@ -1,12 +1,14 @@
-# xchecker Roadmap
+# V11–V18 Implementation Record
+
+> **Note**: This document is the historical record for the V11–V18 roadmap.
+> For the current project roadmap, see **[ROADMAP.md](../ROADMAP.md)** at the repo root.
 
 **Last Updated**: January 23, 2026
-**Current Version**: 1.1.0
-**Rust Edition**: 2024
+**Implemented In**: v1.1.0
 
 ---
 
-## Current Status
+## Summary
 
 The V11–V18 roadmap for multi-provider LLM support and ecosystem expansion is **complete**. All planned features have been implemented and are available in v1.1.0.
 
