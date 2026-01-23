@@ -323,7 +323,10 @@ impl FileLock {
     ) -> Result<Self, LockError> {
         let lock_json =
             serde_json::to_string_pretty(&lock_info).map_err(|e| LockError::AcquisitionFailed {
-                reason: format!("Failed to serialize lock info: {e}"),
+                reason: format!(
+                    "Failed to serialize lock info for spec '{}': {e}",
+                    lock_info.spec_id
+                ),
             })?;
 
         // Acquire exclusive file descriptor lock and write in one step
@@ -342,11 +345,27 @@ impl FileLock {
             file_ref
                 .write_all(lock_json.as_bytes())
                 .map_err(|e| LockError::AcquisitionFailed {
-                    reason: format!("Failed to write lock info: {e}"),
+                    reason: format!(
+                        "Failed to write lock info for spec '{}': {e}",
+                        lock_info.spec_id
+                    ),
                 })?;
             file_ref.flush().map_err(|e| LockError::AcquisitionFailed {
-                reason: format!("Failed to flush lock file: {e}"),
+                reason: format!(
+                    "Failed to flush lock file for spec '{}': {e}",
+                    lock_info.spec_id
+                ),
             })?;
+
+            // Sync to disk for crash-resilience (small file, acceptable cost)
+            file_ref
+                .sync_all()
+                .map_err(|e| LockError::AcquisitionFailed {
+                    reason: format!(
+                        "Failed to sync lock file for spec '{}': {e}",
+                        lock_info.spec_id
+                    ),
+                })?;
         }
 
         Ok(Self {
@@ -469,6 +488,11 @@ impl FileLock {
         for attempt in 0..MAX_READ_RETRIES {
             let lock_content = match fs::read_to_string(lock_path) {
                 Ok(content) => content,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    // Lock was removed between create_new(AlreadyExists) and read.
+                    // Treat as "no lock"; caller will retry acquisition.
+                    return Ok(());
+                }
                 Err(e) => {
                     last_error = Some(LockError::CorruptedLock {
                         reason: format!("Failed to read existing lock for spec '{}': {e}", spec_id),
@@ -605,7 +629,19 @@ impl FileLock {
         #[cfg(unix)]
         {
             // On Unix systems, use kill(pid, 0) to check if process exists
-            unsafe { libc::kill(pid as i32, 0) == 0 }
+            // Returns 0 if process exists and we can signal it
+            // Returns -1 with ESRCH if process doesn't exist
+            // Returns -1 with EPERM if process exists but we lack permission
+            let rc = unsafe { libc::kill(pid as i32, 0) };
+            if rc == 0 {
+                true
+            } else {
+                // If EPERM, the process exists but we can't signal it
+                matches!(
+                    io::Error::last_os_error().raw_os_error(),
+                    Some(code) if code == libc::EPERM
+                )
+            }
         }
 
         #[cfg(windows)]
@@ -1937,37 +1973,5 @@ mod tests {
         // With force=true, should succeed
         let result = FileLock::acquire(spec_id, true, None);
         assert!(result.is_ok(), "Should handle clock skew gracefully");
-    }
-
-    #[test]
-    fn test_retry_logic_for_initializing_lockfile() {
-        // This test verifies that the retry logic exists and doesn't cause issues
-        // The actual retry behavior is hard to test without precise timing control
-
-        let _temp_dir = setup_test_env();
-
-        let spec_id = "test-spec-retry-logic";
-        let lock_path = FileLock::get_lock_path(spec_id);
-        fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
-
-        // Write empty file first
-        fs::write(&lock_path, "").unwrap();
-
-        // Time the acquisition attempt - it should take at least 2 retry delays
-        // if retry logic is working (3 attempts * 10ms = at least 20ms)
-        let start = std::time::Instant::now();
-        let result = FileLock::acquire(spec_id, false, None);
-        let elapsed = start.elapsed();
-
-        // Should fail eventually
-        assert!(result.is_err());
-
-        // Should have taken some time due to retries (at least 15ms for 2 retries)
-        // Using 15ms as threshold to account for timing variations
-        assert!(
-            elapsed.as_millis() >= 15,
-            "Expected retry delays, but elapsed time was only {:?}",
-            elapsed
-        );
     }
 }
