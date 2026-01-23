@@ -17,7 +17,8 @@ pub struct PriorityRules {
 
 impl Default for PriorityRules {
     fn default() -> Self {
-        let high_patterns = vec![
+        // Use const slices to avoid heap allocation for static pattern data
+        const HIGH_PATTERNS: &[&str] = &[
             "**/SPEC*",
             "**/ADR*",
             "**/REPORT*",
@@ -29,27 +30,26 @@ impl Default for PriorityRules {
             "**/*problem-statement*",
         ];
 
-        let medium_patterns = vec!["**/README*", "**/SCHEMA*", "**/*README*", "**/*SCHEMA*"];
+        const MEDIUM_PATTERNS: &[&str] =
+            &["**/README*", "**/SCHEMA*", "**/*README*", "**/*SCHEMA*"];
 
-        let low_patterns = vec![
+        const LOW_PATTERNS: &[&str] = &[
             "**/*", // Catch-all for misc files
         ];
 
         let mut builder = GlobSetBuilder::new();
-        for p in &high_patterns {
-            builder.add(Glob::new(p).unwrap());
-        }
-        for p in &medium_patterns {
-            builder.add(Glob::new(p).unwrap());
-        }
-        for p in &low_patterns {
+        for p in HIGH_PATTERNS
+            .iter()
+            .chain(MEDIUM_PATTERNS)
+            .chain(LOW_PATTERNS)
+        {
             builder.add(Glob::new(p).unwrap());
         }
 
         Self {
             combined: builder.build().unwrap(),
-            medium_start_index: high_patterns.len(),
-            low_start_index: high_patterns.len() + medium_patterns.len(),
+            medium_start_index: HIGH_PATTERNS.len(),
+            low_start_index: HIGH_PATTERNS.len() + MEDIUM_PATTERNS.len(),
         }
     }
 }
