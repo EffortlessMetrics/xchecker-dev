@@ -956,7 +956,13 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
 
     println!(
         "{}",
-        "=== xchecker Environment Health Check ==="
+        "🩺 xchecker Environment Health Check"
+            .with(Color::Cyan)
+            .attribute(Attribute::Bold)
+    );
+    println!(
+        "{}",
+        "─────────────────────────────────────"
             .with(Color::Cyan)
             .attribute(Attribute::Bold)
     );
@@ -1006,14 +1012,20 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
         println!();
     }
 
+    // Add separator
+    println!(
+        "{}",
+        "─────────────────────────────────────".with(Color::DarkGrey)
+    );
+
     let (overall_text, overall_color) = if report.ok {
-        ("✓ HEALTHY", Color::Green)
+        ("✓ HEALTHY: All systems operational", Color::Green)
     } else {
         ("✗ ISSUES DETECTED", Color::Red)
     };
 
     println!(
-        "Overall status: {}",
+        "{}",
         overall_text.with(overall_color).attribute(Attribute::Bold)
     );
 
