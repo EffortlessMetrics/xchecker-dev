@@ -233,69 +233,87 @@ impl FileLock {
                     match Self::check_existing_lock(lock_path, spec_id, force, ttl_seconds) {
                         Ok(()) => {
                             // Lock is stale/overridable - attempt atomic removal and retry
-                            if Self::try_remove_stale_lock(lock_path, spec_id).is_ok() {
-                                // Immediately attempt acquisition after removing stale lock
-                                match fs::OpenOptions::new()
-                                    .create_new(true)
-                                    .write(true)
-                                    .open(lock_path)
-                                {
-                                    Ok(lock_file) => {
-                                        return Self::finalize_lock(
-                                            lock_path.to_path_buf(),
-                                            lock_file,
-                                            lock_info,
-                                        );
-                                    }
-                                    Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                                        // Another process grabbed it - apply backoff if retries remain
-                                        if attempt + 1 < max_retries {
-                                            let base_delay_ms =
-                                                10u64.saturating_mul(2u64.saturating_pow(attempt));
-                                            // Deterministic jitter based on PID to avoid lockstep retries
-                                            // without requiring RNG (0-6ms based on attempt and PID)
-                                            let jitter_ms = ((attempt as u64)
-                                                .wrapping_mul(3)
-                                                .wrapping_add((process::id() as u64) % 7))
-                                                % 7;
-                                            let delay_ms = base_delay_ms.saturating_add(jitter_ms);
-                                            std::thread::sleep(std::time::Duration::from_millis(
-                                                delay_ms.min(100),
-                                            ));
-                                            continue;
+                            match Self::try_remove_stale_lock(lock_path, spec_id) {
+                                Ok(()) => {
+                                    // Immediately attempt acquisition after removing stale lock
+                                    match fs::OpenOptions::new()
+                                        .create_new(true)
+                                        .write(true)
+                                        .open(lock_path)
+                                    {
+                                        Ok(lock_file) => {
+                                            return Self::finalize_lock(
+                                                lock_path.to_path_buf(),
+                                                lock_file,
+                                                lock_info,
+                                            );
+                                        }
+                                        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                                            // Another process grabbed it - apply backoff if retries remain
+                                            if attempt + 1 < max_retries {
+                                                let base_delay_ms = 10u64
+                                                    .saturating_mul(2u64.saturating_pow(attempt));
+                                                // Deterministic jitter based on PID to avoid lockstep retries
+                                                // without requiring RNG (0-6ms based on attempt and PID)
+                                                let jitter_ms = ((attempt as u64)
+                                                    .wrapping_mul(3)
+                                                    .wrapping_add((process::id() as u64) % 7))
+                                                    % 7;
+                                                let delay_ms =
+                                                    base_delay_ms.saturating_add(jitter_ms);
+                                                std::thread::sleep(
+                                                    std::time::Duration::from_millis(
+                                                        delay_ms.min(100),
+                                                    ),
+                                                );
+                                                continue;
+                                            }
+                                            // Max retries reached after another process grabbed lock
+                                            return Err(LockError::AcquisitionFailed {
+                                                reason: format!(
+                                                    "Max retries exceeded for spec '{}': another process acquired lock immediately after stale removal",
+                                                    spec_id
+                                                ),
+                                            });
+                                        }
+                                        Err(e) => {
+                                            return Err(LockError::AcquisitionFailed {
+                                                reason: format!(
+                                                    "Failed to create lock for spec '{}' after removing stale lock: {e}",
+                                                    spec_id
+                                                ),
+                                            });
                                         }
                                     }
-                                    Err(e) => {
-                                        return Err(LockError::AcquisitionFailed {
-                                            reason: format!(
-                                                "Failed to create lock for spec '{}' after removing stale lock: {e}",
-                                                spec_id
-                                            ),
-                                        });
-                                    }
+                                }
+                                Err(e) => {
+                                    // Propagate the specific stale-removal error
+                                    return Err(e);
                                 }
                             }
-                            // Failed to remove stale lock or max retries reached after another process grabbed it
-                            return Err(LockError::AcquisitionFailed {
-                                reason: format!(
-                                    "Failed to acquire lock for spec '{}' after removing stale lock",
-                                    spec_id
-                                ),
-                            });
                         }
                         Err(e) => return Err(e),
                     }
                 }
                 Err(e) => {
                     return Err(LockError::AcquisitionFailed {
-                        reason: format!("Failed to create lock file: {e}"),
+                        reason: format!(
+                            "Failed to create lock file for spec '{}' at '{}': {e}",
+                            spec_id,
+                            lock_path.display()
+                        ),
                     });
                 }
             }
         }
 
+        // Reachable only when max_retries == 0 (edge case). All other paths return/continue
+        // within the loop. This provides a safety net for the zero-retry edge case.
         Err(LockError::AcquisitionFailed {
-            reason: "Max retries exceeded for lock acquisition".to_string(),
+            reason: format!(
+                "Max retries ({}) exceeded for lock acquisition on spec '{}'",
+                max_retries, spec_id
+            ),
         })
     }
 
@@ -307,7 +325,10 @@ impl FileLock {
     ) -> Result<Self, LockError> {
         let lock_json =
             serde_json::to_string_pretty(&lock_info).map_err(|e| LockError::AcquisitionFailed {
-                reason: format!("Failed to serialize lock info: {e}"),
+                reason: format!(
+                    "Failed to serialize lock info for spec '{}': {e}",
+                    lock_info.spec_id
+                ),
             })?;
 
         // Acquire exclusive file descriptor lock and write in one step
@@ -326,11 +347,27 @@ impl FileLock {
             file_ref
                 .write_all(lock_json.as_bytes())
                 .map_err(|e| LockError::AcquisitionFailed {
-                    reason: format!("Failed to write lock info: {e}"),
+                    reason: format!(
+                        "Failed to write lock info for spec '{}': {e}",
+                        lock_info.spec_id
+                    ),
                 })?;
             file_ref.flush().map_err(|e| LockError::AcquisitionFailed {
-                reason: format!("Failed to flush lock file: {e}"),
+                reason: format!(
+                    "Failed to flush lock file for spec '{}': {e}",
+                    lock_info.spec_id
+                ),
             })?;
+
+            // Sync to disk for crash-resilience (small file, acceptable cost)
+            file_ref
+                .sync_all()
+                .map_err(|e| LockError::AcquisitionFailed {
+                    reason: format!(
+                        "Failed to sync lock file for spec '{}': {e}",
+                        lock_info.spec_id
+                    ),
+                })?;
         }
 
         Ok(Self {
@@ -435,21 +472,97 @@ impl FileLock {
     }
 
     /// Check an existing lock and determine if it should be overridden
+    ///
+    /// Includes retry logic for empty/partial lockfile reads to handle the case where
+    /// another process has just created the file but hasn't written content yet.
     fn check_existing_lock(
         lock_path: &Path,
         spec_id: &str,
         force: bool,
         ttl_seconds: u64,
     ) -> Result<(), LockError> {
-        let lock_content = fs::read_to_string(lock_path).map_err(|e| LockError::CorruptedLock {
-            reason: format!("Failed to read existing lock: {e}"),
-        })?;
+        // Retry parameters for handling concurrent initialization
+        const MAX_READ_RETRIES: u32 = 3;
+        const READ_RETRY_DELAY_MS: u64 = 10;
 
-        let existing_lock: LockInfo =
-            serde_json::from_str(&lock_content).map_err(|e| LockError::CorruptedLock {
-                reason: format!("Failed to parse existing lock: {e}"),
-            })?;
+        for attempt in 0..MAX_READ_RETRIES {
+            let lock_content = match fs::read_to_string(lock_path) {
+                Ok(content) => content,
+                Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                    // Lock was removed between create_new(AlreadyExists) and read.
+                    // Treat as "no lock"; caller will retry acquisition.
+                    return Ok(());
+                }
+                Err(e) => {
+                    // IO errors during read might be transient (file being written)
+                    if attempt + 1 < MAX_READ_RETRIES {
+                        std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
+                        continue;
+                    }
+                    return Err(LockError::CorruptedLock {
+                        reason: format!("Failed to read existing lock for spec '{}': {e}", spec_id),
+                    });
+                }
+            };
 
+            // Check for empty content (file exists but not yet written)
+            if lock_content.is_empty() {
+                if attempt + 1 < MAX_READ_RETRIES {
+                    std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
+                    continue;
+                }
+                return Err(LockError::CorruptedLock {
+                    reason: format!(
+                        "Lock file for spec '{}' is empty (may be initializing)",
+                        spec_id
+                    ),
+                });
+            }
+
+            // Try to parse the JSON content
+            match serde_json::from_str::<LockInfo>(&lock_content) {
+                Ok(existing_lock) => {
+                    // Successfully parsed - proceed with lock validation
+                    return Self::validate_existing_lock(
+                        &existing_lock,
+                        spec_id,
+                        force,
+                        ttl_seconds,
+                    );
+                }
+                Err(e) => {
+                    // Check if this looks like a partial/incomplete JSON (EOF error)
+                    let is_likely_incomplete = e.is_eof()
+                        || lock_content.trim().is_empty()
+                        || (lock_content.starts_with('{') && !lock_content.contains('}'));
+
+                    // Only retry if it looks like the file might be mid-write
+                    if is_likely_incomplete && attempt + 1 < MAX_READ_RETRIES {
+                        std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
+                        continue;
+                    }
+
+                    return Err(LockError::CorruptedLock {
+                        reason: format!(
+                            "Failed to parse existing lock for spec '{}': {e}",
+                            spec_id
+                        ),
+                    });
+                }
+            }
+        }
+        // Note: This is unreachable since MAX_READ_RETRIES > 0 and all paths return.
+        // Kept for safety if MAX_READ_RETRIES is ever changed to 0.
+        unreachable!("check_existing_lock loop exhausted without returning")
+    }
+
+    /// Validate an existing lock and determine if it should be overridden
+    fn validate_existing_lock(
+        existing_lock: &LockInfo,
+        spec_id: &str,
+        force: bool,
+        ttl_seconds: u64,
+    ) -> Result<(), LockError> {
         // Calculate lock age (handle future timestamps gracefully - clock skew)
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -507,7 +620,19 @@ impl FileLock {
         #[cfg(unix)]
         {
             // On Unix systems, use kill(pid, 0) to check if process exists
-            unsafe { libc::kill(pid as i32, 0) == 0 }
+            // Returns 0 if process exists and we can signal it
+            // Returns -1 with ESRCH if process doesn't exist
+            // Returns -1 with EPERM if process exists but we lack permission
+            let rc = unsafe { libc::kill(pid as i32, 0) };
+            if rc == 0 {
+                true
+            } else {
+                // If EPERM, the process exists but we can't signal it
+                matches!(
+                    io::Error::last_os_error().raw_os_error(),
+                    Some(code) if code == libc::EPERM
+                )
+            }
         }
 
         #[cfg(windows)]
@@ -1692,5 +1817,151 @@ mod tests {
 
         assert_eq!(lock.model_full_name, unicode_model);
         assert_eq!(lock.claude_cli_version, unicode_version);
+    }
+
+    // ===== PR#141 Follow-up: Lock Hardening Regression Tests =====
+
+    #[test]
+    fn test_empty_lockfile_error_includes_spec_id() {
+        let _temp_dir = setup_test_env();
+
+        let spec_id = "test-spec-empty-lockfile-msg";
+        let lock_path = FileLock::get_lock_path(spec_id);
+        fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
+
+        // Write empty file (simulates race condition during initialization)
+        fs::write(&lock_path, "").unwrap();
+
+        // Should fail with CorruptedLock error that includes spec_id
+        let result = FileLock::acquire(spec_id, false, None);
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            LockError::CorruptedLock { reason } => {
+                assert!(
+                    reason.contains(spec_id),
+                    "Error message should contain spec_id: {reason}"
+                );
+                assert!(
+                    reason.contains("empty") || reason.contains("initializing"),
+                    "Error message should mention empty/initializing: {reason}"
+                );
+            }
+            other => panic!("Expected CorruptedLock, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_partial_json_lockfile_error_includes_spec_id() {
+        let _temp_dir = setup_test_env();
+
+        let spec_id = "test-spec-partial-json-msg";
+        let lock_path = FileLock::get_lock_path(spec_id);
+        fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
+
+        // Write partial JSON (simulates mid-write race condition)
+        fs::write(&lock_path, r#"{"pid": 12345, "start_time":"#).unwrap();
+
+        // Should fail with CorruptedLock error that includes spec_id
+        let result = FileLock::acquire(spec_id, false, None);
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            LockError::CorruptedLock { reason } => {
+                assert!(
+                    reason.contains(spec_id),
+                    "Error message should contain spec_id: {reason}"
+                );
+            }
+            other => panic!("Expected CorruptedLock, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_corrupted_json_error_includes_spec_id() {
+        // This test verifies that corrupted lockfile error messages include spec_id
+        // Note: We don't exercise the max_retries path here; instead we validate
+        // the error formatting for a clearly corrupted (non-EOF) lockfile.
+
+        let _temp_dir = setup_test_env();
+
+        let spec_id = "test-spec-error-format";
+        let lock_path = FileLock::get_lock_path(spec_id);
+        fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
+
+        // Write corrupted JSON that won't be retried (definite corruption, not EOF)
+        fs::write(&lock_path, r#"{"invalid": "structure", "no_pid": true}"#).unwrap();
+
+        let result = FileLock::acquire(spec_id, false, None);
+        assert!(result.is_err());
+
+        match result.unwrap_err() {
+            LockError::CorruptedLock { reason } => {
+                assert!(
+                    reason.contains(spec_id),
+                    "Error message should contain spec_id: {reason}"
+                );
+            }
+            other => panic!("Expected CorruptedLock, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_concurrent_lock_error_includes_spec_id() {
+        // This test verifies the ConcurrentExecution error includes spec_id
+
+        let _temp_dir = setup_test_env();
+
+        let spec_id = "test-spec-create-error-format";
+
+        // First acquire a lock
+        let _lock = FileLock::acquire(spec_id, false, None).unwrap();
+
+        // Try to acquire again - this will fail with ConcurrentExecution
+        let result = FileLock::acquire(spec_id, false, None);
+        assert!(result.is_err());
+
+        // ConcurrentExecution error should include spec_id (already tested elsewhere,
+        // but confirms error formatting is working)
+        match result.unwrap_err() {
+            LockError::ConcurrentExecution {
+                spec_id: err_spec, ..
+            } => {
+                assert_eq!(err_spec, spec_id);
+            }
+            other => panic!("Expected ConcurrentExecution, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_validate_existing_lock_handles_clock_skew() {
+        let _temp_dir = setup_test_env();
+
+        let spec_id = "test-spec-clock-skew-validation";
+        let lock_path = FileLock::get_lock_path(spec_id);
+        fs::create_dir_all(lock_path.parent().unwrap()).unwrap();
+
+        // Create a lock with timestamp 1 hour in the future (clock skew)
+        let future_timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 3600;
+
+        let lock_info = LockInfo {
+            pid: 99999, // Non-existent PID
+            start_time: future_timestamp,
+            created_at: future_timestamp,
+            spec_id: spec_id.to_string(),
+            xchecker_version: "0.1.0".to_string(),
+        };
+
+        let lock_json = serde_json::to_string_pretty(&lock_info).unwrap();
+        fs::write(&lock_path, lock_json).unwrap();
+
+        // Should not panic due to clock skew - saturating_sub handles this
+        // With force=true, should succeed
+        let result = FileLock::acquire(spec_id, true, None);
+        assert!(result.is_ok(), "Should handle clock skew gracefully");
     }
 }
