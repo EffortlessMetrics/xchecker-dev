@@ -1,4 +1,14 @@
-# V11–V18 Roadmap Integration Summary
+# [DEPRECATED] V11–V18 Roadmap Integration Summary
+
+> **⚠️ DEPRECATION NOTICE**
+> 
+> This document is preserved for historical context but is no longer the active roadmap.
+> The V11-V14 core features are fully implemented as of Jan 2026.
+> 
+> **Current Roadmap:**
+> - **Milestones**: See GitHub Milestones (v1.0 Core, v1.1 Gemini, v1.2 HTTP, v2.0 Ecosystem)
+> - **Modularization**: See `plans/modularization-report.md` for architectural refactoring plans
+> - **Issues**: Active work is tracked in GitHub Issues with `roadmap` and `status:pending` labels
 
 **Date**: November 30, 2025  
 **Status**: ✅ Roadmap integrated into existing spec

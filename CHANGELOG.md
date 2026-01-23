@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Ecosystem Features (V16/V18)**:
+  - **Workspace Management**: `project init`, `project add-spec`, `project status`, `project history`, and `project list` commands for multi-spec orchestration.
+  - **Template System**: `template init` and `template list` commands with built-in templates (Next.js, Rust Microservice, Python FastAPI, Docs Refactor).
+  - **Policy Gates**: `gate` command for CI/CD enforcement with JSON output support.
+  - **Hooks System**: Pre/post-phase hooks configuration for custom automation.
+
+- **LLM Provider Support (V11-V14)**:
+  - **Gemini CLI**: Full support for Google's Gemini models via `gemini-cli` provider.
+  - **OpenRouter**: HTTP-based provider support with budget control (`budget` config, `XCHECKER_OPENROUTER_BUDGET`).
+  - **Anthropic API**: Direct HTTP support for Anthropic models.
+  - **Fallback Logic**: Robust provider fallback chain (e.g., Claude -> OpenRouter) configurable via `fallback_provider`.
+  - **Rich Metadata**: Receipts now include detailed token usage, model versions, and cost metrics.
+
+- **Core Improvements**:
+  - **JSON Output Modes**: `--json` flag support for `spec`, `status`, `resume`, `project`, and `gate` commands.
+  - **Budget Control**: Strict budget enforcement for HTTP providers to prevent cost overruns.
+  - **Error Reporting**: Enhanced `ErrorReporter` with actionable suggestions and context.
+  - **Test Infrastructure**: `XCHECKER_SKIP_LLM_TESTS` for CI cost control.
+
+### Security
+
+- **Vulnerability Fixes**:
+  - Fixed command injection in Gemini CLI backend.
+  - Fixed race conditions in lockfile creation using atomic `create_new`.
+  - Fixed path traversal vulnerabilities in `SandboxRoot` with canonicalization checks.
+  - Fixed command injection in `ProcessRunner` by enforcing argv-style execution.
+
+### Changed
+
+- **Milestones**: Renamed legacy "V11-V18" milestones to semantic names (Core Runtime, Gemini Support, HTTP Providers, Ecosystem).
+- **Configuration**: Expanded `[llm]` configuration section with provider-specific tables.
+
 ## [1.1.0] - 2026-01-18
 
 ### Added
