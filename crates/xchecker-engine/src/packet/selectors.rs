@@ -9,8 +9,22 @@ use std::fs;
 use std::thread;
 use tracing::warn;
 
+// Import centralized security exclusion patterns from xchecker-config
+use xchecker_config::ALWAYS_EXCLUDE_PATTERNS;
+
 /// Default maximum file size (10MB) to prevent DoS
 const DEFAULT_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+/// Add mandatory security exclusions to a GlobSetBuilder.
+///
+/// This is a defense-in-depth measure: even if user config omits these patterns,
+/// the engine will always exclude high-confidence secret files.
+fn add_mandatory_exclusions(builder: &mut GlobSetBuilder) -> Result<(), globset::Error> {
+    for pattern in ALWAYS_EXCLUDE_PATTERNS {
+        builder.add(Glob::new(pattern)?);
+    }
+    Ok(())
+}
 
 /// Content selector that implements priority-based file selection
 /// with concrete defaults and LIFO ordering within priority classes
@@ -60,6 +74,10 @@ impl ContentSelector {
         exclude_builder.add(Glob::new("**/target")?);
         exclude_builder.add(Glob::new("**/node_modules")?);
         exclude_builder.add(Glob::new("**/.git")?);
+
+        // Add mandatory security exclusions (defense-in-depth)
+        add_mandatory_exclusions(&mut exclude_builder)?;
+
         // Note: .xchecker/** is excluded for repo-level searches,
         // but when building packets from spec_dir, we're already inside .xchecker/specs/<id>
 
@@ -118,6 +136,9 @@ impl ContentSelector {
             exclude_builder.add(Glob::new(pattern)?);
         }
 
+        // Add mandatory security exclusions (defense-in-depth)
+        add_mandatory_exclusions(&mut exclude_builder)?;
+
         Ok(Self {
             include_patterns: include_builder.build()?,
             exclude_patterns: exclude_builder.build()?,
@@ -149,6 +170,9 @@ impl ContentSelector {
                 for pattern in &sel.exclude {
                     exclude_builder.add(Glob::new(pattern)?);
                 }
+
+                // Add mandatory security exclusions (defense-in-depth)
+                add_mandatory_exclusions(&mut exclude_builder)?;
 
                 Ok(Self {
                     include_patterns: include_builder.build()?,
@@ -732,6 +756,110 @@ mod tests {
         // Should only include the small file
         assert_eq!(files.len(), 1);
         assert!(files[0].path.as_str().contains("small.md"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mandatory_security_exclusions() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+
+        // Create various sensitive files that should be excluded
+        fs::write(base_path.join(".env"), "SECRET=true")?;
+        fs::write(base_path.join(".env.local"), "SECRET=true")?;
+        fs::write(base_path.join("private.pem"), "PRIVATE KEY")?;
+        fs::write(base_path.join("id_rsa"), "ssh-rsa ...")?;
+
+        // Create a safe file that should be included
+        fs::write(base_path.join("README.md"), "# Safe")?;
+
+        // Create a selector with default configuration
+        // This should allow README.md but exclude all sensitive files
+        let selector = ContentSelector::new()?;
+        let files = selector.select_files(&base_path)?;
+
+        // Should only include the README.md
+        assert_eq!(files.len(), 1, "Should include exactly one file");
+        assert!(
+            files[0].path.as_str().contains("README.md"),
+            "Should include README.md"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mandatory_exclusions_override_custom_includes() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+
+        // Create a sensitive file
+        fs::write(base_path.join(".env"), "SECRET=true")?;
+        // Create a safe file
+        fs::write(base_path.join("config.txt"), "safe=true")?;
+
+        // Create selector with custom patterns that try to include everything
+        // Note: We use from_selectors to test the case where user overrides everything
+        let selectors = Selectors {
+            include: vec!["**/*".to_string()], // Try to include everything
+            exclude: vec![],                   // No user-defined excludes
+        };
+
+        let selector = ContentSelector::from_selectors(Some(&selectors))?;
+        let files = selector.select_files(&base_path)?;
+
+        // Should exclude .env despite the "**/*" include pattern
+        assert_eq!(files.len(), 1, "Should include exactly one file");
+        assert!(
+            files[0].path.as_str().contains("config.txt"),
+            "Should include config.txt"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains(".env")),
+            "Should exclude .env"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mandatory_exclusions_in_with_patterns() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+
+        // Create sensitive files
+        fs::write(base_path.join(".env"), "SECRET=true")?;
+        fs::write(base_path.join("key.pem"), "PRIVATE KEY")?;
+        fs::write(base_path.join("id_rsa"), "ssh-rsa ...")?;
+        // Create a safe file
+        fs::write(base_path.join("app.txt"), "safe content")?;
+
+        // Use with_patterns to try to include everything with no excludes
+        let selector = ContentSelector::with_patterns(
+            vec!["**/*"], // Include everything
+            vec![],       // No user-defined excludes
+        )?;
+        let files = selector.select_files(&base_path)?;
+
+        // Mandatory security exclusions should still apply
+        assert_eq!(files.len(), 1, "Should include exactly one file");
+        assert!(
+            files[0].path.as_str().contains("app.txt"),
+            "Should include app.txt"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains(".env")),
+            "Should exclude .env"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains(".pem")),
+            "Should exclude .pem"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains("id_rsa")),
+            "Should exclude id_rsa"
+        );
 
         Ok(())
     }
