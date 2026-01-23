@@ -96,3 +96,27 @@
 
 **Files Changed:**
 - `crates/xchecker-engine/src/packet/builder.rs`
+
+---
+
+## 2026-01-23 - Enforced Sensitive File Exclusion
+
+**Vulnerability:** Default packet construction could include sensitive files (like `.env`, `private.pem`) if user configuration overrides defaults or is too broad (`**/*`).
+
+**Severity:** MEDIUM
+
+**Root Cause:** The `ContentSelector` relied on default excludes which could be entirely replaced by user configuration. There was no mandatory baseline enforcement.
+
+**Learning:** Security controls (exclusions) should be mandatory and non-overridable for high-risk patterns. Relying on default configuration structs is insufficient when users can replace them entirely.
+
+**Fix Applied:**
+1. Added `ALWAYS_EXCLUDE_PATTERNS` constant with high-confidence secret patterns (`.env`, `*.pem`, SSH keys, etc.)
+2. Enforced these patterns in ALL constructors: `new()`, `from_selectors()`, and `with_patterns()`
+3. Added tests verifying mandatory exclusions override custom user includes
+4. Updated `xchecker-config` defaults for defense-in-depth (belt-and-suspenders)
+
+**Prevention:** Define mandatory security baselines separate from configurable defaults. Enforce them in all code paths that construct security-sensitive objects.
+
+**Files Changed:**
+- `crates/xchecker-engine/src/packet/selectors.rs` - Core enforcement in all constructors
+- `crates/xchecker-config/src/config/selectors.rs` - Mirrored patterns in defaults

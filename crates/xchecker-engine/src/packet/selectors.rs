@@ -785,7 +785,10 @@ mod tests {
 
         // Should only include the README.md
         assert_eq!(files.len(), 1, "Should include exactly one file");
-        assert!(files[0].path.as_str().contains("README.md"), "Should include README.md");
+        assert!(
+            files[0].path.as_str().contains("README.md"),
+            "Should include README.md"
+        );
 
         Ok(())
     }
@@ -812,8 +815,55 @@ mod tests {
 
         // Should exclude .env despite the "**/*" include pattern
         assert_eq!(files.len(), 1, "Should include exactly one file");
-        assert!(files[0].path.as_str().contains("config.txt"), "Should include config.txt");
-        assert!(!files.iter().any(|f| f.path.as_str().contains(".env")), "Should exclude .env");
+        assert!(
+            files[0].path.as_str().contains("config.txt"),
+            "Should include config.txt"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains(".env")),
+            "Should exclude .env"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mandatory_exclusions_in_with_patterns() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+
+        // Create sensitive files
+        fs::write(base_path.join(".env"), "SECRET=true")?;
+        fs::write(base_path.join("key.pem"), "PRIVATE KEY")?;
+        fs::write(base_path.join("id_rsa"), "ssh-rsa ...")?;
+        // Create a safe file
+        fs::write(base_path.join("app.txt"), "safe content")?;
+
+        // Use with_patterns to try to include everything with no excludes
+        let selector = ContentSelector::with_patterns(
+            vec!["**/*"], // Include everything
+            vec![],       // No user-defined excludes
+        )?;
+        let files = selector.select_files(&base_path)?;
+
+        // Mandatory security exclusions should still apply
+        assert_eq!(files.len(), 1, "Should include exactly one file");
+        assert!(
+            files[0].path.as_str().contains("app.txt"),
+            "Should include app.txt"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains(".env")),
+            "Should exclude .env"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains(".pem")),
+            "Should exclude .pem"
+        );
+        assert!(
+            !files.iter().any(|f| f.path.as_str().contains("id_rsa")),
+            "Should exclude id_rsa"
+        );
 
         Ok(())
     }
