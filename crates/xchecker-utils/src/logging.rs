@@ -962,7 +962,7 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     );
     println!(
         "{}",
-        "====================================="
+        "─────────────────────────────────────"
             .with(Color::Cyan)
             .attribute(Attribute::Bold)
     );
