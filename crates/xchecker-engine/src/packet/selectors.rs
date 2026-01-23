@@ -173,9 +173,18 @@ impl ContentSelector {
         }
 
         // Check priority patterns
-        if self.priority_rules.high.is_match(path_str) {
+        let matches = self.priority_rules.combined.matches(path_str);
+
+        if matches.is_empty() {
+            return Priority::Low;
+        }
+
+        // Find the lowest index match (highest priority)
+        let min_index = matches.iter().min().copied().unwrap_or(usize::MAX);
+
+        if min_index < self.priority_rules.medium_start_index {
             Priority::High
-        } else if self.priority_rules.medium.is_match(path_str) {
+        } else if min_index < self.priority_rules.low_start_index {
             Priority::Medium
         } else {
             Priority::Low
