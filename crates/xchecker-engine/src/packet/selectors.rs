@@ -9,20 +9,22 @@ use std::fs;
 use std::thread;
 use tracing::warn;
 
+// Import centralized security exclusion patterns from xchecker-config
+use xchecker_config::ALWAYS_EXCLUDE_PATTERNS;
+
 /// Default maximum file size (10MB) to prevent DoS
 const DEFAULT_MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
 
-/// High-confidence secret patterns that are always excluded
-const ALWAYS_EXCLUDE_PATTERNS: &[&str] = &[
-    "**/.env",
-    "**/.env.*",
-    "**/*.pem",
-    "**/id_rsa",
-    "**/id_ed25519",
-    "**/.ssh/**",
-    "**/*.pfx",
-    "**/*.p12",
-];
+/// Add mandatory security exclusions to a GlobSetBuilder.
+///
+/// This is a defense-in-depth measure: even if user config omits these patterns,
+/// the engine will always exclude high-confidence secret files.
+fn add_mandatory_exclusions(builder: &mut GlobSetBuilder) -> Result<(), globset::Error> {
+    for pattern in ALWAYS_EXCLUDE_PATTERNS {
+        builder.add(Glob::new(pattern)?);
+    }
+    Ok(())
+}
 
 /// Content selector that implements priority-based file selection
 /// with concrete defaults and LIFO ordering within priority classes
@@ -73,10 +75,8 @@ impl ContentSelector {
         exclude_builder.add(Glob::new("**/node_modules")?);
         exclude_builder.add(Glob::new("**/.git")?);
 
-        // Add mandatory security exclusions
-        for pattern in ALWAYS_EXCLUDE_PATTERNS {
-            exclude_builder.add(Glob::new(pattern)?);
-        }
+        // Add mandatory security exclusions (defense-in-depth)
+        add_mandatory_exclusions(&mut exclude_builder)?;
 
         // Note: .xchecker/** is excluded for repo-level searches,
         // but when building packets from spec_dir, we're already inside .xchecker/specs/<id>
@@ -136,10 +136,8 @@ impl ContentSelector {
             exclude_builder.add(Glob::new(pattern)?);
         }
 
-        // Add mandatory security exclusions
-        for pattern in ALWAYS_EXCLUDE_PATTERNS {
-            exclude_builder.add(Glob::new(pattern)?);
-        }
+        // Add mandatory security exclusions (defense-in-depth)
+        add_mandatory_exclusions(&mut exclude_builder)?;
 
         Ok(Self {
             include_patterns: include_builder.build()?,
@@ -173,10 +171,8 @@ impl ContentSelector {
                     exclude_builder.add(Glob::new(pattern)?);
                 }
 
-                // Add mandatory security exclusions
-                for pattern in ALWAYS_EXCLUDE_PATTERNS {
-                    exclude_builder.add(Glob::new(pattern)?);
-                }
+                // Add mandatory security exclusions (defense-in-depth)
+                add_mandatory_exclusions(&mut exclude_builder)?;
 
                 Ok(Self {
                     include_patterns: include_builder.build()?,

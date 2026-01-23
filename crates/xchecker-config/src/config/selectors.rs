@@ -4,8 +4,42 @@ use crate::error::{ConfigError, XCheckerError};
 
 use super::Selectors;
 
+/// High-confidence secret file patterns that are always excluded from packet building.
+///
+/// These patterns target files that almost certainly contain secrets (private keys,
+/// environment files, certificates). They are enforced at multiple layers:
+/// 1. Default config selectors (this module)
+/// 2. Engine-level enforcement in `ContentSelector` (defense-in-depth)
+///
+/// # Patterns
+///
+/// - `.env` and `.env.*` - Environment variable files
+/// - `*.pem`, `*.pfx`, `*.p12` - Certificate/key files
+/// - `id_rsa`, `id_ed25519` - SSH private keys
+/// - `.ssh/**` - SSH configuration directory
+pub const ALWAYS_EXCLUDE_PATTERNS: &[&str] = &[
+    "**/.env",
+    "**/.env.*",
+    "**/*.pem",
+    "**/id_rsa",
+    "**/id_ed25519",
+    "**/.ssh/**",
+    "**/*.pfx",
+    "**/*.p12",
+];
+
 impl Default for Selectors {
     fn default() -> Self {
+        let mut exclude = vec![
+            "target/**".to_string(),
+            "node_modules/**".to_string(),
+            ".git/**".to_string(),
+            "**/.DS_Store".to_string(),
+        ];
+
+        // Add mandatory security exclusions
+        exclude.extend(ALWAYS_EXCLUDE_PATTERNS.iter().map(|s| (*s).to_string()));
+
         Self {
             include: vec![
                 "docs/**/SPEC*.md".to_string(),
@@ -15,21 +49,7 @@ impl Default for Selectors {
                 "**/Cargo.toml".to_string(),
                 "**/*.core.yaml".to_string(),
             ],
-            exclude: vec![
-                "target/**".to_string(),
-                "node_modules/**".to_string(),
-                ".git/**".to_string(),
-                "**/.DS_Store".to_string(),
-                // Mandatory security exclusions (mirrored from xchecker-engine)
-                "**/.env".to_string(),
-                "**/.env.*".to_string(),
-                "**/*.pem".to_string(),
-                "**/id_rsa".to_string(),
-                "**/id_ed25519".to_string(),
-                "**/.ssh/**".to_string(),
-                "**/*.pfx".to_string(),
-                "**/*.p12".to_string(),
-            ],
+            exclude,
         }
     }
 }

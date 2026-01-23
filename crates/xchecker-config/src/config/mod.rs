@@ -15,6 +15,7 @@ mod validation;
 pub use builder::ConfigBuilder;
 pub use cli_args::CliArgs;
 pub use model::*;
+pub use selectors::ALWAYS_EXCLUDE_PATTERNS;
 pub use xchecker_utils::types::ConfigSource;
 
 use crate::error::{ConfigError, XCheckerError};
