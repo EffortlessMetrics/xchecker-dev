@@ -299,9 +299,8 @@ impl ContentSelector {
                     let mut chunk_results = Vec::with_capacity(chunk.len());
                     for candidate in chunk {
                         // Optimization: Open file once to avoid redundant path resolution and TOCTOU
-                        let mut file = fs::File::open(&candidate.path).with_context(|| {
-                            format!("Failed to open file: {}", candidate.path)
-                        })?;
+                        let mut file = fs::File::open(&candidate.path)
+                            .with_context(|| format!("Failed to open file: {}", candidate.path))?;
 
                         // DoS protection: check file size before reading to prevent memory exhaustion
                         // Note: file.metadata() follows symlinks if opened via fs::File::open
