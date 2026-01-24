@@ -6,6 +6,7 @@ use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use std::fs;
+use std::io::Read;
 use std::thread;
 use tracing::warn;
 
@@ -297,9 +298,14 @@ impl ContentSelector {
                 let handle = s.spawn(move || {
                     let mut chunk_results = Vec::with_capacity(chunk.len());
                     for candidate in chunk {
+                        // Optimization: Open file once to avoid redundant path resolution and TOCTOU
+                        let mut file = fs::File::open(&candidate.path).with_context(|| {
+                            format!("Failed to open file: {}", candidate.path)
+                        })?;
+
                         // DoS protection: check file size before reading to prevent memory exhaustion
-                        // Note: fs::metadata follows symlinks, which is correct here (we want target size)
-                        let metadata = fs::metadata(&candidate.path).with_context(|| {
+                        // Note: file.metadata() follows symlinks if opened via fs::File::open
+                        let metadata = file.metadata().with_context(|| {
                             format!("Failed to get file metadata: {}", candidate.path)
                         })?;
 
@@ -329,7 +335,9 @@ impl ContentSelector {
                             continue;
                         }
 
-                        let content = fs::read_to_string(&candidate.path)
+                        // Pre-allocate buffer to avoid reallocations
+                        let mut content = String::with_capacity(metadata.len() as usize);
+                        file.read_to_string(&mut content)
                             .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
                         // Calculate pre-redaction hash
