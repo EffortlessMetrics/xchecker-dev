@@ -91,6 +91,23 @@ pub fn pypi_token() -> String {
     format!("pypi-{}", make_from(BASE64_URL, 50, 13))
 }
 
+// LLM Provider Tokens
+pub fn anthropic_api_key() -> String {
+    format!("sk-ant-api03-{}", make_from(BASE64_URL, 95, 47))
+}
+
+pub fn openai_project_key() -> String {
+    format!("sk-proj-{}", make_from(BASE64_URL, 48, 48))
+}
+
+pub fn openai_org_key() -> String {
+    format!("sk-org-{}", make_from(BASE64_URL, 48, 49))
+}
+
+pub fn openai_legacy_key() -> String {
+    format!("sk-{}", make_from(ALNUM, 48, 50))
+}
+
 pub fn aws_access_key_id() -> String {
     format!("AKIA{}", make_from(ALNUM_UPPER, 16, 14))
 }

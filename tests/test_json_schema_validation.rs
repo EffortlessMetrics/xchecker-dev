@@ -7,16 +7,15 @@ use std::fs;
 fn validate_example(schema_path: &str, example_path: &str) {
     let schema_content = fs::read_to_string(schema_path)
         .unwrap_or_else(|_| panic!("Failed to read schema: {}", schema_path));
-    let schema: serde_json::Value = serde_json::from_str(&schema_content)
-        .expect("Failed to parse schema JSON");
+    let schema: serde_json::Value =
+        serde_json::from_str(&schema_content).expect("Failed to parse schema JSON");
 
     let example_content = fs::read_to_string(example_path)
         .unwrap_or_else(|_| panic!("Failed to read example: {}", example_path));
-    let example: serde_json::Value = serde_json::from_str(&example_content)
-        .expect("Failed to parse example JSON");
+    let example: serde_json::Value =
+        serde_json::from_str(&example_content).expect("Failed to parse example JSON");
 
-    let validator = jsonschema::validator_for(&schema)
-        .expect("Failed to compile schema");
+    let validator = jsonschema::validator_for(&schema).expect("Failed to compile schema");
 
     if let Err(error) = validator.validate(&example) {
         panic!(
@@ -52,10 +51,7 @@ fn test_status_minimal_validates_against_schema() {
 
 #[test]
 fn test_status_full_validates_against_schema() {
-    validate_example(
-        "schemas/status.v1.json",
-        "docs/schemas/status.v1.full.json",
-    );
+    validate_example("schemas/status.v1.json", "docs/schemas/status.v1.full.json");
 }
 
 #[test]
@@ -68,10 +64,7 @@ fn test_doctor_minimal_validates_against_schema() {
 
 #[test]
 fn test_doctor_full_validates_against_schema() {
-    validate_example(
-        "schemas/doctor.v1.json",
-        "docs/schemas/doctor.v1.full.json",
-    );
+    validate_example("schemas/doctor.v1.json", "docs/schemas/doctor.v1.full.json");
 }
 
 #[test]
