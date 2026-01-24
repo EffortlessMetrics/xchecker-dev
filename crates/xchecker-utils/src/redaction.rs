@@ -1585,6 +1585,48 @@ mod tests {
         );
     }
 
+    // ===== LLM Provider Token Detection Tests =====
+
+    #[test]
+    fn test_anthropic_api_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("ANTHROPIC_API_KEY={}", test_support::anthropic_api_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "anthropic_api_key"));
+    }
+
+    #[test]
+    fn test_openai_project_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("OPENAI_API_KEY={}", test_support::openai_project_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "openai_api_key"));
+    }
+
+    #[test]
+    fn test_openai_org_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("OPENAI_API_KEY={}", test_support::openai_org_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "openai_api_key"));
+    }
+
+    #[test]
+    fn test_openai_legacy_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("OPENAI_API_KEY={}", test_support::openai_legacy_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "openai_legacy_key"));
+    }
+
     #[test]
     fn test_all_new_pattern_categories_exist() {
         let redactor = SecretRedactor::new().unwrap();

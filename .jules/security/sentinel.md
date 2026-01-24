@@ -123,7 +123,7 @@
 
 ---
 
-## 2026-02-13 - Missing LLM Provider API Keys in Secret Detection
+## 2026-01-24 - Missing LLM Provider API Keys in Secret Detection
 
 **Vulnerability:** The default secret detection patterns missed OpenAI API keys (both legacy and new project/org formats) and Anthropic API keys. Given that `xchecker` is an LLM-orchestration tool, accidental inclusion of these keys is a high-probability risk.
 
