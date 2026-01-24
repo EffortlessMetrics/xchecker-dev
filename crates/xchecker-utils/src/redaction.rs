@@ -164,6 +164,27 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
+    // LLM Provider Tokens (3 patterns)
+    // =========================================================================
+    SecretPatternDef {
+        id: "anthropic_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-ant-api03-[A-Za-z0-9_-]{20,}",
+        description: "Anthropic API keys",
+    },
+    SecretPatternDef {
+        id: "openai_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-(?:proj|org)-[A-Za-z0-9_-]{20,}",
+        description: "OpenAI Project/Org API keys",
+    },
+    SecretPatternDef {
+        id: "openai_legacy_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-[A-Za-z0-9]{48}",
+        description: "OpenAI Legacy API keys",
+    },
+    // =========================================================================
     // Database Connection URLs (5 patterns)
     // =========================================================================
     SecretPatternDef {
@@ -1564,6 +1585,48 @@ mod tests {
         );
     }
 
+    // ===== LLM Provider Token Detection Tests =====
+
+    #[test]
+    fn test_anthropic_api_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("ANTHROPIC_API_KEY={}", test_support::anthropic_api_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "anthropic_api_key"));
+    }
+
+    #[test]
+    fn test_openai_project_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("OPENAI_API_KEY={}", test_support::openai_project_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "openai_api_key"));
+    }
+
+    #[test]
+    fn test_openai_org_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("OPENAI_API_KEY={}", test_support::openai_org_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "openai_api_key"));
+    }
+
+    #[test]
+    fn test_openai_legacy_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let content = format!("OPENAI_API_KEY={}", test_support::openai_legacy_key());
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "openai_legacy_key"));
+    }
+
     #[test]
     fn test_all_new_pattern_categories_exist() {
         let redactor = SecretRedactor::new().unwrap();
@@ -1589,6 +1652,11 @@ mod tests {
         assert!(pattern_ids.contains(&"authorization_basic".to_string()));
         assert!(pattern_ids.contains(&"oauth_token".to_string()));
         assert!(pattern_ids.contains(&"jwt_token".to_string()));
+
+        // LLM Provider Tokens
+        assert!(pattern_ids.contains(&"anthropic_api_key".to_string()));
+        assert!(pattern_ids.contains(&"openai_api_key".to_string()));
+        assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
 
         // Database URLs
         assert!(pattern_ids.contains(&"postgres_url".to_string()));
