@@ -8,8 +8,8 @@ use clap::{Parser, Subcommand};
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Duration;
 
@@ -2737,10 +2737,8 @@ fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Res
     // Create and run doctor command (wired through Doctor::run)
     let mut doctor = DoctorCommand::new(config.clone());
 
-    // START SPINNER
-    // Show spinner if not in JSON mode and stdout is a TTY (UX improvement)
-    // We use a RAII guard to ensure the cursor is restored even if the doctor check panics
-    let _spinner = if !json && std::io::stdout().is_terminal() {
+    // Show spinner if interactive TTY and not JSON mode (RAII ensures cleanup on panic)
+    let spinner_guard = if !json && std::io::stdout().is_terminal() {
         Some(SpinnerGuard::new())
     } else {
         None
@@ -2748,8 +2746,8 @@ fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Res
 
     let result = doctor.run_with_options_strict(strict_exit);
 
-    // Drop spinner to clear line and restore cursor before printing results
-    drop(_spinner);
+    // Explicitly drop spinner to clear the line before printing results
+    drop(spinner_guard);
 
     let output = result.context("Failed to run doctor checks")?;
 
@@ -3093,8 +3091,12 @@ impl SpinnerGuard {
                 i = (i + 1) % frames.len();
                 thread::sleep(Duration::from_millis(80));
             }
-            // Clear the line when done
-            print!("\r\x1b[2K");
+            // Clear the line when done (use crossterm for portability)
+            let _ = crossterm::execute!(
+                std::io::stdout(),
+                crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine)
+            );
+            print!("\r");
             let _ = std::io::stdout().flush();
         });
 
