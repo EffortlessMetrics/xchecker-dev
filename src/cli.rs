@@ -6,9 +6,12 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use std::collections::HashMap;
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread;
+use std::time::Duration;
 
 // Stable public API imports from crate root
 // _Requirements: FR-CLI-2_
@@ -2733,9 +2736,20 @@ fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Res
 
     // Create and run doctor command (wired through Doctor::run)
     let mut doctor = DoctorCommand::new(config.clone());
-    let output = doctor
-        .run_with_options_strict(strict_exit)
-        .context("Failed to run doctor checks")?;
+
+    // Show spinner if interactive TTY and not JSON mode (RAII ensures cleanup on panic)
+    let spinner_guard = if !json && std::io::stdout().is_terminal() {
+        Some(SpinnerGuard::new())
+    } else {
+        None
+    };
+
+    let result = doctor.run_with_options_strict(strict_exit);
+
+    // Explicitly drop spinner to clear the line before printing results
+    drop(spinner_guard);
+
+    let output = result.context("Failed to run doctor checks")?;
 
     if json {
         // Emit as canonical JSON (JCS) for stable diffs (FR-CLI-6)
@@ -3052,6 +3066,55 @@ fn check_lockfile_drift(
         Ok(Some(drift))
     } else {
         Ok(None)
+    }
+}
+
+struct SpinnerGuard {
+    running: Arc<AtomicBool>,
+    handle: Option<thread::JoinHandle<()>>,
+}
+
+impl SpinnerGuard {
+    fn new() -> Self {
+        let running = Arc::new(AtomicBool::new(true));
+        let running_clone = running.clone();
+
+        // Hide cursor to prevent flickering
+        let _ = crossterm::execute!(std::io::stdout(), crossterm::cursor::Hide);
+
+        let handle = thread::spawn(move || {
+            let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let mut i = 0;
+            while running_clone.load(Ordering::Relaxed) {
+                print!("\r{} Running health checks...", frames[i]);
+                let _ = std::io::stdout().flush();
+                i = (i + 1) % frames.len();
+                thread::sleep(Duration::from_millis(80));
+            }
+            // Clear the line when done (use crossterm for portability)
+            let _ = crossterm::execute!(
+                std::io::stdout(),
+                crossterm::terminal::Clear(crossterm::terminal::ClearType::CurrentLine)
+            );
+            print!("\r");
+            let _ = std::io::stdout().flush();
+        });
+
+        Self {
+            running,
+            handle: Some(handle),
+        }
+    }
+}
+
+impl Drop for SpinnerGuard {
+    fn drop(&mut self) {
+        self.running.store(false, Ordering::Relaxed);
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+        // Restore cursor
+        let _ = crossterm::execute!(std::io::stdout(), crossterm::cursor::Show);
     }
 }
 
