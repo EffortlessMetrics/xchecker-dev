@@ -1,6 +1,6 @@
 use super::model::{CandidateFile, SelectedFile};
 use super::selectors::ContentSelector;
-use crate::cache::{InsightCache, calculate_content_hash};
+use crate::cache::InsightCache;
 use crate::config::Selectors;
 use crate::error::XCheckerError;
 use crate::logging::Logger;
@@ -388,8 +388,10 @@ impl PacketBuilder {
         phase: &str,
         logger: Option<&Logger>,
     ) -> Result<String> {
-        // Calculate content hash for cache key
-        let content_hash = calculate_content_hash(&file.content);
+        // Optimization: Use pre-calculated BLAKE3 hash from SelectedFile instead of re-hashing content
+        // The hash in SelectedFile is the blake3 hash of the original content, which matches
+        // what calculate_content_hash does.
+        let content_hash = &file.blake3_pre_redaction;
 
         // Try to get cached insights first (R3.4)
         if let Some(cache) = &mut self.cache
