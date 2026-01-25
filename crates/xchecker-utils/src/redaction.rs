@@ -254,6 +254,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
     // Platform-Specific Tokens (12 patterns)
     // =========================================================================
     SecretPatternDef {
+        id: "huggingface_token",
+        category: "Platform-Specific Tokens",
+        regex: r"hf_[A-Za-z0-9]{34}",
+        description: "Hugging Face access tokens",
+    },
+    SecretPatternDef {
         id: "github_pat",
         category: "Platform-Specific Tokens",
         regex: r"ghp_[A-Za-z0-9]{36}",
@@ -1399,6 +1405,17 @@ mod tests {
     // ===== New Pattern Tests (Task 23.1) =====
 
     #[test]
+    fn test_huggingface_token_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let token = test_support::huggingface_token();
+        let content = format!("token = {}", token);
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pattern_id, "huggingface_token");
+    }
+
+    #[test]
     fn test_gcp_api_key_detection() {
         let redactor = SecretRedactor::new().unwrap();
         let key = test_support::gcp_api_key();
@@ -1673,6 +1690,7 @@ mod tests {
         assert!(pattern_ids.contains(&"openssh_private_key".to_string()));
 
         // Platform-specific tokens
+        assert!(pattern_ids.contains(&"huggingface_token".to_string()));
         assert!(pattern_ids.contains(&"github_pat".to_string()));
         assert!(pattern_ids.contains(&"github_oauth".to_string()));
         assert!(pattern_ids.contains(&"github_app_token".to_string()));

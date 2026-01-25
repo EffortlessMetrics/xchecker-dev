@@ -91,6 +91,10 @@ pub fn pypi_token() -> String {
     format!("pypi-{}", make_from(BASE64_URL, 50, 13))
 }
 
+pub fn huggingface_token() -> String {
+    format!("hf_{}", make_from(ALNUM, 34, 51))
+}
+
 // LLM Provider Tokens
 pub fn anthropic_api_key() -> String {
     format!("sk-ant-api03-{}", make_from(BASE64_URL, 95, 47))
