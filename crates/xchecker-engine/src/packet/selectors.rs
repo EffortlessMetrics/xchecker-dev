@@ -251,13 +251,47 @@ impl ContentSelector {
         // Walk the directory tree, passing root for symlink sandbox validation
         self.walk_directory_paths(base_path, base_path, &mut paths)?;
 
-        let mut candidates: Vec<CandidateFile> = paths
-            .into_iter()
-            .map(|path| {
-                let priority = self.get_priority(&path);
-                CandidateFile { path, priority }
+        let num_threads = thread::available_parallelism().map_or(1, |n| n.get());
+
+        let mut candidates = if paths.len() < 500 || num_threads <= 1 {
+            // Sequential processing for small datasets or single-core avoids thread overhead
+            paths
+                .into_iter()
+                .map(|path| {
+                    let priority = self.get_priority(&path);
+                    CandidateFile { path, priority }
+                })
+                .collect()
+        } else {
+            // Parallel processing for large datasets
+            let chunk_size = paths.len().div_ceil(num_threads);
+
+            thread::scope(|s| {
+                let mut handles = Vec::new();
+                for chunk in paths.chunks(chunk_size) {
+                    let handle = s.spawn(move || {
+                        let mut chunk_candidates = Vec::with_capacity(chunk.len());
+                        for path in chunk {
+                            let priority = self.get_priority(path);
+                            chunk_candidates.push(CandidateFile {
+                                path: path.clone(),
+                                priority,
+                            });
+                        }
+                        chunk_candidates
+                    });
+                    handles.push(handle);
+                }
+
+                let mut all_candidates = Vec::with_capacity(paths.len());
+                for handle in handles {
+                    if let Ok(chunk_candidates) = handle.join() {
+                        all_candidates.extend(chunk_candidates);
+                    }
+                }
+                all_candidates
             })
-            .collect();
+        };
 
         // Sort by priority (Upstream first, then High, Medium, Low)
         // Within each priority, maintain LIFO order (reverse chronological)
