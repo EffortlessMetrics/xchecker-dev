@@ -17,7 +17,7 @@ use crossterm::{
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
@@ -431,6 +431,27 @@ fn render_summary(f: &mut Frame, app: &TuiApp, area: Rect) {
 
 /// Render the specs list
 fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
+    if app.spec_statuses.is_empty() {
+        let empty_text = vec![
+            Line::from(Span::styled(
+                "No specs found in this workspace",
+                Style::default().fg(Color::Yellow),
+            )),
+            Line::from(""),
+            Line::from(vec![
+                Span::raw("Create one with: "),
+                Span::styled("xchecker spec <name>", Style::default().fg(Color::Cyan)),
+            ]),
+        ];
+
+        let empty = Paragraph::new(empty_text)
+            .block(Block::default().borders(Borders::ALL).title(" Specs "))
+            .alignment(Alignment::Center)
+            .wrap(Wrap { trim: true });
+        f.render_widget(empty, area);
+        return;
+    }
+
     let items: Vec<ListItem> = app
         .spec_statuses
         .iter()

@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2026-03-03 - [TUI Empty States]
+**Learning:** Users often assume a blank list in a TUI means an application error rather than just "no data," especially when using dark themes where borders blend in.
+**Action:** Always provide explicit "empty state" guidance with centered alignment and actionable next steps (e.g., "Create one with: <command>") to confirm the application is working correctly.
