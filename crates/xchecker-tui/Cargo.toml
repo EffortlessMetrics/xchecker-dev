@@ -1,0 +1,25 @@
+[package]
+name = "xchecker-tui"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Terminal User Interface for xchecker workspace management"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/EffortlessMetrics/xchecker"
+homepage = "https://github.com/EffortlessMetrics/xchecker"
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+# Internal dependencies
+xchecker-engine = { path = "../xchecker-engine" }
+xchecker-utils = { path = "../xchecker-utils" }
+
+# External dependencies
+anyhow = { workspace = true }
+chrono = { workspace = true }
+crossterm = { workspace = true }
+ratatui = { workspace = true }
+
+[dev-dependencies]
+# For testing
+tempfile = { workspace = true }

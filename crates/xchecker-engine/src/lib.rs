@@ -11,9 +11,9 @@ pub use xchecker_utils::lock;
 pub use xchecker_utils::logging;
 pub use xchecker_utils::paths;
 pub use xchecker_utils::process_memory;
-pub use xchecker_utils::redaction;
+pub use xchecker_redaction as redaction;
 pub use xchecker_utils::ring_buffer;
-pub use xchecker_utils::runner;
+pub use xchecker_runner as runner;
 pub use xchecker_utils::source;
 pub use xchecker_utils::spec_id;
 #[cfg(any(test, feature = "test-utils"))]

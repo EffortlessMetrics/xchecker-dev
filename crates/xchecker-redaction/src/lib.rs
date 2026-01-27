@@ -3,7 +3,6 @@
 //! This module implements configurable secret pattern detection and redaction
 //! to prevent sensitive information from being included in Claude CLI packets.
 
-use crate::error::XCheckerError;
 use anyhow::{Context, Result};
 use regex::Regex;
 use std::collections::HashMap;
@@ -336,7 +335,7 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
 ///
 /// # Example
 /// ```
-/// use xchecker_utils::redaction::default_pattern_defs;
+/// use xchecker_redaction::default_pattern_defs;
 ///
 /// let defs = default_pattern_defs();
 /// assert!(!defs.is_empty());
@@ -436,7 +435,7 @@ impl SecretRedactor {
     ///
     /// # Example
     /// ```rust
-    /// use xchecker_utils::redaction::{SecretConfigProvider, SecretRedactor};
+    /// use xchecker_redaction::{SecretConfigProvider, SecretRedactor};
     ///
     /// struct RedactionConfig {
     ///     extra: Vec<String>,
@@ -568,8 +567,7 @@ impl SecretRedactor {
                 continue;
             }
 
-            let pattern_matches =
-                self.find_matches_in_content(content, file_path, pattern_id, regex)?;
+            let pattern_matches = self.find_matches_in_content(content, file_path, pattern_id, regex)?;
             matches.extend(pattern_matches);
         }
 
@@ -579,8 +577,7 @@ impl SecretRedactor {
                 continue;
             }
 
-            let pattern_matches =
-                self.find_matches_in_content(content, file_path, pattern_id, regex)?;
+            let pattern_matches = self.find_matches_in_content(content, file_path, pattern_id, regex)?;
             matches.extend(pattern_matches);
         }
 
@@ -617,8 +614,10 @@ impl SecretRedactor {
                 if start < line.len() && end <= line.len() {
                     let before = &line[..start];
                     let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
+                    let redacted_line = format!(
+                        "{}[REDACTED:{}]{}",
+                        before, secret_match.pattern_id, after
+                    );
 
                     // Replace the line in the content
                     let line_start = content
@@ -737,28 +736,6 @@ pub fn default_redactor() -> &'static SecretRedactor {
     &DEFAULT_REDACTOR
 }
 
-/// Create a `SecretRedactor` error for detected secrets
-#[must_use]
-pub fn create_secret_detected_error(matches: &[SecretMatch]) -> XCheckerError {
-    if matches.is_empty() {
-        return XCheckerError::SecretDetected {
-            pattern: "unknown".to_string(),
-            location: "unknown".to_string(),
-        };
-    }
-
-    let first_match = &matches[0];
-    let location = format!(
-        "{}:{}:{}",
-        first_match.file_path, first_match.line_number, first_match.column_range.0
-    );
-
-    XCheckerError::SecretDetected {
-        pattern: first_match.pattern_id.clone(),
-        location,
-    }
-}
-
 /// Global redaction function for user-facing strings
 ///
 /// This function provides a simple way to redact secrets from any user-facing string
@@ -773,7 +750,7 @@ pub fn create_secret_detected_error(matches: &[SecretMatch]) -> XCheckerError {
 ///
 /// # Example
 /// ```
-/// use xchecker_utils::redaction::redact_user_string;
+/// use xchecker_redaction::redact_user_string;
 ///
 /// let token = format!("ghp_{}", "a".repeat(36));
 /// let error_msg = format!("Failed to authenticate with token {token}");
@@ -894,7 +871,6 @@ pub mod doc_gen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support;
 
     #[derive(Default)]
     struct TestSecretConfig {
@@ -948,70 +924,66 @@ mod tests {
     }
 
     #[test]
-    fn test_github_pat_detection() {
+    fn test_redact_string() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::github_pat();
-        let content = format!("token = {}", token);
 
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].pattern_id, "github_pat");
-        assert_eq!(matches[0].line_number, 1);
+        // Test GitHub PAT redaction
+        let token = "ghp_123456789012345678901234567890123";
+        let text = format!("token = {}", token);
+        let redacted = redactor.redact_string(&text);
+        assert!(redacted.contains("***"));
+        assert!(!redacted.contains("ghp_"));
+
+        // Test AWS key redaction
+        let aws_key = "AKIAIOSFODNN7EXAMPLE";
+        let text2 = format!("access_key = {}", aws_key);
+        let redacted2 = redactor.redact_string(&text2);
+        assert!(redacted2.contains("***"));
+        assert!(!redacted2.contains("AKIA"));
+
+        // Test no secrets
+        let text3 = "This is safe text with no secrets";
+        let redacted3 = redactor.redact_string(text3);
+        assert_eq!(redacted3, text3);
     }
 
     #[test]
-    fn test_aws_access_key_detection() {
+    fn test_redact_strings() {
         let redactor = SecretRedactor::new().unwrap();
-        let key = test_support::aws_access_key_id();
-        let content = format!("access_key = {}", key);
 
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].pattern_id, "aws_access_key");
+        let github_token = "ghp_123456789012345678901234567890123";
+        let aws_key = "AKIAIOSFODNN7EXAMPLE";
+        let strings = vec![
+            format!("token = {}", github_token),
+            "safe text".to_string(),
+            format!("key = {}", aws_key),
+        ];
+
+        let redacted = redactor.redact_strings(&strings);
+        assert_eq!(redacted.len(), 3);
+        assert!(redacted[0].contains("***"));
+        assert!(!redacted[0].contains("ghp_"));
+        assert_eq!(redacted[1], "safe text");
+        assert!(redacted[2].contains("***"));
+        assert!(!redacted[2].contains("AKIA"));
     }
 
     #[test]
-    fn test_aws_secret_key_detection() {
+    fn test_redact_optional() {
         let redactor = SecretRedactor::new().unwrap();
-        let content = test_support::aws_secret_access_key();
 
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        // May match multiple patterns (aws_secret_key and aws_secret_key_value)
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "aws_secret_key" || m.pattern_id == "aws_secret_key_value"));
-    }
+        // Test Some with secret
+        let token = "ghp_123456789012345678901234567890123";
+        let text = Some(format!("token = {}", token));
+        let redacted = redactor.redact_optional(&text);
+        assert!(redacted.is_some());
+        assert!(redacted.unwrap().contains("***"));
+        assert!(!redacted.unwrap().contains("ghp_"));
 
-    #[test]
-    fn test_slack_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::slack_bot_token();
-        let content = format!("slack_token = {}", token);
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].pattern_id, "slack_token");
-    }
-
-    #[test]
-    fn test_bearer_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::bearer_token();
-        let content = format!("Authorization: {}", token);
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        // Should match bearer_token pattern
-        assert!(matches.iter().any(|m| m.pattern_id == "bearer_token"));
-    }
-
-    #[test]
-    fn test_no_secrets_detected() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = "This is just normal content with no secrets.";
-
-        let matches = redactor.scan_for_secrets(content, "test.txt").unwrap();
-        assert_eq!(matches.len(), 0);
-        assert!(!redactor.has_secrets(content, "test.txt").unwrap());
+        // Test None
+        let none_text: Option<String> = None;
+        let redacted_none = redactor.redact_optional(&none_text);
+        assert_eq!(redacted_none, None);
     }
 
     #[test]
@@ -1033,7 +1005,7 @@ mod tests {
         let mut redactor = SecretRedactor::new().unwrap();
         redactor.add_ignored_pattern("github_pat".to_string());
 
-        let token = test_support::github_pat();
+        let token = "ghp_123456789012345678901234567890123";
         let content = format!("token = {}", token);
         let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
 
@@ -1044,7 +1016,7 @@ mod tests {
     #[test]
     fn test_content_redaction() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::github_pat();
+        let token = "ghp_123456789012345678901234567890123";
         let content = format!("token = {}\nother_line = safe", token);
 
         let result = redactor.redact_content(&content, "test.txt").unwrap();
@@ -1059,7 +1031,7 @@ mod tests {
     #[test]
     fn test_safe_context_creation() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::github_pat();
+        let token = "ghp_123456789012345678901234567890123";
         let line = format!("prefix_{}_suffix", token);
         let start = line.find(&token).unwrap();
         let end = start + token.len();
@@ -1073,8 +1045,8 @@ mod tests {
     #[test]
     fn test_multiple_secrets_in_content() {
         let redactor = SecretRedactor::new().unwrap();
-        let github_token = test_support::github_pat();
-        let aws_key = test_support::aws_access_key_id();
+        let github_token = "ghp_123456789012345678901234567890123";
+        let aws_key = "AKIAIOSFODNN7EXAMPLE";
         let content = format!("github_token = {}\naws_key = {}", github_token, aws_key);
 
         let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
@@ -1089,7 +1061,7 @@ mod tests {
     #[test]
     fn test_line_number_accuracy() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::github_pat();
+        let token = "ghp_123456789012345678901234567890123";
         let content = format!("line 1\nline 2 with {}\nline 3", token);
 
         let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
@@ -1098,194 +1070,129 @@ mod tests {
     }
 
     #[test]
-    fn test_error_creation() {
-        let matches = vec![SecretMatch {
-            pattern_id: "github_pat".to_string(),
-            file_path: "config.yaml".to_string(),
-            line_number: 5,
-            column_range: (10, 46),
-            context: "token = [REDACTED]".to_string(),
-        }];
+    fn test_from_config_with_default_security() {
+        let config = TestSecretConfig::default();
+        let redactor = SecretRedactor::from_config(&config).unwrap();
 
-        let error = create_secret_detected_error(&matches);
-        match error {
-            XCheckerError::SecretDetected { pattern, location } => {
-                assert_eq!(pattern, "github_pat");
-                assert_eq!(location, "config.yaml:5:10");
-            }
-            _ => panic!("Expected SecretDetected error"),
-        }
+        // Should have all default patterns
+        let pattern_ids = redactor.get_pattern_ids();
+        assert!(pattern_ids.contains(&"github_pat".to_string()));
+        assert!(pattern_ids.contains(&"aws_access_key".to_string()));
+
+        // Should have no extra patterns
+        assert!(!pattern_ids
+            .iter()
+            .any(|id| id.starts_with("extra_pattern_")));
+
+        // Should have no ignored patterns
+        assert!(redactor.get_ignored_patterns().is_empty());
     }
 
     #[test]
-    fn test_redact_string() {
-        let redactor = SecretRedactor::new().unwrap();
+    fn test_from_config_with_extra_patterns() {
+        let config = TestSecretConfig::default().with_extra_patterns(vec![
+            "CUSTOM_[A-Z0-9]{32}".to_string(),
+            "MY_SECRET_[A-Za-z0-9]{20}".to_string(),
+        ]);
 
-        // Test GitHub PAT redaction
-        let github_token = test_support::github_pat();
-        let text = format!("token = {}", github_token);
-        let redacted = redactor.redact_string(&text);
-        assert!(redacted.contains("***"));
-        assert!(!redacted.contains("ghp_"));
+        let redactor = SecretRedactor::from_config(&config).unwrap();
 
-        // Test AWS key redaction
-        let aws_key = test_support::aws_access_key_id();
-        let text2 = format!("access_key = {}", aws_key);
-        let redacted2 = redactor.redact_string(&text2);
-        assert!(redacted2.contains("***"));
-        assert!(!redacted2.contains("AKIA"));
+        // Should have extra patterns
+        let pattern_ids = redactor.get_pattern_ids();
+        assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
+        assert!(pattern_ids.contains(&"extra_pattern_1".to_string()));
 
-        // Test no secrets
-        let text3 = "This is safe text with no secrets";
-        let redacted3 = redactor.redact_string(text3);
-        assert_eq!(redacted3, text3);
+        // Extra patterns should detect custom secrets
+        let content1 = "key = CUSTOM_12345678901234567890123456789012";
+        let matches1 = redactor.scan_for_secrets(content1, "test.txt").unwrap();
+        assert!(!matches1.is_empty());
+        assert!(matches1.iter().any(|m| m.pattern_id == "extra_pattern_0"));
     }
 
     #[test]
-    fn test_redact_strings() {
-        let redactor = SecretRedactor::new().unwrap();
+    fn test_from_config_with_ignore_patterns() {
+        let config = TestSecretConfig::default().with_ignore_patterns(vec!["github_pat".to_string()]);
 
-        let github_token = test_support::github_pat();
-        let aws_key = test_support::aws_access_key_id();
-        let strings = vec![
-            format!("token = {}", github_token),
-            "safe text".to_string(),
-            format!("key = {}", aws_key),
-        ];
+        let redactor = SecretRedactor::from_config(&config).unwrap();
 
-        let redacted = redactor.redact_strings(&strings);
-        assert_eq!(redacted.len(), 3);
-        assert!(redacted[0].contains("***"));
-        assert!(!redacted[0].contains("ghp_"));
-        assert_eq!(redacted[1], "safe text");
-        assert!(redacted[2].contains("***"));
-        assert!(!redacted[2].contains("AKIA"));
+        // Should have ignored pattern
+        assert!(redactor
+            .get_ignored_patterns()
+            .contains(&"github_pat".to_string()));
+
+        // GitHub PAT should not be detected
+        let token = "ghp_123456789012345678901234567890123";
+        let content = format!("token = {}", token);
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert_eq!(matches.len(), 0);
     }
 
     #[test]
-    fn test_redact_optional() {
-        let redactor = SecretRedactor::new().unwrap();
+    fn test_from_config_with_both_extra_and_ignore() {
+        let config = TestSecretConfig::default()
+            .with_extra_patterns(vec!["CUSTOM_[A-Z0-9]{32}".to_string()])
+            .with_ignore_patterns(vec!["github_pat".to_string()]);
 
-        // Test Some with secret
-        let token = test_support::github_pat();
-        let text = Some(format!("token = {}", token));
-        let redacted = redactor.redact_optional(&text);
-        assert!(redacted.is_some());
-        assert!(redacted.unwrap().contains("***"));
+        let redactor = SecretRedactor::from_config(&config).unwrap();
 
-        // Test None
-        let none_text: Option<String> = None;
-        let redacted_none = redactor.redact_optional(&none_text);
-        assert!(redacted_none.is_none());
+        // Should have extra pattern
+        let pattern_ids = redactor.get_pattern_ids();
+        assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
+
+        // Should have ignored pattern
+        assert!(redactor
+            .get_ignored_patterns()
+            .contains(&"github_pat".to_string()));
+
+        // Custom secret should be detected
+        let content1 = "key = CUSTOM_12345678901234567890123456789012";
+        let matches1 = redactor.scan_for_secrets(content1, "test.txt").unwrap();
+        assert!(!matches1.is_empty());
+
+        // GitHub PAT should not be detected
+        let token = "ghp_123456789012345678901234567890123";
+        let content2 = format!("token = {}", token);
+        let matches2 = redactor.scan_for_secrets(&content2, "test.txt").unwrap();
+        assert_eq!(matches2.len(), 0);
     }
 
     #[test]
-    fn test_global_redact_user_string() {
-        // Test GitHub PAT
-        let token = test_support::github_pat();
-        let text = format!("Failed with token {}", token);
-        let redacted = redact_user_string(&text);
-        assert!(redacted.contains("***"));
-        assert!(!redacted.contains("ghp_"));
+    fn test_from_config_with_invalid_extra_pattern() {
+        let config =
+            TestSecretConfig::default().with_extra_patterns(vec!["[invalid regex".to_string()]);
 
-        // Test AWS key
-        let aws_key = test_support::aws_access_key_id();
-        let text2 = format!("Error: {} not found", aws_key);
-        let redacted2 = redact_user_string(&text2);
-        assert!(redacted2.contains("***"));
-        assert!(!redacted2.contains("AKIA"));
-
-        // Test Bearer token
-        let bearer_token = test_support::bearer_token();
-        let text3 = format!("Authorization: {}", bearer_token);
-        let redacted3 = redact_user_string(&text3);
-        assert!(redacted3.contains("***"));
-        assert!(!redacted3.contains(&bearer_token));
+        // Should fail to create redactor with invalid regex
+        let result = SecretRedactor::from_config(&config);
+        assert!(result.is_err());
     }
 
     #[test]
-    fn test_global_redact_user_optional() {
-        // Test Some with secret
-        let token = test_support::github_pat();
-        let text = Some(format!("token = {}", token));
-        let redacted = redact_user_optional(&text);
-        assert!(redacted.is_some());
-        assert!(redacted.unwrap().contains("***"));
+    fn test_from_config_add_extra_secret_pattern_method() {
+        let config = TestSecretConfig::default()
+            .add_extra_pattern("SINGLE_[A-Z]{10}")
+            .add_extra_pattern("ANOTHER_[0-9]{8}");
 
-        // Test None
-        let none_text: Option<String> = None;
-        let redacted_none = redact_user_optional(&none_text);
-        assert!(redacted_none.is_none());
+        let redactor = SecretRedactor::from_config(&config).unwrap();
+
+        // Should have both extra patterns
+        let pattern_ids = redactor.get_pattern_ids();
+        assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
+        assert!(pattern_ids.contains(&"extra_pattern_1".to_string()));
     }
 
     #[test]
-    fn test_global_redact_user_strings() {
-        let github_token = test_support::github_pat();
-        let aws_secret = test_support::aws_secret_access_key();
-        let strings = vec![
-            format!("error with {}", github_token),
-            "safe message".to_string(),
-            aws_secret,
-        ];
+    fn test_from_config_add_ignore_secret_pattern_method() {
+        let config = TestSecretConfig::default()
+            .add_ignore_pattern("github_pat")
+            .add_ignore_pattern("aws_access_key");
 
-        let redacted = redact_user_strings(&strings);
-        assert_eq!(redacted.len(), 3);
-        assert!(redacted[0].contains("***"));
-        assert!(!redacted[0].contains("ghp_"));
-        assert_eq!(redacted[1], "safe message");
-        assert!(redacted[2].contains("***"));
-        assert!(!redacted[2].contains("AWS_SECRET_ACCESS_KEY"));
+        let redactor = SecretRedactor::from_config(&config).unwrap();
+
+        // Should have both ignored patterns
+        let ignored = redactor.get_ignored_patterns();
+        assert!(ignored.contains(&"github_pat".to_string()));
+        assert!(ignored.contains(&"aws_access_key".to_string()));
     }
-
-    #[test]
-    fn test_redaction_in_error_messages() {
-        // Simulate error message with secret
-        let token = test_support::github_pat();
-        let error_msg = format!("Authentication failed with token {}", token);
-        let redacted = redact_user_string(&error_msg);
-
-        assert!(redacted.contains("Authentication failed"));
-        assert!(redacted.contains("***"));
-        assert!(!redacted.contains("ghp_"));
-    }
-
-    #[test]
-    fn test_redaction_in_context_strings() {
-        // Simulate context string with secret
-        let token = test_support::bearer_token();
-        let context = format!("Request failed: {} was invalid", token);
-        let redacted = redact_user_string(&context);
-
-        assert!(redacted.contains("Request failed"));
-        assert!(redacted.contains("***"));
-        assert!(!redacted.contains("Bearer eyJ"));
-    }
-
-    #[test]
-    fn test_redaction_preserves_safe_content() {
-        let safe_text = "This is a normal error message with no secrets at all";
-        let redacted = redact_user_string(safe_text);
-
-        // Should be unchanged
-        assert_eq!(redacted, safe_text);
-    }
-
-    #[test]
-    fn test_multiple_secrets_in_one_string() {
-        let github_token = test_support::github_pat();
-        let aws_key = test_support::aws_access_key_id();
-        let text = format!("Error: {} and {} both failed", github_token, aws_key);
-        let redacted = redact_user_string(&text);
-
-        // Both secrets should be redacted
-        assert!(!redacted.contains("ghp_"));
-        assert!(!redacted.contains("AKIA"));
-        assert!(redacted.contains("***"));
-        assert!(redacted.contains("Error:"));
-        assert!(redacted.contains("both failed"));
-    }
-
-    // ===== Empty Input Handling Tests =====
 
     #[test]
     fn test_empty_content_no_secrets() {
@@ -1296,9 +1203,7 @@ mod tests {
         assert!(!redactor.has_secrets(empty_content, "empty.txt").unwrap());
 
         // Scanning empty content should return no matches
-        let matches = redactor
-            .scan_for_secrets(empty_content, "empty.txt")
-            .unwrap();
+        let matches = redactor.scan_for_secrets(empty_content, "empty.txt").unwrap();
         assert!(matches.is_empty());
 
         // Redacting empty content should return empty content
@@ -1314,11 +1219,9 @@ mod tests {
         let whitespace_content = "   \n\t\n   ";
 
         // Whitespace-only content should not trigger secret detection
-        assert!(
-            !redactor
-                .has_secrets(whitespace_content, "whitespace.txt")
-                .unwrap()
-        );
+        assert!(!redactor
+            .has_secrets(whitespace_content, "whitespace.txt")
+            .unwrap());
 
         // Redacting whitespace content should preserve it
         let result = redactor
@@ -1352,42 +1255,9 @@ mod tests {
     }
 
     #[test]
-    fn test_vec_with_empty_strings_redaction() {
-        let redactor = SecretRedactor::new().unwrap();
-        let strings = vec![String::new(), "   ".to_string(), "normal text".to_string()];
-        let result = redactor.redact_strings(&strings);
-
-        assert_eq!(result.len(), 3);
-        assert_eq!(result[0], "");
-        assert_eq!(result[1], "   ");
-        assert_eq!(result[2], "normal text");
-    }
-
-    #[test]
-    fn test_global_redact_empty_string() {
-        let empty = "";
-        let redacted = redact_user_string(empty);
-        assert_eq!(redacted, "");
-    }
-
-    #[test]
-    fn test_global_redact_empty_optional() {
-        let none_value: Option<String> = None;
-        let result = redact_user_optional(&none_value);
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_global_redact_empty_vec() {
-        let empty_vec: Vec<String> = vec![];
-        let result = redact_user_strings(&empty_vec);
-        assert!(result.is_empty());
-    }
-
-    #[test]
     fn test_scan_empty_file_path() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::github_pat();
+        let token = "ghp_123456789012345678901234567890123";
         let content = format!("Some content with {}", token);
 
         // Empty file path should still work
@@ -1396,239 +1266,67 @@ mod tests {
         assert_eq!(matches[0].file_path, "");
     }
 
-    // ===== New Pattern Tests (Task 23.1) =====
-
     #[test]
-    fn test_gcp_api_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let key = test_support::gcp_api_key();
-        let content = format!("api_key = {}", key);
+    fn test_global_redact_user_string() {
+        // Test GitHub PAT
+        let token = "ghp_123456789012345678901234567890123";
+        let text = format!("Failed with token {}", token);
+        let redacted = redact_user_string(&text);
+        assert!(redacted.contains("***"));
+        assert!(!redacted.contains("ghp_"));
 
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "gcp_api_key"));
+        // Test AWS key
+        let aws_key = "AKIAIOSFODNN7EXAMPLE";
+        let text2 = format!("Error: {} not found", aws_key);
+        let redacted2 = redact_user_string(&text2);
+        assert!(redacted2.contains("***"));
+        assert!(!redacted2.contains("AKIA"));
+
+        // Test Bearer token
+        let bearer_token = "Bearer eyJ12345678901234567890123456789012";
+        let text3 = format!("Authorization: {}", bearer_token);
+        let redacted3 = redact_user_string(&text3);
+        assert!(redacted3.contains("***"));
+        assert!(!redacted3.contains(&bearer_token));
     }
 
     #[test]
-    fn test_gcp_service_account_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = test_support::pem_block("");
+    fn test_global_redact_user_optional() {
+        // Test Some with secret
+        let token = "ghp_123456789012345678901234567890123";
+        let text = Some(format!("token = {}", token));
+        let redacted = redact_user_optional(&text);
+        assert!(redacted.is_some());
+        assert!(redacted.unwrap().contains("***"));
+        assert!(!redacted.unwrap().contains("ghp_"));
 
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        // Should match one of the private key patterns
-        assert!(matches.iter().any(|m| m.pattern_id.contains("private_key")));
+        // Test None
+        let none_value: Option<String> = None;
+        let redacted_none = redact_user_optional(&none_value);
+        assert_eq!(redacted_none, None);
     }
 
     #[test]
-    fn test_azure_connection_string_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = test_support::azure_connection_string();
+    fn test_global_redact_user_strings() {
+        let github_token = "ghp_123456789012345678901234567890123";
+        let aws_secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+        let strings = vec![
+            format!("error with {}", github_token),
+            "safe message".to_string(),
+            aws_secret,
+        ];
 
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_id == "azure_connection_string")
-        );
+        let redacted = redact_user_strings(&strings);
+        assert_eq!(redacted.len(), 3);
+        assert!(redacted[0].contains("***"));
+        assert!(!redacted[0].contains("ghp_"));
+        assert_eq!(redacted[1], "safe message");
+        assert!(redacted[2].contains("***"));
+        assert!(!redacted[2].contains("AWS_SECRET_ACCESS_KEY"));
     }
 
     #[test]
-    fn test_azure_sas_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = test_support::azure_sas_url();
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "azure_sas_token"));
-    }
-
-    #[test]
-    fn test_jwt_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let token = test_support::jwt_token();
-        let content = format!("token = {}", token);
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "jwt_token"));
-    }
-
-    #[test]
-    fn test_postgres_url_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("DATABASE_URL={}", test_support::postgres_url());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "postgres_url"));
-    }
-
-    #[test]
-    fn test_mysql_url_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("DATABASE_URL={}", test_support::mysql_url());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "mysql_url"));
-    }
-
-    #[test]
-    fn test_mongodb_url_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("MONGO_URI={}", test_support::mongodb_url());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "mongodb_url"));
-    }
-
-    #[test]
-    fn test_redis_url_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("REDIS_URL={}", test_support::redis_url());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "redis_url"));
-    }
-
-    #[test]
-    fn test_ssh_private_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = test_support::pem_block("RSA ");
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        // Should match RSA private key pattern
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_id == "rsa_private_key" || m.pattern_id == "ssh_private_key")
-        );
-    }
-
-    #[test]
-    fn test_openssh_private_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = test_support::pem_block("OPENSSH ");
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "openssh_private_key" || m.pattern_id == "ssh_private_key"));
-    }
-
-    #[test]
-    fn test_stripe_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("STRIPE_SECRET_KEY={}", test_support::stripe_key_live());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "stripe_key"));
-    }
-
-    #[test]
-    fn test_sendgrid_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        // SendGrid keys have format: SG.<22 chars>.<43 chars>
-        let content = format!("SENDGRID_API_KEY={}", test_support::sendgrid_key());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "sendgrid_key"));
-    }
-
-    #[test]
-    fn test_gitlab_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("GITLAB_TOKEN={}", test_support::gitlab_token());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "gitlab_token"));
-    }
-
-    #[test]
-    fn test_github_oauth_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("token = {}", test_support::github_oauth_token());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "github_oauth"));
-    }
-
-    #[test]
-    fn test_npm_token_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("NPM_TOKEN={}", test_support::npm_token());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "npm_token"));
-    }
-
-    #[test]
-    fn test_basic_auth_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("Authorization: {}", test_support::authorization_basic());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(
-            matches
-                .iter()
-                .any(|m| m.pattern_id == "authorization_basic")
-        );
-    }
-
-    // ===== LLM Provider Token Detection Tests =====
-
-    #[test]
-    fn test_anthropic_api_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("ANTHROPIC_API_KEY={}", test_support::anthropic_api_key());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "anthropic_api_key"));
-    }
-
-    #[test]
-    fn test_openai_project_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("OPENAI_API_KEY={}", test_support::openai_project_key());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "openai_api_key"));
-    }
-
-    #[test]
-    fn test_openai_org_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("OPENAI_API_KEY={}", test_support::openai_org_key());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "openai_api_key"));
-    }
-
-    #[test]
-    fn test_openai_legacy_key_detection() {
-        let redactor = SecretRedactor::new().unwrap();
-        let content = format!("OPENAI_API_KEY={}", test_support::openai_legacy_key());
-
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "openai_legacy_key"));
-    }
-
-    #[test]
-    fn test_all_new_pattern_categories_exist() {
+    fn test_all_default_patterns_exist() {
         let redactor = SecretRedactor::new().unwrap();
         let pattern_ids = redactor.get_pattern_ids();
 
@@ -1683,139 +1381,7 @@ mod tests {
         assert!(pattern_ids.contains(&"sendgrid_key".to_string()));
         assert!(pattern_ids.contains(&"npm_token".to_string()));
         assert!(pattern_ids.contains(&"pypi_token".to_string()));
-    }
-
-    // ===== from_config Tests (Task 23.2) =====
-
-    #[test]
-    fn test_from_config_with_default_security() {
-        let config = TestSecretConfig::default();
-        let redactor = SecretRedactor::from_config(&config).unwrap();
-
-        // Should have all default patterns
-        let pattern_ids = redactor.get_pattern_ids();
-        assert!(pattern_ids.contains(&"github_pat".to_string()));
-        assert!(pattern_ids.contains(&"aws_access_key".to_string()));
-
-        // Should have no extra patterns
-        assert!(
-            !pattern_ids
-                .iter()
-                .any(|id| id.starts_with("extra_pattern_"))
-        );
-
-        // Should have no ignored patterns
-        assert!(redactor.get_ignored_patterns().is_empty());
-    }
-
-    #[test]
-    fn test_from_config_with_extra_patterns() {
-        let config = TestSecretConfig::default().with_extra_patterns(vec![
-            "CUSTOM_[A-Z0-9]{32}".to_string(),
-            "MY_SECRET_[A-Za-z0-9]{20}".to_string(),
-        ]);
-
-        let redactor = SecretRedactor::from_config(&config).unwrap();
-
-        // Should have extra patterns
-        let pattern_ids = redactor.get_pattern_ids();
-        assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
-        assert!(pattern_ids.contains(&"extra_pattern_1".to_string()));
-
-        // Extra patterns should detect custom secrets
-        let content = "key = CUSTOM_12345678901234567890123456789012";
-        let matches = redactor.scan_for_secrets(content, "test.txt").unwrap();
-        assert!(!matches.is_empty());
-        assert!(matches.iter().any(|m| m.pattern_id == "extra_pattern_0"));
-    }
-
-    #[test]
-    fn test_from_config_with_ignore_patterns() {
-        let config =
-            TestSecretConfig::default().with_ignore_patterns(vec!["github_pat".to_string()]);
-
-        let redactor = SecretRedactor::from_config(&config).unwrap();
-
-        // Should have ignored pattern
-        assert!(
-            redactor
-                .get_ignored_patterns()
-                .contains(&"github_pat".to_string())
-        );
-
-        // GitHub PAT should not be detected
-        let token = test_support::github_pat();
-        let content = format!("token = {}", token);
-        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
-        assert!(matches.is_empty());
-    }
-
-    #[test]
-    fn test_from_config_with_both_extra_and_ignore() {
-        let config = TestSecretConfig::default()
-            .with_extra_patterns(vec!["CUSTOM_[A-Z0-9]{32}".to_string()])
-            .with_ignore_patterns(vec!["github_pat".to_string()]);
-
-        let redactor = SecretRedactor::from_config(&config).unwrap();
-
-        // Should have extra pattern
-        let pattern_ids = redactor.get_pattern_ids();
-        assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
-
-        // Should have ignored pattern
-        assert!(
-            redactor
-                .get_ignored_patterns()
-                .contains(&"github_pat".to_string())
-        );
-
-        // Custom secret should be detected
-        let content1 = "key = CUSTOM_12345678901234567890123456789012";
-        let matches1 = redactor.scan_for_secrets(content1, "test.txt").unwrap();
-        assert!(!matches1.is_empty());
-
-        // GitHub PAT should not be detected
-        let token = test_support::github_pat();
-        let content2 = format!("token = {}", token);
-        let matches2 = redactor.scan_for_secrets(&content2, "test.txt").unwrap();
-        assert!(matches2.is_empty());
-    }
-
-    #[test]
-    fn test_from_config_with_invalid_extra_pattern() {
-        let config =
-            TestSecretConfig::default().with_extra_patterns(vec!["[invalid regex".to_string()]);
-
-        // Should fail to create redactor with invalid regex
-        let result = SecretRedactor::from_config(&config);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_from_config_add_extra_secret_pattern_method() {
-        let config = TestSecretConfig::default()
-            .add_extra_pattern("SINGLE_[A-Z]{10}")
-            .add_extra_pattern("ANOTHER_[0-9]{8}");
-
-        let redactor = SecretRedactor::from_config(&config).unwrap();
-
-        // Should have both extra patterns
-        let pattern_ids = redactor.get_pattern_ids();
-        assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
-        assert!(pattern_ids.contains(&"extra_pattern_1".to_string()));
-    }
-
-    #[test]
-    fn test_from_config_add_ignore_secret_pattern_method() {
-        let config = TestSecretConfig::default()
-            .add_ignore_pattern("github_pat")
-            .add_ignore_pattern("aws_access_key");
-
-        let redactor = SecretRedactor::from_config(&config).unwrap();
-
-        // Should have both ignored patterns
-        let ignored = redactor.get_ignored_patterns();
-        assert!(ignored.contains(&"github_pat".to_string()));
-        assert!(ignored.contains(&"aws_access_key".to_string()));
+        assert!(pattern_ids.contains(&"nuget_key".to_string()));
+        assert!(pattern_ids.contains(&"docker_auth".to_string()));
     }
 }

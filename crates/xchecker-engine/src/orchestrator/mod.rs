@@ -28,7 +28,6 @@ use crate::config::Selectors;
 use crate::error::{PhaseError, XCheckerError};
 use crate::hooks::HooksConfig;
 use crate::receipt::ReceiptManager;
-use crate::redaction::SecretRedactor;
 use crate::types::PhaseId;
 use std::sync::Arc;
 
@@ -108,7 +107,7 @@ pub struct OrchestratorConfig {
     /// Secret redactor built from the effective configuration.
     ///
     /// Used for both secret scanning and final-pass redaction of user-facing output (FR-SEC-19).
-    pub redactor: Arc<SecretRedactor>,
+    pub redactor: Arc<crate::redaction::SecretRedactor>,
     /// Hooks configuration for pre/post phase scripts.
     pub hooks: Option<HooksConfig>,
 }

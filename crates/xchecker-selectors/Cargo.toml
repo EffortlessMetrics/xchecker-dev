@@ -1,0 +1,9 @@
+[package]
+name = "xchecker-selectors"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+globset = "0.4"
+serde = { workspace = true }
+xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }

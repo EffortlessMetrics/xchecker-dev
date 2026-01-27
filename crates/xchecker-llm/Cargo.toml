@@ -6,7 +6,9 @@ publish = false
 
 [dependencies]
 xchecker-utils = { path = "../xchecker-utils" }
+xchecker-runner = { path = "../xchecker-runner", version = "1.0.0" }
 xchecker-config = { path = "../xchecker-config" }
+xchecker-error-redaction = { path = "../xchecker-error-redaction" }
 reqwest = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }

@@ -5,7 +5,7 @@
 //!
 //! Implements FR-OBS-001: Structured logging with tracing support
 
-use crate::redaction::SecretRedactor;
+use xchecker_redaction::SecretRedactor;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};

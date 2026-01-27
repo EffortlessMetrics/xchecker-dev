@@ -265,8 +265,9 @@ pub use xchecker_utils::test_support;
 #[doc(hidden)]
 pub use xchecker_utils::{
     atomic_write, cache, canonicalization, error, exit_codes, lock, logging, paths, process_memory,
-    redaction, ring_buffer, source, spec_id, types,
+    ring_buffer, source, spec_id, types,
 };
+pub use xchecker_redaction as redaction;
 
 #[doc(hidden)]
 pub use xchecker_config as config;

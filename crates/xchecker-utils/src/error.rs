@@ -2040,7 +2040,7 @@ impl XCheckerError {
     /// ```
     #[must_use]
     pub fn display_for_user(&self) -> String {
-        self.display_for_user_with_redactor(crate::redaction::default_redactor())
+        self.display_for_user_with_redactor(xchecker_redaction::default_redactor())
     }
 
     /// Get a user-friendly error message with context and actionable suggestions,
@@ -2048,7 +2048,7 @@ impl XCheckerError {
     #[must_use]
     pub fn display_for_user_with_redactor(
         &self,
-        redactor: &crate::redaction::SecretRedactor,
+        redactor: &xchecker_redaction::SecretRedactor,
     ) -> String {
         let mut output = String::new();
 

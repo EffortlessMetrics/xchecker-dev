@@ -4,7 +4,7 @@
 //! the structured execution of spec generation phases with separated concerns.
 
 use crate::config::Selectors;
-use crate::redaction::SecretRedactor;
+use crate::redaction as redaction;
 use crate::types::PhaseId;
 use anyhow::Result;
 use std::collections::HashMap;
@@ -49,7 +49,7 @@ pub struct PhaseContext {
     ///
     /// This is built once from the effective configuration and threaded through to ensure
     /// configured extra/ignore patterns are applied consistently (FR-SEC-19).
-    pub redactor: Arc<SecretRedactor>,
+    pub redactor: Arc<crate::redaction::SecretRedactor>,
 }
 
 /// A packet of content prepared for Claude CLI consumption

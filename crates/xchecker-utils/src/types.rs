@@ -2,6 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// Re-export lock types for use in status output
+pub use crate::lock::{LockDrift, DriftPair};
+
 /// Phase identifiers for the spec generation workflow.
 ///
 /// `PhaseId` represents the different phases in xchecker's spec generation pipeline.
@@ -517,26 +520,6 @@ pub enum ConfigSource {
     Programmatic,
     /// Built-in default value (lowest precedence).
     Default,
-}
-
-/// Lock drift information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LockDrift {
-    /// Model full name drift
-    pub model_full_name: Option<DriftPair>,
-    /// Claude CLI version drift
-    pub claude_cli_version: Option<DriftPair>,
-    /// Schema version drift
-    pub schema_version: Option<DriftPair>,
-}
-
-/// Drift pair showing locked vs current value
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DriftPair {
-    /// Value from lockfile
-    pub locked: String,
-    /// Current value
-    pub current: String,
 }
 
 /// Pending fixups summary (counts only, no file contents or diffs)

@@ -43,6 +43,7 @@ use thiserror::Error;
 use tokio::io::AsyncWriteExt;
 
 pub use crate::config::{DEFAULT_HOOK_TIMEOUT_SECS, HookConfig, HookType, HooksConfig, OnFail};
+use crate::redaction;
 
 /// Error type for hook execution
 /// Reserved for hooks integration; not wired in v1.0
@@ -495,7 +496,7 @@ pub fn process_hook_result(
         config,
         hook_type,
         phase,
-        crate::redaction::default_redactor(),
+        redaction::default_redactor(),
     )
 }
 
@@ -509,7 +510,7 @@ pub fn process_hook_result_with_redactor(
     config: &HookConfig,
     hook_type: HookType,
     phase: PhaseId,
-    redactor: &crate::redaction::SecretRedactor,
+    redactor: &redaction::SecretRedactor,
 ) -> HookOutcome {
     if result.success {
         return HookOutcome::Success(result);

@@ -5,7 +5,7 @@ use crate::config::Selectors;
 use crate::error::XCheckerError;
 use crate::logging::Logger;
 use crate::phase::{BudgetUsage, Packet};
-use crate::redaction::{SecretRedactor, create_secret_detected_error};
+use crate::redaction::SecretRedactor;
 use crate::types::{FileEvidence, PacketEvidence, Priority};
 use anyhow::{Context, Result};
 use blake3::Hasher;
@@ -514,7 +514,11 @@ impl PacketBuilder {
             let matches = self
                 .redactor
                 .scan_for_secrets(&content, candidate.path.as_ref())?;
-            return Err(create_secret_detected_error(&matches).into());
+            let error_msg = format!("Secret detected: {} potential secret(s) found in content", matches.len());
+            return Err(XCheckerError::SecretDetected {
+                pattern: matches.get(0).map(|m| m.pattern_id.clone()).unwrap_or_else(|| "unknown".to_string()),
+                location: matches.get(0).map(|m| m.file_path.clone()).unwrap_or_else(|| "unknown".to_string()),
+            }.into());
         }
 
         // Calculate pre-redaction hash

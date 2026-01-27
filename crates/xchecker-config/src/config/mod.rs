@@ -16,6 +16,8 @@ pub use builder::ConfigBuilder;
 pub use cli_args::CliArgs;
 pub use model::*;
 pub use selectors::ALWAYS_EXCLUDE_PATTERNS;
+pub use xchecker_prompt_template::PromptTemplate;
+pub use xchecker_selectors::*;
 pub use xchecker_utils::types::ConfigSource;
 
 use crate::error::{ConfigError, XCheckerError};
@@ -98,7 +100,7 @@ impl Config {
     }
 }
 
-impl xchecker_utils::redaction::SecretConfigProvider for Config {
+impl xchecker_redaction::SecretConfigProvider for Config {
     fn extra_secret_patterns(&self) -> &[String] {
         &self.security.extra_secret_patterns
     }
