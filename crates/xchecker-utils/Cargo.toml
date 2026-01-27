@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [features]
-test-utils = ["dep:strum"]
+test-utils = ["dep:strum", "xchecker-lock/test-utils"]
 dev-tools = []
 
 [dependencies]

@@ -3,6 +3,7 @@ use std::io;
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
+pub use xchecker_lock::LockError;
 
 /// Library-level error type with rich context and user-friendly reporting.
 ///
@@ -1395,40 +1396,6 @@ impl UserFriendlyError for FixupError {
             Self::FuzzyMatchFailed { .. } => ErrorCategory::PhaseExecution,
         }
     }
-}
-
-/// Errors related to file locking operations
-#[derive(Error, Debug)]
-pub enum LockError {
-    #[error(
-        "Concurrent execution detected for spec '{spec_id}' (PID {pid}, created {created_ago} ago)"
-    )]
-    ConcurrentExecution {
-        spec_id: String,
-        pid: u32,
-        created_ago: String,
-    },
-
-    #[error(
-        "Stale lock detected for spec '{spec_id}' (PID {pid}, age {age_secs}s). Use --force to override"
-    )]
-    StaleLock {
-        spec_id: String,
-        pid: u32,
-        age_secs: u64,
-    },
-
-    #[error("Lock file is corrupted or invalid: {reason}")]
-    CorruptedLock { reason: String },
-
-    #[error("Failed to acquire lock: {reason}")]
-    AcquisitionFailed { reason: String },
-
-    #[error("Failed to release lock: {reason}")]
-    ReleaseFailed { reason: String },
-
-    #[error("IO error during lock operation: {0}")]
-    Io(#[from] io::Error),
 }
 
 impl UserFriendlyError for LockError {

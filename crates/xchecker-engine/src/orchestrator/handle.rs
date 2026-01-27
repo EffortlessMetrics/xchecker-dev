@@ -511,52 +511,37 @@ impl OrchestratorHandle {
     /// Returns error if status generation fails.
     pub fn status(&self) -> Result<StatusOutput, XCheckerError> {
         use std::collections::BTreeMap;
-        use camino::Utf8PathBuf;
 
-        // Build effective config from orchestrator config
-        let mut effective_config_map: BTreeMap<String, crate::types::ConfigValue> = BTreeMap::new();
+        let mut effective_config: BTreeMap<String, (String, String)> = self
+            .config
+            .full_config
+            .as_ref()
+            .map(|config| config.effective_config().into_iter().collect())
+            .unwrap_or_default();
+
+        // Merge any programmatic overrides (e.g., set_config) without losing source attribution.
         for (key, value) in &self.config.config {
-            effective_config_map.insert(
-                key.clone(),
-                crate::types::ConfigValue {
-                    value: serde_json::json!(value),
-                    source: crate::types::ConfigSource::Programmatic,
-                },
-            );
+            let override_needed = match effective_config.get(key) {
+                Some((existing_value, _)) => existing_value != value,
+                None => true,
+            };
+            if override_needed {
+                effective_config.insert(key.clone(), (value.clone(), "programmatic".to_string()));
+            }
         }
 
-        // Get artifact manager
-        let artifact_manager = self.orchestrator.artifact_manager();
-
-        // Get artifacts
-        let artifacts = artifact_manager.list_artifacts()
-            .map_err(|e| crate::error::XCheckerError::Config(crate::error::ConfigError::DiscoveryFailed {
-                reason: format!("Failed to list artifacts: {}", e),
-            }))?
-            .iter()
-            .map(|artifact_path| {
-                let path = Utf8PathBuf::from_path_buf(std::path::PathBuf::from(artifact_path.clone()))
-                    .unwrap_or_else(|_| Utf8PathBuf::from(artifact_path));
-                crate::types::ArtifactInfo {
-                    path: path.to_string(),
-                    blake3_first8: String::new(),
-                }
+        crate::status::StatusManager::generate_status_internal(
+            self.orchestrator.artifact_manager(),
+            self.orchestrator.receipt_manager(),
+            effective_config,
+            None,
+            None,
+            Some(&self.config.redactor),
+        )
+        .map_err(|e| {
+            XCheckerError::Config(ConfigError::DiscoveryFailed {
+                reason: format!("Failed to generate status: {e}"),
             })
-            .collect::<Vec<_>>();
-
-        Ok(StatusOutput {
-            schema_version: "1".to_string(),
-            emitted_at: chrono::Utc::now(),
-            runner: self.config.config.get("runner_mode").cloned().unwrap_or_else(|| "native".to_string()),
-            runner_distro: self.config.config.get("runner_distro").cloned(),
-            fallback_used: false,
-            canonicalization_version: "yaml-v1,md-v1".to_string(),
-            canonicalization_backend: "jcs-rfc8785".to_string(),
-            artifacts,
-            last_receipt_path: "receipts/latest.json".to_string(),
-            effective_config: effective_config_map,
-            lock_drift: None,
-            pending_fixups: None,
         })
     }
 

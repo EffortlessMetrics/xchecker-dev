@@ -92,7 +92,7 @@ test-utils = ["xchecker-utils/test-utils", "xchecker-engine/test-utils"]
 legacy_claude = ["xchecker-engine/legacy_claude"]
 # Enables dev/test utilities like claude-stub binary (not installed via `cargo install xchecker`)
 # Also enables test-utils for VariantNames derives needed by doc_validation tests
-dev-tools = ["xchecker-utils/dev-tools", "test-utils"]
+dev-tools = ["xchecker-utils/dev-tools", "xchecker-redaction/dev-tools", "test-utils"]
 
 [lib]
 name = "xchecker"

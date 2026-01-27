@@ -928,7 +928,7 @@ mod tests {
         let redactor = SecretRedactor::new().unwrap();
 
         // Test GitHub PAT redaction
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let text = format!("token = {}", token);
         let redacted = redactor.redact_string(&text);
         assert!(redacted.contains("***"));
@@ -951,7 +951,7 @@ mod tests {
     fn test_redact_strings() {
         let redactor = SecretRedactor::new().unwrap();
 
-        let github_token = "ghp_123456789012345678901234567890123";
+        let github_token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let aws_key = "AKIAIOSFODNN7EXAMPLE";
         let strings = vec![
             format!("token = {}", github_token),
@@ -973,12 +973,13 @@ mod tests {
         let redactor = SecretRedactor::new().unwrap();
 
         // Test Some with secret
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let text = Some(format!("token = {}", token));
         let redacted = redactor.redact_optional(&text);
         assert!(redacted.is_some());
-        assert!(redacted.unwrap().contains("***"));
-        assert!(!redacted.unwrap().contains("ghp_"));
+        let redacted = redacted.expect("Expected redacted content");
+        assert!(redacted.contains("***"));
+        assert!(!redacted.contains("ghp_"));
 
         // Test None
         let none_text: Option<String> = None;
@@ -1005,7 +1006,7 @@ mod tests {
         let mut redactor = SecretRedactor::new().unwrap();
         redactor.add_ignored_pattern("github_pat".to_string());
 
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let content = format!("token = {}", token);
         let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
 
@@ -1016,7 +1017,7 @@ mod tests {
     #[test]
     fn test_content_redaction() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let content = format!("token = {}\nother_line = safe", token);
 
         let result = redactor.redact_content(&content, "test.txt").unwrap();
@@ -1031,7 +1032,7 @@ mod tests {
     #[test]
     fn test_safe_context_creation() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let line = format!("prefix_{}_suffix", token);
         let start = line.find(&token).unwrap();
         let end = start + token.len();
@@ -1045,7 +1046,7 @@ mod tests {
     #[test]
     fn test_multiple_secrets_in_content() {
         let redactor = SecretRedactor::new().unwrap();
-        let github_token = "ghp_123456789012345678901234567890123";
+        let github_token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let aws_key = "AKIAIOSFODNN7EXAMPLE";
         let content = format!("github_token = {}\naws_key = {}", github_token, aws_key);
 
@@ -1061,7 +1062,7 @@ mod tests {
     #[test]
     fn test_line_number_accuracy() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let content = format!("line 1\nline 2 with {}\nline 3", token);
 
         let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
@@ -1121,7 +1122,7 @@ mod tests {
             .contains(&"github_pat".to_string()));
 
         // GitHub PAT should not be detected
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let content = format!("token = {}", token);
         let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
         assert_eq!(matches.len(), 0);
@@ -1150,7 +1151,7 @@ mod tests {
         assert!(!matches1.is_empty());
 
         // GitHub PAT should not be detected
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let content2 = format!("token = {}", token);
         let matches2 = redactor.scan_for_secrets(&content2, "test.txt").unwrap();
         assert_eq!(matches2.len(), 0);
@@ -1257,7 +1258,7 @@ mod tests {
     #[test]
     fn test_scan_empty_file_path() {
         let redactor = SecretRedactor::new().unwrap();
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let content = format!("Some content with {}", token);
 
         // Empty file path should still work
@@ -1269,7 +1270,7 @@ mod tests {
     #[test]
     fn test_global_redact_user_string() {
         // Test GitHub PAT
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let text = format!("Failed with token {}", token);
         let redacted = redact_user_string(&text);
         assert!(redacted.contains("***"));
@@ -1293,12 +1294,13 @@ mod tests {
     #[test]
     fn test_global_redact_user_optional() {
         // Test Some with secret
-        let token = "ghp_123456789012345678901234567890123";
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let text = Some(format!("token = {}", token));
         let redacted = redact_user_optional(&text);
         assert!(redacted.is_some());
-        assert!(redacted.unwrap().contains("***"));
-        assert!(!redacted.unwrap().contains("ghp_"));
+        let redacted = redacted.expect("Expected redacted content");
+        assert!(redacted.contains("***"));
+        assert!(!redacted.contains("ghp_"));
 
         // Test None
         let none_value: Option<String> = None;
@@ -1308,8 +1310,9 @@ mod tests {
 
     #[test]
     fn test_global_redact_user_strings() {
-        let github_token = "ghp_123456789012345678901234567890123";
-        let aws_secret = "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+        let github_token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+        let aws_secret =
+            "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY".to_string();
         let strings = vec![
             format!("error with {}", github_token),
             "safe message".to_string(),
@@ -1385,3 +1388,4 @@ mod tests {
         assert!(pattern_ids.contains(&"docker_auth".to_string()));
     }
 }
+

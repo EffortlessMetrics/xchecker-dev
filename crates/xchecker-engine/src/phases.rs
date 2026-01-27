@@ -769,18 +769,24 @@ impl Default for TasksPhase {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use tempfile::TempDir;
 
-    fn create_test_context() -> PhaseContext {
-        PhaseContext {
+    fn create_test_context() -> (PhaseContext, TempDir) {
+        let temp_dir = tempfile::TempDir::new().expect("create temp spec dir");
+        let spec_dir = temp_dir.path().join("spec");
+        std::fs::create_dir_all(&spec_dir).expect("create spec dir");
+
+        let ctx = PhaseContext {
             spec_id: "test-123".to_string(),
-            spec_dir: PathBuf::from("/tmp/test-spec"),
+            spec_dir,
             config: HashMap::new(),
             artifacts: Vec::new(),
             selectors: None,
             strict_validation: false,
             redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
-        }
+        };
+
+        (ctx, temp_dir)
     }
 
     #[test]
@@ -795,7 +801,7 @@ mod tests {
     #[test]
     fn test_requirements_phase_prompt_generation() {
         let phase = RequirementsPhase::new();
-        let ctx = create_test_context();
+        let (ctx, _temp_dir) = create_test_context();
 
         let prompt = phase.prompt(&ctx);
 
@@ -809,7 +815,7 @@ mod tests {
     #[test]
     fn test_requirements_phase_packet_creation() {
         let phase = RequirementsPhase::new();
-        let ctx = create_test_context();
+        let (ctx, _temp_dir) = create_test_context();
 
         let result = phase.make_packet(&ctx);
         assert!(result.is_ok());
@@ -825,7 +831,7 @@ mod tests {
     #[test]
     fn test_requirements_phase_postprocessing() {
         let phase = RequirementsPhase::new();
-        let ctx = create_test_context();
+        let (ctx, _temp_dir) = create_test_context();
 
         let raw_response = r"# Requirements Document
 
@@ -864,7 +870,7 @@ This is a test requirements document.
     #[test]
     fn test_core_yaml_generation() {
         let phase = RequirementsPhase::new();
-        let ctx = create_test_context();
+        let (ctx, _temp_dir) = create_test_context();
 
         let requirements_md = "# Test Requirements\n\nSome requirements content";
         let result = phase.generate_core_yaml(requirements_md, &ctx);
@@ -888,7 +894,7 @@ This is a test requirements document.
     #[test]
     fn test_design_phase_prompt_generation() {
         let phase = DesignPhase::new();
-        let ctx = create_test_context();
+        let (ctx, _temp_dir) = create_test_context();
 
         let prompt = phase.prompt(&ctx);
 
@@ -911,7 +917,7 @@ This is a test requirements document.
     #[test]
     fn test_tasks_phase_prompt_generation() {
         let phase = TasksPhase::new();
-        let ctx = create_test_context();
+        let (ctx, _temp_dir) = create_test_context();
 
         let prompt = phase.prompt(&ctx);
 
@@ -924,22 +930,28 @@ This is a test requirements document.
 
     // ===== Strict Validation Phase Behavior Tests (P1 feature) =====
 
-    fn create_strict_context() -> PhaseContext {
-        PhaseContext {
+    fn create_strict_context() -> (PhaseContext, TempDir) {
+        let temp_dir = tempfile::TempDir::new().expect("create temp spec dir");
+        let spec_dir = temp_dir.path().join("spec");
+        std::fs::create_dir_all(&spec_dir).expect("create spec dir");
+
+        let ctx = PhaseContext {
             spec_id: "test-strict".to_string(),
-            spec_dir: PathBuf::from("/tmp/test-spec"),
+            spec_dir,
             config: HashMap::new(),
             artifacts: Vec::new(),
             selectors: None,
             strict_validation: true,
             redactor: std::sync::Arc::new(crate::redaction::SecretRedactor::default()),
-        }
+        };
+
+        (ctx, temp_dir)
     }
 
     #[test]
     fn test_requirements_postprocess_soft_mode_allows_invalid_output() {
         let phase = RequirementsPhase::new();
-        let ctx = create_test_context(); // strict_validation: false
+        let (ctx, _temp_dir) = create_test_context(); // strict_validation: false
 
         // Invalid output with meta-summary
         let raw_response = "I've created a requirements document for you.";
@@ -952,7 +964,7 @@ This is a test requirements document.
     #[test]
     fn test_requirements_postprocess_strict_mode_fails_on_meta_summary() {
         let phase = RequirementsPhase::new();
-        let ctx = create_strict_context(); // strict_validation: true
+        let (ctx, _temp_dir) = create_strict_context(); // strict_validation: true
 
         // Invalid output with meta-summary
         let raw_response = "I've created a requirements document for you.";
@@ -965,7 +977,7 @@ This is a test requirements document.
     #[test]
     fn test_design_postprocess_soft_mode_allows_invalid_output() {
         let phase = DesignPhase::new();
-        let ctx = create_test_context(); // strict_validation: false
+        let (ctx, _temp_dir) = create_test_context(); // strict_validation: false
 
         // Invalid output with meta-summary
         let raw_response = "Here is the design document I generated.";
@@ -978,7 +990,7 @@ This is a test requirements document.
     #[test]
     fn test_design_postprocess_strict_mode_fails_on_meta_summary() {
         let phase = DesignPhase::new();
-        let ctx = create_strict_context(); // strict_validation: true
+        let (ctx, _temp_dir) = create_strict_context(); // strict_validation: true
 
         // Invalid output with meta-summary
         let raw_response = "Here is the design document I generated.";
@@ -991,7 +1003,7 @@ This is a test requirements document.
     #[test]
     fn test_tasks_postprocess_soft_mode_allows_invalid_output() {
         let phase = TasksPhase::new();
-        let ctx = create_test_context(); // strict_validation: false
+        let (ctx, _temp_dir) = create_test_context(); // strict_validation: false
 
         // Invalid output with meta-summary
         let raw_response = "I've generated the implementation tasks.";
@@ -1004,7 +1016,7 @@ This is a test requirements document.
     #[test]
     fn test_tasks_postprocess_strict_mode_fails_on_meta_summary() {
         let phase = TasksPhase::new();
-        let ctx = create_strict_context(); // strict_validation: true
+        let (ctx, _temp_dir) = create_strict_context(); // strict_validation: true
 
         // Invalid output with meta-summary
         let raw_response = "I've generated the implementation tasks.";
@@ -1017,7 +1029,7 @@ This is a test requirements document.
     #[test]
     fn test_requirements_postprocess_strict_mode_passes_valid_output() {
         let phase = RequirementsPhase::new();
-        let ctx = create_strict_context(); // strict_validation: true
+        let (ctx, _temp_dir) = create_strict_context(); // strict_validation: true
 
         // Valid requirements document (not a meta-summary, meets minimum length)
         let raw_response = r"# Requirements Document

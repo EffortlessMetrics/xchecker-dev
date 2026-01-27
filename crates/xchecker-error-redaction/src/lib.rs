@@ -97,19 +97,19 @@ pub fn redact_error_message_for_logging(message: &str) -> String {
         .replace_all(&redacted, "[REDACTED_KEY]")
         .to_string();
 
+    // Redact URLs with embedded credentials first to avoid breaking patterns
+    // Pattern: `http://user:pass@host/path` or `https://token123:secret456@host/path`
+    let url_with_creds_regex = regex::Regex::new(r"https?://[a-zA-Z0-9_]+:[^:@\s]+@").unwrap();
+    redacted = url_with_creds_regex
+        .replace_all(&redacted, "[REDACTED]@")
+        .to_string();
+
     // Redact authentication credentials (passwords, tokens)
     if redacted.contains("password") || redacted.contains("token") {
         // Redact common password patterns - simpler regex without character class issues
         let password_regex = regex::Regex::new(r"(?i)(password|pass|token)").unwrap();
         redacted = password_regex.replace_all(&redacted, "***").to_string();
     }
-
-    // Redact URLs with embedded credentials
-    // Pattern: `http://user:pass@host/path` or `https://token123:secret456@host/path`
-    let url_with_creds_regex = regex::Regex::new(r"https?://[a-zA-Z0-9_]+:[^:@\s]+@").unwrap();
-    redacted = url_with_creds_regex
-        .replace_all(&redacted, "[REDACTED]@")
-        .to_string();
 
     // Redact file paths that may contain user-specific data
     // Normalize Windows paths
@@ -149,22 +149,21 @@ pub fn redact_error_message(message: &str) -> String {
 pub fn redact_paths(message: &str) -> String {
     let mut redacted = message.to_string();
 
-    // Redact common path separators
-    redacted = redacted.replace("\\", "[PATH]");
-    redacted = redacted.replace("/", "[PATH]");
-    // Also redact the [PATH] replacement to avoid false matches in drive regex
-    redacted = redacted.replace("[PATH]", "[PATH]");
+    // Redact Unix-style home directories first (e.g., /home/user, /Users/user)
+    let unix_home_regex = regex::Regex::new(r"/(?:home|Users)/[^/\\\\]+").unwrap();
+    redacted = unix_home_regex.replace_all(&redacted, "[HOME]").to_string();
 
-    // Redact Windows drive letters (C:, D:, etc.)
-    // Match drive letter followed by either single or double backslash
-    let drive_regex = regex::Regex::new(r"[A-Za-z]:\\{1,2}").unwrap();
+    // Redact Windows home directories, optionally with a drive letter
+    let win_home_regex = regex::Regex::new(r"(?i)(?:[A-Za-z]:)?\\\\Users\\\\[^\\\\/]+").unwrap();
+    redacted = win_home_regex.replace_all(&redacted, "[HOME]").to_string();
+
+    // Redact Windows drive letters (C:\, D:\, etc.)
+    let drive_regex = regex::Regex::new(r"[A-Za-z]:\\\\").unwrap();
     redacted = drive_regex.replace_all(&redacted, "[DRIVE]").to_string();
 
-    // Redact home directory indicators
-    // Match Users followed by any characters until / or \ or end
-    // Handle both Users\ and Users\\ (with backslash)
-    let home_regex = regex::Regex::new(r"Users(?:\\\\|[^/\\\\]+)[^/\\\\]+").unwrap();
-    redacted = home_regex.replace_all(&redacted, "[HOME]").to_string();
+    // Replace path separators to avoid leaking remaining path structure
+    redacted = redacted.replace("\\", "[PATH]");
+    redacted = redacted.replace("/", "[PATH]");
 
     redacted
 }

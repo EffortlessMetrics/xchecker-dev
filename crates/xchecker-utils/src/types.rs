@@ -161,30 +161,8 @@ impl OutputFormat {
     }
 }
 
-/// Runner modes for cross-platform Claude CLI execution
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum RunnerMode {
-    /// Automatic detection (try native first, then WSL on Windows)
-    Auto,
-    /// Native execution (spawn claude directly)
-    Native,
-    /// WSL execution (use wsl.exe --exec on Windows)
-    Wsl,
-}
-
-impl RunnerMode {
-    /// Convert runner mode to string representation.
-    /// Reserved for future use; CLI uses Display trait instead.
-    #[must_use]
-    #[allow(dead_code)] // Reserved for future use; CLI uses Display trait instead
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Native => "native",
-            Self::Wsl => "wsl",
-        }
-    }
-}
+/// Runner modes for cross-platform Claude CLI execution.
+pub use xchecker_runner::RunnerMode;
 
 /// LLM metadata for receipts (wires ClaudeResponse fields into receipts)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

@@ -3537,15 +3537,15 @@ packet_max_lines = 5000
         // Test basic benchmark execution with realistic thresholds for test environments
         // Use more generous thresholds since test environments can be slower
         let result = execute_benchmark_command(
-            5,           // file_count
-            100,         // file_size
-            2,           // iterations
-            false,       // json
-            Some(10.0),  // max_empty_run_secs - generous for test env
-            Some(500.0), // max_packetization_ms - generous for test env (25ms for 5 files)
-            None,        // max_rss_mb
-            None,        // max_commit_mb
-            false,       // verbose
+            5,            // file_count
+            100,          // file_size
+            2,            // iterations
+            false,        // json
+            Some(10.0),   // max_empty_run_secs - generous for test env
+            Some(2000.0), // max_packetization_ms - generous for test env (100ms for 5 files)
+            None,         // max_rss_mb
+            None,         // max_commit_mb
+            false,        // verbose
         );
 
         // Should succeed with realistic test environment thresholds

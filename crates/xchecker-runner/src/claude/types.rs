@@ -86,7 +86,7 @@ impl ClaudeResponse {
 mod tests {
     use super::{BufferConfig, ClaudeResponse, WslOptions};
     use crate::ndjson::NdjsonResult;
-    use xchecker_utils::types::RunnerMode;
+    use crate::types::RunnerMode;
 
     #[test]
     fn test_wsl_options_default() {

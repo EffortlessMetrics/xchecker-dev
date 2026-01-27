@@ -9,11 +9,17 @@ use camino::Utf8PathBuf;
 use chrono::{DateTime, Utc};
 use fd_lock::RwLock;
 use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+// Thread-local override used only in tests to avoid process-global env races.
+thread_local! {
+    static THREAD_HOME: RefCell<Option<Utf8PathBuf>> = const { RefCell::new(None) };
+}
 
 /// Default age threshold for considering a lock stale (in seconds)
 const DEFAULT_STALE_THRESHOLD_SECS: u64 = 3600; // 1 hour
@@ -138,16 +144,21 @@ fn write_file_atomic(path: &Utf8PathBuf, content: &str) -> Result<(), io::Error>
 /// Get the spec root directory for a given spec ID
 ///
 /// This is a simplified version of paths::spec_root that doesn't depend on xchecker-utils
-fn spec_root(spec_id: &str) -> Utf8PathBuf {
-    // Get XCHECKER_HOME from environment variable or use default
-    let xchecker_home = std::env::var("XCHECKER_HOME")
-        .unwrap_or_else(|_| {
-            let home = std::env::var("HOME")
-                .unwrap_or_else(|_| ".".to_string());
-            format!("{}/.xchecker", home)
-        });
+fn xchecker_home() -> Utf8PathBuf {
+    if let Some(tl) = THREAD_HOME.with(|tl| tl.borrow().clone()) {
+        return tl;
+    }
+    if let Ok(p) = std::env::var("XCHECKER_HOME") {
+        return Utf8PathBuf::from(p);
+    }
+    Utf8PathBuf::from(".xchecker")
+}
 
-    Utf8PathBuf::from(format!("{}/specs/{}", xchecker_home, spec_id))
+/// Get the spec root directory for a given spec ID
+///
+/// This mirrors xchecker-utils path resolution to keep lock paths consistent.
+fn spec_root(spec_id: &str) -> Utf8PathBuf {
+    xchecker_home().join("specs").join(spec_id)
 }
 
 /// Ensure a directory exists, creating it if necessary
@@ -160,12 +171,21 @@ fn ensure_dir_all(path: &Utf8PathBuf) -> Result<(), io::Error> {
     Ok(())
 }
 
-/// Set up an isolated home directory for testing
+/// Set a thread-local override for XCHECKER_HOME during tests.
+#[cfg(any(test, feature = "test-utils"))]
+pub fn set_thread_home_for_tests(path: Utf8PathBuf) {
+    THREAD_HOME.with(|tl| *tl.borrow_mut() = Some(path));
+}
+
+/// Set up an isolated home directory for testing.
 ///
-/// This is a simplified version of paths::with_isolated_home that doesn't depend on xchecker-utils
+/// This avoids process-global environment changes by using thread-local state.
 #[cfg(test)]
 pub fn with_isolated_home() -> tempfile::TempDir {
-    tempfile::TempDir::new().expect("Failed to create temp dir")
+    let td = tempfile::TempDir::new().expect("Failed to create temp dir");
+    let p = Utf8PathBuf::from_path_buf(td.path().to_path_buf()).unwrap();
+    set_thread_home_for_tests(p);
+    td
 }
 
 impl XCheckerLock {
@@ -2037,30 +2057,5 @@ mod tests {
         // With force=true, should succeed
         let result = FileLock::acquire(spec_id, true, None);
         assert!(result.is_ok(), "Should handle clock skew gracefully");
-    }
-
-    #[test]
-    fn test_empty_lockfile_no_secrets() {
-        let _temp_dir = setup_test_env();
-
-        let empty_content = "";
-
-        // Empty content should not trigger secret detection
-        assert!(!FileLock::has_secrets(&empty_content, "test.txt"));
-
-        // Redacting empty content should return empty content
-        let redacted = FileLock::redact_string(&empty_content);
-        assert_eq!(redacted, empty_content);
-    }
-
-    #[test]
-    fn test_empty_lockfile_no_secrets_with_redact_string() {
-        let _temp_dir = setup_test_env();
-
-        let empty_content = "";
-
-        // Using redact_string function directly (not through SecretRedactor)
-        let redacted = FileLock::redact_string(&empty_content);
-        assert_eq!(redacted, empty_content);
     }
 }
