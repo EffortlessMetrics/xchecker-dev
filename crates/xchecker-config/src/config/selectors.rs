@@ -23,9 +23,16 @@ pub const ALWAYS_EXCLUDE_PATTERNS: &[&str] = &[
     "**/*.pem",
     "**/id_rsa",
     "**/id_ed25519",
+    "**/id_dsa",
+    "**/id_ecdsa",
     "**/.ssh/**",
+    "**/.aws/**",
+    "**/.kube/config",
+    "**/.netrc",
     "**/*.pfx",
     "**/*.p12",
+    "**/*.ppk",
+    "**/*.kdbx",
 ];
 
 impl Default for Selectors {
