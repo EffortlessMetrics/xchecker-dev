@@ -4099,7 +4099,6 @@ dependencies = [
  "chrono",
  "clap",
  "dunce",
- "globset",
  "regex",
  "serde",
  "serde_json",
@@ -4114,6 +4113,8 @@ dependencies = [
  "which",
  "xchecker-config",
  "xchecker-llm",
+ "xchecker-packet",
+ "xchecker-receipt",
  "xchecker-redaction",
  "xchecker-runner",
  "xchecker-utils",
@@ -4174,11 +4175,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "xchecker-packet"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "camino",
+ "globset",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "xchecker-config",
+ "xchecker-redaction",
+ "xchecker-utils",
+]
+
+[[package]]
 name = "xchecker-prompt-template"
 version = "1.0.0"
 dependencies = [
  "serde",
  "thiserror 2.0.17",
+ "xchecker-utils",
+]
+
+[[package]]
+name = "xchecker-receipt"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "camino",
+ "chrono",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "tempfile",
+ "xchecker-redaction",
  "xchecker-utils",
 ]
 

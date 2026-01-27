@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use camino::Utf8PathBuf;
 use std::fs;
 
-use crate::atomic_write::write_file_atomic;
-use crate::error::XCheckerError;
-use crate::types::{PhaseId, Receipt};
+use xchecker_utils::atomic_write::write_file_atomic;
+use xchecker_utils::error::XCheckerError;
+use xchecker_utils::types::{PhaseId, Receipt};
 
 use super::ReceiptManager;
 
@@ -12,7 +12,7 @@ impl ReceiptManager {
     /// Write a receipt to disk using atomic operations with JCS canonical JSON
     pub fn write_receipt(&self, receipt: &Receipt) -> Result<Utf8PathBuf> {
         // Ensure receipts directory exists (ignore benign races)
-        crate::paths::ensure_dir_all(&self.receipts_path).with_context(|| {
+        xchecker_utils::paths::ensure_dir_all(&self.receipts_path).with_context(|| {
             format!(
                 "Failed to create receipts directory: {}",
                 self.receipts_path

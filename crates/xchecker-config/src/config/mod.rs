@@ -21,7 +21,7 @@ pub use xchecker_selectors::*;
 pub use xchecker_utils::types::ConfigSource;
 
 use crate::error::{ConfigError, XCheckerError};
-use crate::types::RunnerMode;
+use xchecker_utils::runner::RunnerMode;
 
 impl Config {
     /// Convert runner mode string to enum

@@ -1,6 +1,6 @@
 use camino::Utf8PathBuf;
 
-use crate::canonicalization::Canonicalizer;
+use xchecker_utils::canonicalization::Canonicalizer;
 
 /// Manages receipt creation and storage for phase execution tracking
 pub struct ReceiptManager {

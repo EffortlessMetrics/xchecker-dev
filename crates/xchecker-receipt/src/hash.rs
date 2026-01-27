@@ -1,7 +1,7 @@
 use anyhow::Result;
 
-use crate::error::XCheckerError;
-use crate::types::{FileHash, FileType};
+use xchecker_utils::error::XCheckerError;
+use xchecker_utils::types::{FileHash, FileType};
 
 use super::ReceiptManager;
 

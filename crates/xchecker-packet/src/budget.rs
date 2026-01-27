@@ -1,9 +1,9 @@
 use super::builder::PacketBuilder;
-use crate::atomic_write::write_file_atomic;
-use crate::phase::BudgetUsage;
-use crate::types::FileEvidence;
+use crate::BudgetUsage;
 use anyhow::{Context, Result};
 use camino::Utf8Path;
+use xchecker_utils::atomic_write::write_file_atomic;
+use xchecker_utils::types::FileEvidence;
 
 impl PacketBuilder {
     /// Write packet manifest on overflow (FR-PKT-006)
@@ -18,7 +18,7 @@ impl PacketBuilder {
         use serde_json::json;
 
         // Ensure context directory exists
-        crate::paths::ensure_dir_all(context_dir)
+        xchecker_utils::paths::ensure_dir_all(context_dir)
             .with_context(|| format!("Failed to create context directory: {context_dir}"))?;
 
         let manifest_path =
@@ -56,7 +56,7 @@ impl PacketBuilder {
 
 #[cfg(test)]
 mod tests {
-    use crate::phase::BudgetUsage;
+    use crate::BudgetUsage;
 
     #[test]
     fn test_budget_tracking() {

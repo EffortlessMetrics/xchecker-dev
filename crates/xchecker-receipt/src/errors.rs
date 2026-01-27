@@ -2,15 +2,15 @@ use camino::Utf8PathBuf;
 use chrono::Utc;
 use std::collections::HashMap;
 
-use crate::error::XCheckerError;
-use crate::types::{ErrorKind, PacketEvidence, PhaseId, Receipt};
+use xchecker_utils::error::XCheckerError;
+use xchecker_utils::types::{ErrorKind, PacketEvidence, PhaseId, Receipt};
 
 use super::ReceiptManager;
 
 /// Helper function to convert `XCheckerError` to (`exit_code`, `error_kind`) tuple
 /// This replicates the logic from `exit_codes` module to avoid trait import issues
 pub(super) const fn error_to_exit_code_and_kind(error: &XCheckerError) -> (i32, ErrorKind) {
-    use crate::error::PhaseError;
+    use xchecker_utils::error::PhaseError;
 
     match error {
         // Configuration errors map to CLI_ARGS
@@ -74,7 +74,7 @@ pub fn write_error_receipt_and_exit(
     let error_reason = error.to_string();
 
     // Apply redaction to error reason before persisting
-    let redacted_error_reason = crate::redaction::redact_user_string(&error_reason);
+    let redacted_error_reason = xchecker_redaction::redact_user_string(&error_reason);
 
     // Create receipt manager
     let receipt_manager = ReceiptManager::new(spec_base_path);
@@ -153,7 +153,7 @@ impl ReceiptManager {
         runner: &str,
         runner_distro: Option<String>,
         diff_context: Option<u32>,
-        pipeline: Option<crate::types::PipelineInfo>,
+        pipeline: Option<xchecker_utils::types::PipelineInfo>,
     ) -> Receipt {
         // Get exit code and error kind from the error
         let (exit_code, error_kind) = error_to_exit_code_and_kind(error);

@@ -19,6 +19,8 @@ pub use xchecker_utils::spec_id;
 #[cfg(any(test, feature = "test-utils"))]
 pub use xchecker_utils::test_support;
 pub use xchecker_utils::types;
+pub use xchecker_packet as packet;
+pub use xchecker_receipt as receipt;
 
 pub mod artifact;
 pub mod benchmark;
@@ -32,10 +34,8 @@ pub mod gate;
 pub mod hooks;
 pub mod integration_tests;
 pub mod orchestrator;
-pub mod packet;
 pub mod phase;
 pub mod phases;
-pub mod receipt;
 pub mod status;
 pub mod template;
 pub mod validation;

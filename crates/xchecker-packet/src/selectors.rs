@@ -1,6 +1,6 @@
 use super::model::{CandidateFile, PriorityRules, SelectedFile};
-use crate::config::Selectors;
-use crate::types::Priority;
+use xchecker_config::Selectors;
+use xchecker_utils::types::Priority;
 use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};

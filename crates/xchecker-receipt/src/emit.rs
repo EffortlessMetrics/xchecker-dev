@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use std::collections::HashMap;
 
-use crate::types::{ErrorKind, FileHash, PacketEvidence, PhaseId, Receipt};
+use xchecker_utils::types::{ErrorKind, FileHash, PacketEvidence, PhaseId, Receipt};
 
 use super::ReceiptManager;
 
@@ -43,10 +43,10 @@ impl ReceiptManager {
         error_kind: Option<ErrorKind>,
         error_reason: Option<String>,
         diff_context: Option<u32>,
-        pipeline: Option<crate::types::PipelineInfo>,
+        pipeline: Option<xchecker_utils::types::PipelineInfo>,
     ) -> Receipt {
         self.create_receipt_with_redactor(
-            crate::redaction::default_redactor(),
+            xchecker_redaction::default_redactor(),
             spec_id,
             phase,
             exit_code,
@@ -75,7 +75,7 @@ impl ReceiptManager {
     #[allow(clippy::too_many_arguments)]
     pub fn create_receipt_with_redactor(
         &self,
-        redactor: &crate::redaction::SecretRedactor,
+        redactor: &xchecker_redaction::SecretRedactor,
         spec_id: &str,
         phase: PhaseId,
         exit_code: i32,
@@ -95,7 +95,7 @@ impl ReceiptManager {
         error_kind: Option<ErrorKind>,
         error_reason: Option<String>,
         diff_context: Option<u32>,
-        pipeline: Option<crate::types::PipelineInfo>,
+        pipeline: Option<xchecker_utils::types::PipelineInfo>,
     ) -> Receipt {
         // Sort outputs by path for stable diffs
         let mut sorted_outputs = outputs;

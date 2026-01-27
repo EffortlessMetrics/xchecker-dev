@@ -1,4 +1,4 @@
-use crate::types::Priority;
+use xchecker_utils::types::Priority;
 use camino::Utf8PathBuf;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 

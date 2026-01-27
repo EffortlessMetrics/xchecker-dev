@@ -4,11 +4,11 @@
 //! the structured execution of spec generation phases with separated concerns.
 
 use crate::config::Selectors;
-use crate::redaction as redaction;
 use crate::types::PhaseId;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
+pub use xchecker_packet::{BudgetUsage, Packet};
 
 /// Represents the next step to take after a phase completes
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,116 +50,6 @@ pub struct PhaseContext {
     /// This is built once from the effective configuration and threaded through to ensure
     /// configured extra/ignore patterns are applied consistently (FR-SEC-19).
     pub redactor: Arc<crate::redaction::SecretRedactor>,
-}
-
-/// A packet of content prepared for Claude CLI consumption
-#[derive(Debug, Clone)]
-pub struct Packet {
-    /// The actual content to send to Claude
-    pub content: String,
-    /// BLAKE3 hash of the packet content (after redaction)
-    pub blake3_hash: String,
-    /// Evidence of what went into the packet for auditability
-    pub evidence: crate::types::PacketEvidence,
-    /// Information about budget usage
-    pub budget_used: BudgetUsage,
-}
-
-impl Packet {
-    /// Create a new packet
-    #[must_use]
-    pub const fn new(
-        content: String,
-        blake3_hash: String,
-        evidence: crate::types::PacketEvidence,
-        budget_used: BudgetUsage,
-    ) -> Self {
-        Self {
-            content,
-            blake3_hash,
-            evidence,
-            budget_used,
-        }
-    }
-
-    /// Get the packet content
-    #[must_use]
-    #[allow(dead_code)] // Public API for packet inspection
-    pub fn content(&self) -> &str {
-        &self.content
-    }
-
-    /// Get the packet hash
-    #[must_use]
-    pub fn hash(&self) -> &str {
-        &self.blake3_hash
-    }
-
-    /// Get the packet evidence
-    #[must_use]
-    #[allow(dead_code)] // Public API for evidence inspection
-    pub const fn evidence(&self) -> &crate::types::PacketEvidence {
-        &self.evidence
-    }
-
-    /// Get budget usage information
-    #[must_use]
-    pub const fn budget_usage(&self) -> &BudgetUsage {
-        &self.budget_used
-    }
-
-    /// Check if packet is within budget limits
-    #[must_use]
-    #[allow(dead_code)] // Public API for budget validation
-    pub const fn is_within_budget(&self) -> bool {
-        !self.budget_used.is_exceeded()
-    }
-}
-
-// PacketEvidence and FileEvidence are now defined in types.rs
-
-/// Information about packet budget usage
-#[derive(Debug, Clone)]
-pub struct BudgetUsage {
-    /// Current bytes used
-    pub bytes_used: usize,
-    /// Current lines used
-    pub lines_used: usize,
-    /// Maximum bytes allowed
-    pub max_bytes: usize,
-    /// Maximum lines allowed
-    pub max_lines: usize,
-}
-
-impl BudgetUsage {
-    /// Create a new budget tracker
-    #[must_use]
-    pub const fn new(max_bytes: usize, max_lines: usize) -> Self {
-        Self {
-            bytes_used: 0,
-            lines_used: 0,
-            max_bytes,
-            max_lines,
-        }
-    }
-
-    /// Check if adding content would exceed budget
-    #[must_use]
-    pub const fn would_exceed(&self, bytes: usize, lines: usize) -> bool {
-        self.bytes_used + bytes > self.max_bytes || self.lines_used + lines > self.max_lines
-    }
-
-    /// Add content to budget tracking
-    pub const fn add_content(&mut self, bytes: usize, lines: usize) {
-        self.bytes_used += bytes;
-        self.lines_used += lines;
-    }
-
-    /// Check if budget is exceeded
-    #[must_use]
-    pub const fn is_exceeded(&self) -> bool {
-        self.bytes_used > self.max_bytes || self.lines_used > self.max_lines
-    }
 }
 
 // Re-export artifact types from the artifact module

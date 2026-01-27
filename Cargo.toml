@@ -5,6 +5,8 @@ members = [
     "crates/xchecker-config",
     "crates/xchecker-llm",
     "crates/xchecker-engine",
+    "crates/xchecker-packet",
+    "crates/xchecker-receipt",
     "crates/xchecker-error-reporter",
     "crates/xchecker-tui",
     "crates/xchecker-prompt-template",

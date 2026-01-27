@@ -1,7 +1,7 @@
 use super::builder::PacketBuilder;
-use crate::atomic_write::write_file_atomic;
 use anyhow::{Context, Result};
 use camino::Utf8Path;
+use xchecker_utils::atomic_write::write_file_atomic;
 
 impl PacketBuilder {
     /// Write packet preview to context directory
@@ -13,7 +13,7 @@ impl PacketBuilder {
         context_dir: &Utf8Path,
     ) -> Result<()> {
         // Ensure context directory exists (ignore benign races)
-        crate::paths::ensure_dir_all(context_dir)
+        xchecker_utils::paths::ensure_dir_all(context_dir)
             .with_context(|| format!("Failed to create context directory: {context_dir}"))?;
 
         let preview_path = context_dir.join(format!("{}-packet.txt", phase.to_lowercase()));
@@ -34,7 +34,7 @@ impl PacketBuilder {
         context_dir: &Utf8Path,
     ) -> Result<()> {
         // Ensure context directory exists
-        crate::paths::ensure_dir_all(context_dir)
+        xchecker_utils::paths::ensure_dir_all(context_dir)
             .with_context(|| format!("Failed to create context directory: {context_dir}"))?;
 
         let debug_path = context_dir.join(format!("{}-packet-debug.txt", phase.to_lowercase()));

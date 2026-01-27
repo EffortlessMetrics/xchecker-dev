@@ -1,15 +1,15 @@
 use super::errors::error_to_exit_code_and_kind;
 use super::*;
-use crate::error::XCheckerError;
-use crate::types::PhaseId;
-use crate::types::{ErrorKind, FileHash, FileType, PacketEvidence, Receipt};
+use xchecker_utils::error::XCheckerError;
+use xchecker_utils::types::PhaseId;
+use xchecker_utils::types::{ErrorKind, FileHash, FileType, PacketEvidence, Receipt};
 use chrono::Utc;
 use std::collections::HashMap;
 use tempfile::TempDir;
 
 fn create_test_manager() -> (ReceiptManager, TempDir) {
-    let temp_dir = crate::paths::with_isolated_home();
-    let base_path = crate::paths::xchecker_home()
+    let temp_dir = xchecker_utils::paths::with_isolated_home();
+    let base_path = xchecker_utils::paths::xchecker_home()
         .join("specs")
         .join("test-spec");
 
@@ -1631,7 +1631,7 @@ fn test_receipt_deserialization_with_missing_fields() {
 
 #[test]
 fn test_error_kind_mapping() {
-    use crate::error::XCheckerError;
+    use xchecker_utils::error::XCheckerError;
 
     // Test various error types map to correct exit codes and kinds
     let errors = vec![
