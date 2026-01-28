@@ -117,6 +117,7 @@ fn test_byte_and_line_counting() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
+    std::fs::create_dir_all(&context_dir)?;
 
     // Create a file with known content
     let content = "Line 1\nLine 2\nLine 3\n";
@@ -142,6 +143,7 @@ fn test_limit_enforcement_overflow() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
+    std::fs::create_dir_all(&context_dir)?;
 
     // Create a large upstream file that exceeds budget
     let large_content = "data: value\n".repeat(1000);
@@ -175,6 +177,7 @@ fn test_upstream_non_evictable() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
+    std::fs::create_dir_all(&context_dir)?;
 
     // Create small upstream file and large regular file
     fs::write(base_path.join("small.core.yaml"), "key: value")?;
@@ -211,6 +214,7 @@ fn test_packet_preview_always_written() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
+    std::fs::create_dir_all(&context_dir)?;
 
     fs::write(base_path.join("test.md"), "# Test")?;
 
@@ -233,6 +237,7 @@ fn test_packet_preview_written_on_overflow() -> Result<()> {
     let temp_dir = TempDir::new()?;
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
+    std::fs::create_dir_all(&context_dir)?;
 
     // Create multiple upstream files that fit individually but overflow collectively
     // Each file is 60 bytes, limit is 100 bytes. 60 < 100 (passes file check), but 120 > 100 (fails packet check)
