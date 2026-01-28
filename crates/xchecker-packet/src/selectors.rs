@@ -870,4 +870,38 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_extended_mandatory_security_exclusions() -> Result<()> {
+        let temp_dir = TempDir::new()?;
+        let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
+
+        // Create directory structure for cloud credentials
+        fs::create_dir_all(base_path.join(".aws"))?;
+        fs::create_dir_all(base_path.join(".kube"))?;
+
+        // Create extended sensitive files
+        fs::write(base_path.join(".aws/credentials"), "aws_access_key_id=...")?;
+        fs::write(base_path.join(".kube/config"), "apiVersion: v1...")?;
+        fs::write(base_path.join("private.key"), "PRIVATE KEY")?;
+        fs::write(base_path.join("passwords.kdbx"), "KeePass DB")?;
+        fs::write(base_path.join("auth.p8"), "PRIVATE KEY")?;
+        fs::write(base_path.join("secrets.yaml"), "secret: true")?;
+        fs::write(base_path.join("secrets.yml"), "secret: true")?;
+
+        // Create a safe file
+        fs::write(base_path.join("README.md"), "# Safe")?;
+
+        let selector = ContentSelector::new()?;
+        let files = selector.select_files(&base_path)?;
+
+        // Should only include the README.md
+        assert_eq!(files.len(), 1, "Should include exactly one file");
+        assert!(
+            files[0].path.as_str().contains("README.md"),
+            "Should include README.md"
+        );
+
+        Ok(())
+    }
 }
