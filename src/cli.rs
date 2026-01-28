@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use crossterm::style::{Color, Stylize};
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
@@ -2315,7 +2316,10 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
         std::fs::remove_dir_all(&artifacts_path)
             .with_context(|| format!("Failed to remove artifacts directory: {artifacts_path}"))?;
         removed_count += artifacts.len();
-        println!("✓ Removed artifacts directory");
+        println!(
+            "{} Removed artifacts directory",
+            "✓".with(Color::Green).bold()
+        );
     }
 
     // Remove receipts directory
@@ -2323,14 +2327,20 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
         std::fs::remove_dir_all(&receipts_path)
             .with_context(|| format!("Failed to remove receipts directory: {receipts_path}"))?;
         removed_count += receipts.len();
-        println!("✓ Removed receipts directory");
+        println!(
+            "{} Removed receipts directory",
+            "✓".with(Color::Green).bold()
+        );
     }
 
     // Remove context directory
     if context_path.exists() {
         std::fs::remove_dir_all(&context_path)
             .with_context(|| format!("Failed to remove context directory: {context_path}"))?;
-        println!("✓ Removed context directory");
+        println!(
+            "{} Removed context directory",
+            "✓".with(Color::Green).bold()
+        );
     }
 
     // Remove the spec directory
@@ -2339,22 +2349,34 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
             // With --hard, remove the entire spec directory including any remaining files
             std::fs::remove_dir_all(&base_path)
                 .with_context(|| format!("Failed to remove spec directory: {base_path}"))?;
-            println!("✓ Removed spec directory completely");
+            println!(
+                "{} Removed spec directory completely",
+                "✓".with(Color::Green).bold()
+            );
         } else {
             // Without --hard, only remove if empty
             match std::fs::remove_dir(&base_path) {
                 Ok(()) => {
-                    println!("✓ Removed empty spec directory");
+                    println!(
+                        "{} Removed empty spec directory",
+                        "✓".with(Color::Green).bold()
+                    );
                 }
                 Err(_) => {
                     // Directory not empty, that's fine
-                    println!("✓ Spec directory retained (contains other files)");
+                    println!(
+                        "{} Spec directory retained (contains other files)",
+                        "✓".with(Color::Green).bold()
+                    );
                 }
             }
         }
     }
 
-    println!("\nClean completed successfully.");
+    println!(
+        "\n{}",
+        "Clean completed successfully.".with(Color::Green).bold()
+    );
     println!("  Removed {removed_count} files total");
 
     Ok(())
@@ -2886,7 +2908,10 @@ fn execute_gate_command(
 fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Result<()> {
     use crate::lock::XCheckerLock;
 
-    println!("Initializing spec: {spec_id}");
+    println!(
+        "{}",
+        format!("Initializing spec: {spec_id}").with(Color::Cyan).bold()
+    );
 
     // Create spec directory structure
     let spec_dir = PathBuf::from(".xchecker").join("specs").join(spec_id);
@@ -2904,7 +2929,10 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
             println!("  Lockfile already exists: {}", lock_path.display());
 
             if create_lock {
-                println!("  ⚠ Warning: --create-lock specified but lockfile already exists");
+                println!(
+                    "  {} Warning: --create-lock specified but lockfile already exists",
+                    "⚠".with(Color::Yellow).bold()
+                );
                 println!("  To update the lockfile, delete it first and run init again");
             }
 
@@ -2931,10 +2959,23 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
             )
         })?;
 
-        println!("  ✓ Created spec directory: {}", spec_dir.display());
-        println!("  ✓ Created artifacts directory");
-        println!("  ✓ Created receipts directory");
-        println!("  ✓ Created context directory");
+        println!(
+            "  {} Created spec directory: {}",
+            "✓".with(Color::Green).bold(),
+            spec_dir.display()
+        );
+        println!(
+            "  {} Created artifacts directory",
+            "✓".with(Color::Green).bold()
+        );
+        println!(
+            "  {} Created receipts directory",
+            "✓".with(Color::Green).bold()
+        );
+        println!(
+            "  {} Created context directory",
+            "✓".with(Color::Green).bold()
+        );
     }
 
     // Create lockfile if requested
@@ -2952,7 +2993,10 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
         lock.save(spec_id)
             .with_context(|| "Failed to save lockfile")?;
 
-        println!("  ✓ Created lockfile: lock.json");
+        println!(
+            "  {} Created lockfile: lock.json",
+            "✓".with(Color::Green).bold()
+        );
         println!("    Model: {model}");
         println!("    Claude CLI version: {claude_cli_version}");
         println!("    Schema version: 1");
@@ -2966,8 +3010,19 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
         println!("\n  No lockfile created (use --create-lock to pin model and CLI version)");
     }
 
-    println!("\nSpec '{spec_id}' initialized successfully");
+    println!(
+        "\n{}",
+        format!("Spec '{spec_id}' initialized successfully")
+            .with(Color::Green)
+            .bold()
+    );
     println!("  Directory: {}", spec_dir.display());
+
+    println!("\nNext steps:");
+    println!("  1. Create your problem statement:");
+    println!("     echo \"Your problem description\" | xchecker spec {spec_id}");
+    println!("  2. Or resume from existing source:");
+    println!("     xchecker resume {spec_id} --phase requirements");
 
     Ok(())
 }
