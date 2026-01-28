@@ -15,6 +15,9 @@
 //! These tests ensure the multi-provider configuration works correctly
 //! in V14 with claude-cli, gemini-cli, openrouter, and anthropic supported.
 
+use std::env;
+use std::path::Path;
+use tempfile::TempDir;
 use xchecker::config::{CliArgs, Config};
 use xchecker::error::{ConfigError, XCheckerError};
 
@@ -22,131 +25,201 @@ use xchecker::error::{ConfigError, XCheckerError};
 // Update this list and corresponding tests when adding new providers
 const SUPPORTED_PROVIDERS: &[&str] = &["claude-cli", "gemini-cli", "openrouter", "anthropic"];
 
+/// Helper function that creates an isolated workspace with `.xchecker/config.toml`.
+fn with_temp_workspace<F, R>(f: F) -> R
+where
+    F: FnOnce(&Path) -> R,
+{
+    let tmp = TempDir::new().expect("Failed to create temp directory");
+    let root = tmp.path();
+
+    // Create .xchecker directory under root
+    let xchecker_dir = root.join(".xchecker");
+    std::fs::create_dir_all(&xchecker_dir).expect("Failed to create .xchecker directory");
+
+    // Save original XCHECKER_HOME if set
+    let original_home = env::var("XCHECKER_HOME").ok();
+
+    // Set XCHECKER_HOME to the temp workspace
+    unsafe {
+        env::set_var("XCHECKER_HOME", root);
+    }
+
+    // Run the test closure
+    let result = f(root);
+
+    // Restore or remove XCHECKER_HOME
+    unsafe {
+        match original_home {
+            Some(home) => env::set_var("XCHECKER_HOME", home),
+            None => env::remove_var("XCHECKER_HOME"),
+        }
+    }
+
+    // tmp lives until here, ensuring the directory stays alive for the test
+    result
+}
+
+/// Write a config file to the workspace and return the path.
+fn write_config(workspace: &Path, content: &str) -> std::path::PathBuf {
+    let config_path = workspace.join(".xchecker").join("config.toml");
+    std::fs::write(&config_path, content).expect("Failed to write config file");
+    config_path
+}
+
 // ===== Provider Validation Tests =====
 
 #[test]
 fn test_no_provider_set_defaults_to_claude_cli() {
-    // Setup: Create minimal config (no explicit provider set)
-    let cli_args = CliArgs::default();
+    with_temp_workspace(|_workspace| {
+        // Setup: Create minimal config (no explicit provider set)
+        let cli_args = CliArgs::default();
 
-    // Execute: Discover config (which applies defaults and validates)
-    let result = Config::discover(&cli_args);
+        // Execute: Discover config (which applies defaults and validates)
+        let result = Config::discover(&cli_args);
 
-    // Verify: Should succeed and default to claude-cli
-    assert!(
-        result.is_ok(),
-        "Config discovery should succeed with default provider, got: {:?}",
-        result.unwrap_err()
-    );
+        // Verify: Should succeed and default to claude-cli
+        assert!(
+            result.is_ok(),
+            "Config discovery should succeed with default provider, got: {:?}",
+            result.unwrap_err()
+        );
 
-    let config = result.unwrap();
+        let config = result.unwrap();
 
-    // Should have defaulted to "claude-cli"
-    assert_eq!(
-        config.llm.provider,
-        Some("claude-cli".to_string()),
-        "Provider should default to 'claude-cli'"
-    );
+        // Should have defaulted to "claude-cli"
+        assert_eq!(
+            config.llm.provider,
+            Some("claude-cli".to_string()),
+            "Provider should default to 'claude-cli'"
+        );
+    });
 }
 
 #[test]
 fn test_provider_claude_cli_accepted() {
-    // Setup: Create config with explicit claude-cli provider
-    let cli_args = CliArgs {
-        llm_provider: Some("claude-cli".to_string()),
-        ..Default::default()
-    };
+    with_temp_workspace(|_workspace| {
+        // Setup: Create config with explicit claude-cli provider
+        let cli_args = CliArgs {
+            llm_provider: Some("claude-cli".to_string()),
+            ..Default::default()
+        };
 
-    // Execute: Discover config (which validates)
-    let result = Config::discover(&cli_args);
+        // Execute: Discover config (which validates)
+        let result = Config::discover(&cli_args);
 
-    // Verify: Should succeed
-    assert!(
-        result.is_ok(),
-        "claude-cli provider should be accepted during config validation, got: {:?}",
-        result.unwrap_err()
-    );
+        // Verify: Should succeed
+        assert!(
+            result.is_ok(),
+            "claude-cli provider should be accepted during config validation, got: {:?}",
+            result.unwrap_err()
+        );
 
-    let config = result.unwrap();
-    assert_eq!(config.llm.provider, Some("claude-cli".to_string()));
+        let config = result.unwrap();
+        assert_eq!(config.llm.provider, Some("claude-cli".to_string()));
+    });
 }
 
 #[test]
 fn test_provider_gemini_cli_accepted() {
-    // Setup: Create config with gemini-cli provider (supported in V12+)
-    let cli_args = CliArgs {
-        llm_provider: Some("gemini-cli".to_string()),
-        ..Default::default()
-    };
+    with_temp_workspace(|_workspace| {
+        // Setup: Create config with gemini-cli provider (supported in V12+)
+        let cli_args = CliArgs {
+            llm_provider: Some("gemini-cli".to_string()),
+            ..Default::default()
+        };
 
-    // Execute: Try to discover config
-    let result = Config::discover(&cli_args);
+        // Execute: Try to discover config
+        let result = Config::discover(&cli_args);
 
-    // Verify: Should succeed (gemini-cli is now supported)
-    assert!(
-        result.is_ok(),
-        "gemini-cli provider should be accepted in V13.1, got: {:?}",
-        result.as_ref().err()
-    );
+        // Verify: Should succeed (gemini-cli is now supported)
+        assert!(
+            result.is_ok(),
+            "gemini-cli provider should be accepted in V13.1, got: {:?}",
+            result.as_ref().err()
+        );
 
-    let config = result.unwrap();
-    assert_eq!(
-        config.llm.provider,
-        Some("gemini-cli".to_string()),
-        "Provider should be set to gemini-cli"
-    );
+        let config = result.unwrap();
+        assert_eq!(
+            config.llm.provider,
+            Some("gemini-cli".to_string()),
+            "Provider should be set to gemini-cli"
+        );
+    });
 }
 
 #[test]
 fn test_provider_openrouter_accepted() {
-    // Setup: Create config with openrouter provider (supported in V13+)
-    let cli_args = CliArgs {
-        llm_provider: Some("openrouter".to_string()),
-        ..Default::default()
-    };
+    with_temp_workspace(|workspace| {
+        // Setup: Write config file with openrouter provider and model
+        let config_content = r#"
+[llm]
+provider = "openrouter"
 
-    // Execute: Try to discover config
-    let result = Config::discover(&cli_args);
+[llm.openrouter]
+model = "test-model"
+"#;
+        let config_path = write_config(workspace, config_content);
 
-    // Verify: Should succeed (openrouter is now supported)
-    assert!(
-        result.is_ok(),
-        "openrouter provider should be accepted in V13.1, got: {:?}",
-        result.as_ref().err()
-    );
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
 
-    let config = result.unwrap();
-    assert_eq!(
-        config.llm.provider,
-        Some("openrouter".to_string()),
-        "Provider should be set to openrouter"
-    );
+        // Execute: Try to discover config
+        let result = Config::discover(&cli_args);
+
+        // Verify: Should succeed (openrouter is now supported)
+        assert!(
+            result.is_ok(),
+            "openrouter provider should be accepted in V13.1, got: {:?}",
+            result.as_ref().err()
+        );
+
+        let config = result.unwrap();
+        assert_eq!(
+            config.llm.provider,
+            Some("openrouter".to_string()),
+            "Provider should be set to openrouter"
+        );
+    });
 }
 
 #[test]
 fn test_provider_anthropic_accepted() {
-    // Setup: Create config with anthropic provider (supported in V14)
-    let cli_args = CliArgs {
-        llm_provider: Some("anthropic".to_string()),
-        ..Default::default()
-    };
+    with_temp_workspace(|workspace| {
+        // Setup: Write config file with anthropic provider and model
+        let config_content = r#"
+[llm]
+provider = "anthropic"
 
-    // Execute: Try to discover config
-    let result = Config::discover(&cli_args);
+[llm.anthropic]
+model = "test-model"
+"#;
+        let config_path = write_config(workspace, config_content);
 
-    // Verify: Should succeed (anthropic is now supported in V14)
-    assert!(
-        result.is_ok(),
-        "anthropic provider should be accepted in V14, got: {:?}",
-        result.as_ref().err()
-    );
+        let cli_args = CliArgs {
+            config_path: Some(config_path),
+            ..Default::default()
+        };
 
-    let config = result.unwrap();
-    assert_eq!(
-        config.llm.provider,
-        Some("anthropic".to_string()),
-        "Provider should be set to anthropic"
-    );
+        // Execute: Try to discover config
+        let result = Config::discover(&cli_args);
+
+        // Verify: Should succeed (anthropic is now supported in V14)
+        assert!(
+            result.is_ok(),
+            "anthropic provider should be accepted in V14, got: {:?}",
+            result.as_ref().err()
+        );
+
+        let config = result.unwrap();
+        assert_eq!(
+            config.llm.provider,
+            Some("anthropic".to_string()),
+            "Provider should be set to anthropic"
+        );
+    });
 }
 
 #[test]
@@ -154,27 +227,62 @@ fn test_all_supported_providers_are_accepted() {
     // Iterate over the canonical list of supported providers
     // and verify each one is accepted by config validation
     for provider in SUPPORTED_PROVIDERS {
-        let cli_args = CliArgs {
-            llm_provider: Some(provider.to_string()),
-            ..Default::default()
-        };
+        with_temp_workspace(|workspace| {
+            // Write config with provider-specific settings if needed
+            let config_content = match *provider {
+                "openrouter" => format!(
+                    r#"
+[llm]
+provider = "{}"
 
-        let result = Config::discover(&cli_args);
+[llm.{}]
+model = "test-model"
+"#,
+                    provider, provider
+                ),
+                "anthropic" => format!(
+                    r#"
+[llm]
+provider = "{}"
 
-        assert!(
-            result.is_ok(),
-            "Provider '{}' should be accepted during config validation, got: {:?}",
-            provider,
-            result.as_ref().err()
-        );
+[llm.{}]
+model = "test-model"
+"#,
+                    provider, provider
+                ),
+                _ => format!(
+                    r#"
+[llm]
+provider = "{}"
+"#,
+                    provider
+                ),
+            };
 
-        let config = result.unwrap();
-        assert_eq!(
-            config.llm.provider,
-            Some(provider.to_string()),
-            "Provider should be set to '{}'",
-            provider
-        );
+            let config_path = write_config(workspace, &config_content);
+
+            let cli_args = CliArgs {
+                config_path: Some(config_path),
+                ..Default::default()
+            };
+
+            let result = Config::discover(&cli_args);
+
+            assert!(
+                result.is_ok(),
+                "Provider '{}' should be accepted during config validation, got: {:?}",
+                provider,
+                result.as_ref().err()
+            );
+
+            let config = result.unwrap();
+            assert_eq!(
+                config.llm.provider,
+                Some(provider.to_string()),
+                "Provider should be set to '{}'",
+                provider
+            );
+        });
     }
 }
 
