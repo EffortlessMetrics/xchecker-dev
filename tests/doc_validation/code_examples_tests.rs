@@ -881,7 +881,10 @@ fn eval_jq_filter(filter: &str, input: &Value) -> Result<Vec<Value>> {
             continue;
         }
 
-        if let Some(inner) = segment.strip_prefix("select(").and_then(|s| s.strip_suffix(')')) {
+        if let Some(inner) = segment
+            .strip_prefix("select(")
+            .and_then(|s| s.strip_suffix(')'))
+        {
             let mut filtered = Vec::new();
             for value in values {
                 if eval_jq_filter(inner, &value)?.iter().any(is_truthy) {

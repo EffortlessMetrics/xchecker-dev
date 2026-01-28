@@ -127,10 +127,7 @@ fn write_file_atomic(path: &Utf8PathBuf, content: &str) -> Result<(), io::Error>
     fs::create_dir_all(parent)?;
 
     // Create temporary file in the same directory
-    let temp_path = parent.join(format!(
-        ".{}.tmp",
-        path.file_name().unwrap_or("file")
-    ));
+    let temp_path = parent.join(format!(".{}.tmp", path.file_name().unwrap_or("file")));
 
     // Write content to temporary file
     fs::write(&temp_path, content)?;
@@ -490,12 +487,14 @@ impl FileLock {
             })?;
 
             // Sync to disk for crash-resilience (small file, acceptable cost)
-            file_ref.sync_all().map_err(|e| LockError::AcquisitionFailed {
-                reason: format!(
-                    "Failed to sync lock file for spec '{}': {e}",
-                    lock_info.spec_id
-                ),
-            })?;
+            file_ref
+                .sync_all()
+                .map_err(|e| LockError::AcquisitionFailed {
+                    reason: format!(
+                        "Failed to sync lock file for spec '{}': {e}",
+                        lock_info.spec_id
+                    ),
+                })?;
         }
 
         Ok(Self {
@@ -556,11 +555,10 @@ impl FileLock {
                 reason: format!("Failed to read lock file: {e}"),
             })?;
 
-        let lock_info: LockInfo = serde_json::from_str(&lock_content).map_err(|e| {
-            LockError::CorruptedLock {
+        let lock_info: LockInfo =
+            serde_json::from_str(&lock_content).map_err(|e| LockError::CorruptedLock {
                 reason: format!("Failed to parse lock file: {e}"),
-            }
-        })?;
+            })?;
 
         Ok(Some(lock_info))
     }
@@ -625,9 +623,7 @@ impl FileLock {
                 Err(e) => {
                     // IO errors during read might be transient (file being written)
                     if attempt + 1 < MAX_READ_RETRIES {
-                        std::thread::sleep(std::time::Duration::from_millis(
-                            READ_RETRY_DELAY_MS,
-                        ));
+                        std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
                         continue;
                     }
                     return Err(LockError::CorruptedLock {
@@ -639,9 +635,7 @@ impl FileLock {
             // Check for empty content (file exists but not yet written)
             if lock_content.is_empty() {
                 if attempt + 1 < MAX_READ_RETRIES {
-                    std::thread::sleep(std::time::Duration::from_millis(
-                        READ_RETRY_DELAY_MS,
-                    ));
+                    std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
                     continue;
                 }
                 return Err(LockError::CorruptedLock {
@@ -671,9 +665,7 @@ impl FileLock {
 
                     // Only retry if it looks like the file might be mid-write
                     if is_likely_incomplete && attempt + 1 < MAX_READ_RETRIES {
-                        std::thread::sleep(std::time::Duration::from_millis(
-                            READ_RETRY_DELAY_MS,
-                        ));
+                        std::thread::sleep(std::time::Duration::from_millis(READ_RETRY_DELAY_MS));
                         continue;
                     }
 
@@ -1369,8 +1361,8 @@ mod tests {
         let json_content = fs::read_to_string(&lock_path).unwrap();
 
         // Should be valid JSON
-        let parsed: serde_json::Value = serde_json::from_str(&json_content)
-            .expect("Should be valid JSON");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json_content).expect("Should be valid JSON");
 
         // Verify required fields exist
         assert!(parsed.get("schema_version").is_some());
@@ -2020,7 +2012,9 @@ mod tests {
 
         // ConcurrentExecution error should include spec_id
         match result.unwrap_err() {
-            LockError::ConcurrentExecution { spec_id: err_spec, .. } => {
+            LockError::ConcurrentExecution {
+                spec_id: err_spec, ..
+            } => {
                 assert_eq!(err_spec, spec_id);
             }
             other => panic!("Expected ConcurrentExecution error, got: {other:?}"),

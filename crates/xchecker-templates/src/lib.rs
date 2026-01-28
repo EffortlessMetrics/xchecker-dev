@@ -9,9 +9,10 @@
 //! - 4.7.2: `xchecker template init <template> <spec-id>` seeds spec from template
 //! - 4.7.3: Each template has a README describing intended use
 
-use crate::atomic_write::write_file_atomic;
 use anyhow::{Context, Result};
 use camino::Utf8Path;
+use xchecker_utils::atomic_write;
+use xchecker_utils::paths;
 
 /// Built-in template identifiers
 pub const TEMPLATE_FULLSTACK_NEXTJS: &str = "fullstack-nextjs";
@@ -114,7 +115,7 @@ pub fn init_from_template(template_id: &str, spec_id: &str) -> Result<()> {
     })?;
 
     // Create spec directory structure
-    let spec_dir = crate::paths::spec_root(spec_id);
+    let spec_dir = paths::spec_root(spec_id);
     let artifacts_dir = spec_dir.join("artifacts");
     let context_dir = spec_dir.join("context");
     let receipts_dir = spec_dir.join("receipts");
@@ -125,11 +126,11 @@ pub fn init_from_template(template_id: &str, spec_id: &str) -> Result<()> {
     }
 
     // Create directories
-    crate::paths::ensure_dir_all(&artifacts_dir)
+    paths::ensure_dir_all(&artifacts_dir)
         .with_context(|| format!("Failed to create artifacts directory: {}", artifacts_dir))?;
-    crate::paths::ensure_dir_all(&context_dir)
+    paths::ensure_dir_all(&context_dir)
         .with_context(|| format!("Failed to create context directory: {}", context_dir))?;
-    crate::paths::ensure_dir_all(&receipts_dir)
+    paths::ensure_dir_all(&receipts_dir)
         .with_context(|| format!("Failed to create receipts directory: {}", receipts_dir))?;
 
     // Generate template content
@@ -138,12 +139,12 @@ pub fn init_from_template(template_id: &str, spec_id: &str) -> Result<()> {
 
     // Write problem statement to context
     let problem_path = context_dir.join("problem-statement.md");
-    write_file_atomic(&problem_path, &problem_statement)
+    atomic_write::write_file_atomic(&problem_path, &problem_statement)
         .with_context(|| format!("Failed to write problem statement: {}", problem_path))?;
 
     // Write README to spec directory
     let readme_path = spec_dir.join("README.md");
-    write_file_atomic(&readme_path, &readme_content)
+    atomic_write::write_file_atomic(&readme_path, &readme_content)
         .with_context(|| format!("Failed to write README: {}", readme_path))?;
 
     // Create minimal config if .xchecker/config.toml doesn't exist
@@ -419,7 +420,7 @@ fn ensure_minimal_config() -> Result<()> {
 
     // Create .xchecker directory if needed
     if !config_dir.exists() {
-        crate::paths::ensure_dir_all(config_dir)
+        paths::ensure_dir_all(config_dir)
             .with_context(|| format!("Failed to create config directory: {}", config_dir))?;
     }
 
@@ -442,7 +443,7 @@ fn ensure_minimal_config() -> Result<()> {
 # execution_strategy = "controlled"
 "#;
 
-    write_file_atomic(&config_path, config_content)
+    atomic_write::write_file_atomic(&config_path, config_content)
         .with_context(|| format!("Failed to write config file: {}", config_path))?;
 
     Ok(())
@@ -509,13 +510,13 @@ mod tests {
     #[test]
     fn test_init_from_template() {
         // Use isolated home to avoid conflicts
-        let _temp_dir = crate::paths::with_isolated_home();
+        let _temp_dir = paths::with_isolated_home();
 
         let result = init_from_template(TEMPLATE_RUST_MICROSERVICE, "test-rust-service");
         assert!(result.is_ok());
 
         // Verify directories were created
-        let spec_dir = crate::paths::spec_root("test-rust-service");
+        let spec_dir = paths::spec_root("test-rust-service");
         assert!(spec_dir.exists());
         assert!(spec_dir.join("artifacts").exists());
         assert!(spec_dir.join("context").exists());
@@ -528,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_init_from_template_invalid() {
-        let _temp_dir = crate::paths::with_isolated_home();
+        let _temp_dir = paths::with_isolated_home();
 
         let result = init_from_template("invalid-template", "test-spec");
         assert!(result.is_err());
@@ -537,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_init_from_template_already_exists() {
-        let _temp_dir = crate::paths::with_isolated_home();
+        let _temp_dir = paths::with_isolated_home();
 
         // Create first spec
         init_from_template(TEMPLATE_PYTHON_FASTAPI, "existing-spec").unwrap();

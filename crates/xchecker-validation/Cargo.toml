@@ -1,0 +1,10 @@
+[package]
+name = "xchecker-validation"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+regex = { workspace = true }

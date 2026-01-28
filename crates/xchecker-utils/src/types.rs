@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 // Re-export lock types for use in status output
-pub use crate::lock::{LockDrift, DriftPair};
+pub use crate::lock::{DriftPair, LockDrift};
 
 /// Phase identifiers for the spec generation workflow.
 ///

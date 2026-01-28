@@ -3,19 +3,25 @@
 //! Provides preflight checks for Claude CLI availability, runner configuration,
 //! write permissions, and configuration validity.
 
+// Re-export shared types from xchecker-utils
+pub use xchecker_utils::types::{CheckStatus, DoctorCheck, DoctorOutput};
+
+pub mod wsl;
+
 use anyhow::Result;
 use chrono::Utc;
 use std::path::Path;
 
-use crate::config::Config;
-use crate::runner::{CommandSpec, Runner, RunnerMode, WslOptions};
-use crate::wsl;
-pub use xchecker_utils::types::{CheckStatus, DoctorCheck, DoctorOutput};
+use xchecker_config::Config;
+use xchecker_utils::cache;
+use xchecker_utils::logging;
+use xchecker_utils::paths;
+use xchecker_utils::runner::{CommandSpec, Runner, RunnerMode, WslOptions};
 
 /// Doctor command implementation
 pub struct DoctorCommand {
     config: Config,
-    cache: Option<crate::cache::InsightCache>,
+    cache: Option<cache::InsightCache>,
 }
 
 impl DoctorCommand {
@@ -23,20 +29,17 @@ impl DoctorCommand {
     #[must_use]
     pub fn new(config: Config) -> Self {
         // Try to create cache for stats (non-fatal if it fails)
-        let cache_dir = crate::paths::cache_dir();
-        let cache = crate::cache::InsightCache::new(cache_dir).ok();
+        let cache_dir = paths::cache_dir();
+        let cache = cache::InsightCache::new(cache_dir).ok();
 
         Self { config, cache }
     }
 
     /// Create from CLI args (wired from cli module)
     #[allow(dead_code)] // CLI integration point
-    pub fn new_from_cli(
-        cfg: &Config,
-        _matches: &clap::ArgMatches,
-    ) -> Result<Self, crate::error::XCheckerError> {
-        let cache_dir = crate::paths::cache_dir();
-        let cache = crate::cache::InsightCache::new(cache_dir).ok();
+    pub fn new_from_cli(cfg: &Config, _matches: &clap::ArgMatches) -> Result<DoctorCommand> {
+        let cache_dir = paths::cache_dir();
+        let cache = cache::InsightCache::new(cache_dir).ok();
 
         Ok(Self {
             config: cfg.clone(),
@@ -134,7 +137,7 @@ impl DoctorCommand {
 
         // Log cache stats if available (wired into logging)
         if let Some(ref stats) = cache_stats {
-            crate::logging::log_cache_stats(stats);
+            logging::log_cache_stats(stats);
         }
 
         Ok(DoctorOutput {
@@ -517,7 +520,7 @@ impl DoctorCommand {
 
         // Try to create the directory if it doesn't exist (ignore benign races)
         if !xchecker_dir.exists() {
-            match crate::paths::ensure_dir_all(xchecker_dir) {
+            match paths::ensure_dir_all(xchecker_dir) {
                 Ok(()) => {
                     return DoctorCheck {
                         name: "write_permissions".to_string(),
@@ -560,7 +563,7 @@ impl DoctorCommand {
         let xchecker_dir = Path::new(".xchecker");
 
         // Ensure directory exists (ignore benign races)
-        if let Err(e) = crate::paths::ensure_dir_all(xchecker_dir) {
+        if let Err(e) = paths::ensure_dir_all(xchecker_dir) {
             return DoctorCheck {
                 name: "atomic_rename".to_string(),
                 status: CheckStatus::Fail,
@@ -865,7 +868,7 @@ impl DoctorCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::CliArgs;
+    use xchecker_config::CliArgs;
 
     #[test]
     fn test_doctor_output_structure() {
@@ -1055,9 +1058,7 @@ mod tests {
 
     #[test]
     fn test_llm_provider_with_custom_binary() {
-        use tempfile::NamedTempFile;
-
-        let temp_file = NamedTempFile::new().unwrap();
+        let temp_file = tempfile::NamedTempFile::new().unwrap();
         let temp_path = temp_file.path().to_str().unwrap().to_string();
 
         let cli_args = CliArgs {

@@ -1,0 +1,16 @@
+[package]
+name = "xchecker-benchmark"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+xchecker-packet = { path = "../xchecker-packet" }
+anyhow = { workspace = true }
+camino = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }

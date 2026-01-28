@@ -65,7 +65,7 @@ pub struct TasksSummary {
 /// ```ignore
 /// // Note: This doctest is marked ignore due to raw string handling in doc comments.
 /// // See unit tests below for equivalent coverage.
-/// use xchecker_engine::extraction::summarize_requirements;
+/// use xchecker_extraction::summarize_requirements;
 ///
 /// let markdown = "### Requirement 1\n**User Story:** As a user...\n";
 /// let summary = summarize_requirements(markdown);
@@ -110,7 +110,7 @@ pub fn summarize_requirements(markdown: &str) -> RequirementsSummary {
 /// ```ignore
 /// // Note: This doctest is marked ignore due to raw string handling in doc comments.
 /// // See unit tests below for equivalent coverage.
-/// use xchecker_engine::extraction::summarize_design;
+/// use xchecker_extraction::summarize_design;
 ///
 /// let markdown = "## Architecture\n### Component: AuthService\n";
 /// let summary = summarize_design(markdown);
@@ -155,7 +155,7 @@ pub fn summarize_design(markdown: &str) -> DesignSummary {
 /// ```ignore
 /// // Note: This doctest is marked ignore due to raw string handling in doc comments.
 /// // See unit tests below for equivalent coverage.
-/// use xchecker_engine::extraction::summarize_tasks;
+/// use xchecker_extraction::summarize_tasks;
 ///
 /// let markdown = "## Task 1\n- [x] Done\n## Milestone 1\n";
 /// let summary = summarize_tasks(markdown);

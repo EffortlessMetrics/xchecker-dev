@@ -1,6 +1,6 @@
-use xchecker_utils::types::Priority;
 use camino::Utf8PathBuf;
 use globset::{Glob, GlobSet, GlobSetBuilder};
+use xchecker_utils::types::Priority;
 
 /// Priority rules defining the selection order
 /// Order: *.core.yaml (non-evictable) → SPEC/ADR/REPORT → README/SCHEMA → misc

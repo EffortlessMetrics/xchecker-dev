@@ -3,14 +3,15 @@
 //! This module provides benchmarking capabilities to validate that xchecker
 //! meets its performance targets: empty run ≤ 5s, packetization ≤ 200ms for 100 files.
 
-use crate::logging::{Logger, PerformanceMetrics};
-use crate::packet::ContentSelector;
-use crate::process_memory::ProcessMemory;
 use anyhow::Result;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
+
+use xchecker_packet::ContentSelector;
+use xchecker_utils::logging::{Logger, PerformanceMetrics};
+use xchecker_utils::process_memory::ProcessMemory;
 
 /// Benchmark configuration
 #[derive(Debug, Clone)]

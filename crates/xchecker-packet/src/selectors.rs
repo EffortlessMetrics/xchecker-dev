@@ -1,6 +1,4 @@
 use super::model::{CandidateFile, PriorityRules, SelectedFile};
-use xchecker_config::Selectors;
-use xchecker_utils::types::Priority;
 use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
@@ -9,6 +7,8 @@ use std::fs;
 use std::io::Read;
 use std::thread;
 use tracing::warn;
+use xchecker_config::Selectors;
+use xchecker_utils::types::Priority;
 
 // Import centralized security exclusion patterns from xchecker-config
 use xchecker_config::ALWAYS_EXCLUDE_PATTERNS;

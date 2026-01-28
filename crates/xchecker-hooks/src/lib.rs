@@ -32,8 +32,6 @@
 //!   but do not fail the phase.
 //! - `on_fail = "fail"`: A non-zero hook exit code fails the phase with a clear error.
 
-use crate::runner::CommandSpec;
-use crate::types::PhaseId;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -41,9 +39,10 @@ use std::process::Stdio;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::io::AsyncWriteExt;
+use xchecker_runner::CommandSpec;
+use xchecker_utils::types::PhaseId;
 
-pub use crate::config::{DEFAULT_HOOK_TIMEOUT_SECS, HookConfig, HookType, HooksConfig, OnFail};
-use crate::redaction;
+pub use xchecker_config::{DEFAULT_HOOK_TIMEOUT_SECS, HookConfig, HookType, HooksConfig, OnFail};
 
 /// Error type for hook execution
 /// Reserved for hooks integration; not wired in v1.0
@@ -496,7 +495,7 @@ pub fn process_hook_result(
         config,
         hook_type,
         phase,
-        redaction::default_redactor(),
+        xchecker_redaction::default_redactor(),
     )
 }
 
@@ -510,7 +509,7 @@ pub fn process_hook_result_with_redactor(
     config: &HookConfig,
     hook_type: HookType,
     phase: PhaseId,
-    redactor: &redaction::SecretRedactor,
+    redactor: &xchecker_redaction::SecretRedactor,
 ) -> HookOutcome {
     if result.success {
         return HookOutcome::Success(result);

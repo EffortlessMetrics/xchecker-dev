@@ -10,22 +10,22 @@
 //! elements rather than shell strings.
 
 // Declare runner submodules
-pub mod types;
-pub mod error;
-pub mod ring_buffer;
 pub mod claude;
 pub mod command_spec;
+pub mod error;
 pub mod native;
 pub mod ndjson;
 pub mod process;
+pub mod ring_buffer;
+pub mod types;
 pub mod wsl;
 
 // Re-export everything from xchecker-runner submodules
-pub use types::RunnerMode;
-pub use error::RunnerError;
-pub use ring_buffer::RingBuffer;
 pub use claude::{BufferConfig, ClaudeResponse, NdjsonResult, Runner, WslOptions};
 pub use command_spec::CommandSpec;
+pub use error::RunnerError;
 pub use native::NativeRunner;
 pub use process::{ProcessOutput, ProcessRunner};
+pub use ring_buffer::RingBuffer;
+pub use types::RunnerMode;
 pub use wsl::WslRunner;

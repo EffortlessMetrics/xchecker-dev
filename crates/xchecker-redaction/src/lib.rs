@@ -567,7 +567,8 @@ impl SecretRedactor {
                 continue;
             }
 
-            let pattern_matches = self.find_matches_in_content(content, file_path, pattern_id, regex)?;
+            let pattern_matches =
+                self.find_matches_in_content(content, file_path, pattern_id, regex)?;
             matches.extend(pattern_matches);
         }
 
@@ -577,7 +578,8 @@ impl SecretRedactor {
                 continue;
             }
 
-            let pattern_matches = self.find_matches_in_content(content, file_path, pattern_id, regex)?;
+            let pattern_matches =
+                self.find_matches_in_content(content, file_path, pattern_id, regex)?;
             matches.extend(pattern_matches);
         }
 
@@ -614,10 +616,8 @@ impl SecretRedactor {
                 if start < line.len() && end <= line.len() {
                     let before = &line[..start];
                     let after = &line[end..];
-                    let redacted_line = format!(
-                        "{}[REDACTED:{}]{}",
-                        before, secret_match.pattern_id, after
-                    );
+                    let redacted_line =
+                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
 
                     // Replace the line in the content
                     let line_start = content
@@ -1025,7 +1025,7 @@ mod tests {
         assert!(result.has_secrets);
         assert_eq!(result.matches.len(), 1);
         assert!(result.content.contains("[REDACTED:github_pat]"));
-        assert!(!result.content.contains(&token));
+        assert!(!result.content.contains(token));
         assert!(result.content.contains("other_line = safe")); // Safe content preserved
     }
 
@@ -1034,13 +1034,13 @@ mod tests {
         let redactor = SecretRedactor::new().unwrap();
         let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
         let line = format!("prefix_{}_suffix", token);
-        let start = line.find(&token).unwrap();
+        let start = line.find(token).unwrap();
         let end = start + token.len();
         let context = redactor.create_safe_context(&line, start, end);
 
         assert!(context.contains("prefix_"));
         assert!(context.contains("[REDACTED]"));
-        assert!(!context.contains(&token));
+        assert!(!context.contains(token));
     }
 
     #[test]
@@ -1081,9 +1081,11 @@ mod tests {
         assert!(pattern_ids.contains(&"aws_access_key".to_string()));
 
         // Should have no extra patterns
-        assert!(!pattern_ids
-            .iter()
-            .any(|id| id.starts_with("extra_pattern_")));
+        assert!(
+            !pattern_ids
+                .iter()
+                .any(|id| id.starts_with("extra_pattern_"))
+        );
 
         // Should have no ignored patterns
         assert!(redactor.get_ignored_patterns().is_empty());
@@ -1112,14 +1114,17 @@ mod tests {
 
     #[test]
     fn test_from_config_with_ignore_patterns() {
-        let config = TestSecretConfig::default().with_ignore_patterns(vec!["github_pat".to_string()]);
+        let config =
+            TestSecretConfig::default().with_ignore_patterns(vec!["github_pat".to_string()]);
 
         let redactor = SecretRedactor::from_config(&config).unwrap();
 
         // Should have ignored pattern
-        assert!(redactor
-            .get_ignored_patterns()
-            .contains(&"github_pat".to_string()));
+        assert!(
+            redactor
+                .get_ignored_patterns()
+                .contains(&"github_pat".to_string())
+        );
 
         // GitHub PAT should not be detected
         let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
@@ -1141,9 +1146,11 @@ mod tests {
         assert!(pattern_ids.contains(&"extra_pattern_0".to_string()));
 
         // Should have ignored pattern
-        assert!(redactor
-            .get_ignored_patterns()
-            .contains(&"github_pat".to_string()));
+        assert!(
+            redactor
+                .get_ignored_patterns()
+                .contains(&"github_pat".to_string())
+        );
 
         // Custom secret should be detected
         let content1 = "key = CUSTOM_12345678901234567890123456789012";
@@ -1204,7 +1211,9 @@ mod tests {
         assert!(!redactor.has_secrets(empty_content, "empty.txt").unwrap());
 
         // Scanning empty content should return no matches
-        let matches = redactor.scan_for_secrets(empty_content, "empty.txt").unwrap();
+        let matches = redactor
+            .scan_for_secrets(empty_content, "empty.txt")
+            .unwrap();
         assert!(matches.is_empty());
 
         // Redacting empty content should return empty content
@@ -1220,9 +1229,11 @@ mod tests {
         let whitespace_content = "   \n\t\n   ";
 
         // Whitespace-only content should not trigger secret detection
-        assert!(!redactor
-            .has_secrets(whitespace_content, "whitespace.txt")
-            .unwrap());
+        assert!(
+            !redactor
+                .has_secrets(whitespace_content, "whitespace.txt")
+                .unwrap()
+        );
 
         // Redacting whitespace content should preserve it
         let result = redactor
@@ -1288,7 +1299,7 @@ mod tests {
         let text3 = format!("Authorization: {}", bearer_token);
         let redacted3 = redact_user_string(&text3);
         assert!(redacted3.contains("***"));
-        assert!(!redacted3.contains(&bearer_token));
+        assert!(!redacted3.contains(bearer_token));
     }
 
     #[test]
@@ -1388,4 +1399,3 @@ mod tests {
         assert!(pattern_ids.contains(&"docker_auth".to_string()));
     }
 }
-

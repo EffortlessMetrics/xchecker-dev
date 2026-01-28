@@ -83,7 +83,8 @@ pub fn redact_error_message_for_logging(message: &str) -> String {
     // Redact API keys (long alphanumeric strings with common prefixes)
     // Only redact strings that look like actual API keys (with prefixes like sk-, pk_, etc.)
     // Pattern: prefix followed by at least 20 alphanumeric characters
-    let api_key_regex = regex::Regex::new(r"(?:sk-|pk_|api_key|secret|Bearer )[a-zA-Z0-9_-]{20,}").unwrap();
+    let api_key_regex =
+        regex::Regex::new(r"(?:sk-|pk_|api_key|secret|Bearer )[a-zA-Z0-9_-]{20,}").unwrap();
     redacted = api_key_regex
         .replace_all(&redacted, "[REDACTED_KEY]")
         .to_string();

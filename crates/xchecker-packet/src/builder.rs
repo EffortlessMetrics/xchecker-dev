@@ -1,16 +1,16 @@
 use super::model::{CandidateFile, SelectedFile};
 use super::selectors::ContentSelector;
 use crate::{BudgetUsage, Packet};
-use xchecker_config::Selectors;
-use xchecker_redaction::SecretRedactor;
-use xchecker_utils::cache::{calculate_content_hash, InsightCache};
-use xchecker_utils::error::XCheckerError;
-use xchecker_utils::logging::Logger;
-use xchecker_utils::types::{FileEvidence, PacketEvidence, Priority};
 use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use xchecker_config::Selectors;
+use xchecker_redaction::SecretRedactor;
+use xchecker_utils::cache::{InsightCache, calculate_content_hash};
+use xchecker_utils::error::XCheckerError;
+use xchecker_utils::logging::Logger;
+use xchecker_utils::types::{FileEvidence, PacketEvidence, Priority};
 
 /// Default maximum bytes allowed in a packet
 pub const DEFAULT_PACKET_MAX_BYTES: usize = 65536;
@@ -515,9 +515,16 @@ impl PacketBuilder {
                 .redactor
                 .scan_for_secrets(&content, candidate.path.as_ref())?;
             return Err(XCheckerError::SecretDetected {
-                pattern: matches.get(0).map(|m| m.pattern_id.clone()).unwrap_or_else(|| "unknown".to_string()),
-                location: matches.get(0).map(|m| m.file_path.clone()).unwrap_or_else(|| "unknown".to_string()),
-            }.into());
+                pattern: matches
+                    .first()
+                    .map(|m| m.pattern_id.clone())
+                    .unwrap_or_else(|| "unknown".to_string()),
+                location: matches
+                    .first()
+                    .map(|m| m.file_path.clone())
+                    .unwrap_or_else(|| "unknown".to_string()),
+            }
+            .into());
         }
 
         // Calculate pre-redaction hash
@@ -553,9 +560,9 @@ impl PacketBuilder {
 #[cfg(test)]
 mod packet_builder_tests {
     use super::*;
-    use xchecker_utils::test_support;
     use std::fs;
     use tempfile::TempDir;
+    use xchecker_utils::test_support;
 
     #[test]
     fn test_packet_builder_creation() -> Result<()> {

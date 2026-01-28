@@ -1,11 +1,11 @@
 use super::errors::error_to_exit_code_and_kind;
 use super::*;
-use xchecker_utils::error::XCheckerError;
-use xchecker_utils::types::PhaseId;
-use xchecker_utils::types::{ErrorKind, FileHash, FileType, PacketEvidence, Receipt};
 use chrono::Utc;
 use std::collections::HashMap;
 use tempfile::TempDir;
+use xchecker_utils::error::XCheckerError;
+use xchecker_utils::types::PhaseId;
+use xchecker_utils::types::{ErrorKind, FileHash, FileType, PacketEvidence, Receipt};
 
 fn create_test_manager() -> (ReceiptManager, TempDir) {
     let temp_dir = xchecker_utils::paths::with_isolated_home();

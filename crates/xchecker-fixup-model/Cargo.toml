@@ -1,0 +1,12 @@
+[package]
+name = "xchecker-fixup-model"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+camino = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }

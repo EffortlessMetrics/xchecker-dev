@@ -158,8 +158,9 @@ impl StatusManager {
         let mut artifact_hashes: BTreeMap<String, String> = BTreeMap::new();
         for receipt in &receipts {
             for output in &receipt.outputs {
-                if let Some(filename) =
-                    std::path::Path::new(&output.path).file_name().and_then(|s| s.to_str())
+                if let Some(filename) = std::path::Path::new(&output.path)
+                    .file_name()
+                    .and_then(|s| s.to_str())
                 {
                     let short_hash = if output.blake3_canonicalized.len() >= 8 {
                         &output.blake3_canonicalized[..8]
@@ -331,10 +332,19 @@ mod tests {
     #[test]
     fn test_build_effective_config() {
         let mut config_map = BTreeMap::new();
-        config_map.insert("key1".to_string(), ("value1".to_string(), "cli".to_string()));
-        config_map.insert("key2".to_string(), ("value2".to_string(), "config".to_string()));
+        config_map.insert(
+            "key1".to_string(),
+            ("value1".to_string(), "cli".to_string()),
+        );
+        config_map.insert(
+            "key2".to_string(),
+            ("value2".to_string(), "config".to_string()),
+        );
         config_map.insert("key3".to_string(), ("123".to_string(), "env".to_string()));
-        config_map.insert("key4".to_string(), ("true".to_string(), "default".to_string()));
+        config_map.insert(
+            "key4".to_string(),
+            ("true".to_string(), "default".to_string()),
+        );
 
         let result = StatusManager::build_effective_config(config_map, None);
 

@@ -262,12 +262,12 @@ pub fn xchecker_version() -> String {
 #[doc(hidden)]
 pub use xchecker_utils::test_support;
 
+pub use xchecker_redaction as redaction;
 #[doc(hidden)]
 pub use xchecker_utils::{
     atomic_write, cache, canonicalization, error, exit_codes, lock, logging, paths, process_memory,
     ring_buffer, source, spec_id, types,
 };
-pub use xchecker_redaction as redaction;
 
 #[doc(hidden)]
 pub use xchecker_config as config;
@@ -277,9 +277,8 @@ pub use xchecker_llm as llm;
 
 #[doc(hidden)]
 pub use xchecker_engine::{
-    benchmark, doctor, example_generators, extraction, fixup, gate, hooks,
-    integration_tests, orchestrator, packet, phase, phases, receipt, runner, template,
-    validation, workspace, wsl,
+    benchmark, doctor, example_generators, extraction, fixup, gate, hooks, integration_tests,
+    orchestrator, packet, phase, phases, receipt, runner, templates, validation, workspace,
 };
 pub use xchecker_status as status;
 

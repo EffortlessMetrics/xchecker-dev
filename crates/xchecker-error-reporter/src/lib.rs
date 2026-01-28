@@ -4,9 +4,9 @@
 //! errors into user-friendly messages with context and actionable suggestions.
 
 use std::fmt;
+use xchecker_redaction::SecretRedactor;
 use xchecker_utils::error::{ErrorCategory, UserFriendlyError, XCheckerError};
 use xchecker_utils::exit_codes;
-use xchecker_redaction::SecretRedactor;
 
 /// Structured error report with user-friendly formatting
 pub struct ErrorReport<'a> {
@@ -174,8 +174,8 @@ impl ErrorReporter {
 /// Utility functions for common error reporting patterns
 pub mod utils {
     use super::{ErrorCategory, ErrorReport, UserFriendlyError};
-    use xchecker_utils::error::XCheckerError;
     use xchecker_redaction::SecretRedactor;
+    use xchecker_utils::error::XCheckerError;
 
     /// Report an error and exit with appropriate code
     #[allow(dead_code)] // Alternative error reporting utility

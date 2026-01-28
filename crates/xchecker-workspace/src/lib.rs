@@ -8,12 +8,12 @@
 //! - 4.3.1: `xchecker project init <name>` creates workspace registry
 //! - 4.3.6: Workspace discovery searches upward from CWD
 
-use crate::atomic_write::write_file_atomic;
 use anyhow::{Context, Result};
 use camino::Utf8Path;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use xchecker_utils::atomic_write::write_file_atomic;
 
 /// Workspace configuration file name
 pub const WORKSPACE_FILE_NAME: &str = "workspace.yaml";
@@ -223,7 +223,6 @@ pub fn init_workspace(dir: &Path, name: &str) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
 
     #[test]
     fn test_workspace_new() {
@@ -235,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_workspace_save_and_load() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
 
         // Create and save workspace
@@ -272,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_discover_workspace_in_current_dir() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
 
         // Create workspace file
@@ -287,7 +286,7 @@ mod tests {
 
     #[test]
     fn test_discover_workspace_in_parent_dir() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
 
         // Create workspace file in root
@@ -306,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_discover_workspace_not_found() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
 
         // No workspace file exists
         let discovered = discover_workspace(temp_dir.path()).unwrap();
@@ -315,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_discover_workspace_first_found() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
 
         // Create workspace in root
         let root_workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
@@ -337,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_init_workspace() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
 
         let workspace_path = init_workspace(temp_dir.path(), "my-project").unwrap();
         assert!(workspace_path.exists());
@@ -348,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_init_workspace_already_exists() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
 
         // Create first workspace
         init_workspace(temp_dir.path(), "first").unwrap();
@@ -360,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_resolve_workspace_with_override() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = tempfile::TempDir::new().unwrap();
         let workspace_path = temp_dir.path().join(WORKSPACE_FILE_NAME);
 
         // Create workspace

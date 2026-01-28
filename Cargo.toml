@@ -1,6 +1,8 @@
 [workspace]
 members = [
     ".",
+    "crates/xchecker-gate",
+    "crates/xchecker-phase-api",
     "crates/xchecker-utils",
     "crates/xchecker-config",
     "crates/xchecker-llm",
@@ -16,6 +18,11 @@ members = [
     "crates/xchecker-runner",
     "crates/xchecker-lock",
     "crates/xchecker-status",
+    "crates/xchecker-templates",
+    "crates/xchecker-doctor",
+    "crates/xchecker-benchmark",
+    "crates/xchecker-validation",
+    "crates/xchecker-extraction",
 ]
 
 [workspace.dependencies]
@@ -134,10 +141,13 @@ xchecker-utils = { path = "crates/xchecker-utils" }
 xchecker-config = { path = "crates/xchecker-config" }
 xchecker-llm = { path = "crates/xchecker-llm" }
 xchecker-engine = { path = "crates/xchecker-engine" }
+xchecker-gate = { path = "crates/xchecker-gate" }
+xchecker-templates = { path = "crates/xchecker-templates" }
 xchecker-error-reporter = { path = "crates/xchecker-error-reporter" }
 xchecker-tui = { path = "crates/xchecker-tui" }
 xchecker-redaction = { path = "crates/xchecker-redaction" }
 xchecker-status = { path = "crates/xchecker-status" }
+xchecker-doctor = { path = "crates/xchecker-doctor" }
 
 reqwest = { workspace = true }
 tokio = { workspace = true }

@@ -1,0 +1,22 @@
+[package]
+name = "xchecker-hooks"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+xchecker-config = { path = "../xchecker-config" }
+xchecker-runner = { path = "../xchecker-runner" }
+xchecker-redaction = { path = "../xchecker-redaction" }
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+toml = { workspace = true }

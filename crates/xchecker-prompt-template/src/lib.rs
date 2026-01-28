@@ -152,10 +152,26 @@ mod tests {
     #[test]
     fn test_prompt_template_provider_compatibility() {
         // Default template is compatible with all providers
-        assert!(PromptTemplate::Default.validate_provider_compatibility("claude-cli").is_ok());
-        assert!(PromptTemplate::Default.validate_provider_compatibility("gemini-cli").is_ok());
-        assert!(PromptTemplate::Default.validate_provider_compatibility("openrouter").is_ok());
-        assert!(PromptTemplate::Default.validate_provider_compatibility("anthropic").is_ok());
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("claude-cli")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("gemini-cli")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("openrouter")
+                .is_ok()
+        );
+        assert!(
+            PromptTemplate::Default
+                .validate_provider_compatibility("anthropic")
+                .is_ok()
+        );
     }
 
     #[test]

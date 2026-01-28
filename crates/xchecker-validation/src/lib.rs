@@ -3,10 +3,10 @@
 //! This module validates LLM responses to ensure they contain actual document
 //! content rather than meta-commentary or summaries.
 
-pub use crate::error::ValidationError;
-use crate::types::PhaseId;
 use regex::Regex;
 use std::sync::LazyLock;
+use xchecker_utils::error::ValidationError;
+use xchecker_utils::types::PhaseId;
 
 /// Patterns that indicate meta-commentary rather than actual content
 static META_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {

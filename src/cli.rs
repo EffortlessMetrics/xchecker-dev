@@ -2793,7 +2793,7 @@ fn execute_gate_command(
     max_phase_age: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    use crate::gate::{
+    use xchecker_gate::{
         GateCommand, GatePolicy, emit_gate_json, load_policy_from_path, parse_duration,
         parse_phase, resolve_policy_path,
     };
@@ -2817,12 +2817,12 @@ fn execute_gate_command(
     };
 
     if let Some(min_phase) = min_phase {
-        policy.min_phase = parse_phase(min_phase).map_err(|e| {
+        policy.min_phase = Some(parse_phase(min_phase).map_err(|e| {
             XCheckerError::Config(ConfigError::InvalidValue {
                 key: "min_phase".to_string(),
                 value: e.to_string(),
             })
-        })?;
+        })?);
     }
 
     if fail_on_pending_fixups {
@@ -5575,13 +5575,11 @@ fn execute_project_tui_command(workspace_override: Option<&std::path::Path>) -> 
 /// Execute template management commands
 /// Per FR-TEMPLATES (Requirements 4.7.1, 4.7.2, 4.7.3)
 fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
-    use crate::template;
-
     match cmd {
         TemplateCommands::List => {
             println!("Available templates:\n");
 
-            for t in template::list_templates() {
+            for t in xchecker_engine::templates::list_templates() {
                 println!("  {}", t.id);
                 println!("    Name: {}", t.name);
                 println!("    Description: {}", t.description);
@@ -5607,8 +5605,8 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             })?;
 
             // Validate template
-            if !template::is_valid_template(&template) {
-                let valid_templates = template::BUILT_IN_TEMPLATES.join(", ");
+            if !xchecker_engine::templates::is_valid_template(&template) {
+                let valid_templates = xchecker_engine::templates::BUILT_IN_TEMPLATES.join(", ");
                 return Err(XCheckerError::Config(ConfigError::InvalidValue {
                     key: "template".to_string(),
                     value: format!(
@@ -5620,10 +5618,10 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             }
 
             // Initialize from template
-            template::init_from_template(&template, &sanitized_id)?;
+            xchecker_engine::templates::init_from_template(&template, &sanitized_id)?;
 
             // Get template info for display
-            let template_info = template::get_template(&template).unwrap();
+            let template_info = xchecker_engine::templates::get_template(&template).unwrap();
 
             println!(
                 "✓ Initialized spec '{}' from template '{}'",

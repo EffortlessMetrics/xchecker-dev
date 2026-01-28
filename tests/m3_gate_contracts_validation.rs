@@ -18,8 +18,8 @@ use chrono::Utc;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 
-use xchecker::receipt::ReceiptManager;
 use xchecker::emit_jcs;
+use xchecker::receipt::ReceiptManager;
 use xchecker::types::{
     ArtifactInfo, ConfigSource, ConfigValue, FileHash, PacketEvidence, PhaseId, StatusOutput,
 };
