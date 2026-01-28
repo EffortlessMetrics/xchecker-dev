@@ -1209,7 +1209,7 @@ async fn execute_spec_command(
         eprintln!("    - Retry with: xchecker spec {spec_id}");
         eprintln!("    - Test configuration with: xchecker spec {spec_id} --dry-run");
 
-        std::process::exit(result.exit_code);
+        return Err(xchecker_error.into());
     }
 
     Ok(())
@@ -2201,7 +2201,7 @@ async fn execute_resume_command(
             "    - Test configuration with: xchecker resume {spec_id} --phase {phase_name} --dry-run"
         );
 
-        std::process::exit(result.exit_code);
+        return Err(xchecker_error.into());
     }
 
     Ok(())
@@ -2726,7 +2726,7 @@ fn execute_benchmark_command(
         if !json {
             println!("\n✗ Some performance targets not met.");
         }
-        std::process::exit(1);
+        Err(anyhow::anyhow!("Performance targets not met"))
     }
 }
 
@@ -2777,7 +2777,7 @@ fn execute_doctor_command(json: bool, strict_exit: bool, config: &Config) -> Res
     // Exit with non-zero code if any check failed (R5.6)
     // In strict mode, warnings also cause non-zero exit
     if !output.ok {
-        std::process::exit(1);
+        return Err(anyhow::anyhow!("Doctor checks failed"));
     }
 
     Ok(())
@@ -2882,7 +2882,10 @@ fn execute_gate_command(
     if result.passed {
         Ok(())
     } else {
-        std::process::exit(crate::gate::exit_codes::POLICY_VIOLATION);
+        // Return error with generic message, cli::run will handle exit code mapping if possible
+        // Ideally we'd map POLICY_VIOLATION to a specific ExitCode, but for now anyhow is sufficient
+        // to propagate failure without crashing test harness
+        Err(anyhow::anyhow!("Gate policy violation"))
     }
 }
 

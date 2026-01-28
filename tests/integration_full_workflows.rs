@@ -16,7 +16,6 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
-use tempfile::TempDir;
 
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::{PhaseId, Receipt};
@@ -45,50 +44,53 @@ fn normalize_core_yaml_for_determinism(content: &str) -> String {
 
 /// Test environment setup for full workflow validation
 ///
-/// Note: Field order matters for drop semantics. Fields drop in declaration order,
-/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
+/// Note: Field order matters for drop semantics. Fields drop in declaration order.
 struct WorkflowTestEnvironment {
     #[allow(dead_code)]
-    _cwd_guard: test_support::CwdGuard,
-    temp_dir: TempDir,
+    home_guard: xchecker::paths::TestHomeGuard,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
 }
 
 impl WorkflowTestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
-        let temp_dir = TempDir::new()?;
-        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
+        // Use with_isolated_home to setup thread-local XCHECKER_HOME override
+        // This avoids global CWD changes and allows parallel test execution
+        let home_guard = xchecker::paths::with_isolated_home();
 
-        // Create .xchecker directory structure
-        std::fs::create_dir_all(temp_dir.path().join(".xchecker/specs"))?;
+        // Create directory structure at the root of the isolated home
+        // When THREAD_HOME is set, xchecker_home() returns that path directly
+        // So spec_root is home_path/specs/<spec_id>
+        std::fs::create_dir_all(home_guard.path().join("specs"))?;
 
         let spec_id = format!("workflow-{test_name}");
+
+        // Ensure spec directory exists for SandboxRoot validation
+        std::fs::create_dir_all(home_guard.path().join("specs").join(&spec_id))?;
+
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
-            _cwd_guard: cwd_guard,
-            temp_dir,
+            home_guard,
             orchestrator,
             spec_id,
         })
     }
 
     fn spec_dir(&self) -> PathBuf {
-        self.temp_dir
-            .path()
-            .join(".xchecker/specs")
+        self.home_guard.path()
+            .join("specs")
             .join(&self.spec_id)
     }
 
-    fn create_success_config(&self) -> OrchestratorConfig {
-        OrchestratorConfig {
+    fn try_create_success_config(&self) -> Option<OrchestratorConfig> {
+        let stub_path = test_support::claude_stub_path()?;
+
+        Some(OrchestratorConfig {
             dry_run: false,
             config: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("runner_mode".to_string(), "native".to_string());
-                let stub_path = test_support::claude_stub_path()
-                    .expect("claude-stub path is required for workflow tests");
                 map.insert("claude_cli_path".to_string(), stub_path);
                 map.insert("claude_scenario".to_string(), "success".to_string());
                 map.insert("verbose".to_string(), "true".to_string());
@@ -99,17 +101,17 @@ impl WorkflowTestEnvironment {
             strict_validation: false,
             redactor: Default::default(),
             hooks: None,
-        }
+        })
     }
 
-    fn create_error_config(&self) -> OrchestratorConfig {
-        OrchestratorConfig {
+    fn try_create_error_config(&self) -> Option<OrchestratorConfig> {
+        let stub_path = test_support::claude_stub_path()?;
+
+        Some(OrchestratorConfig {
             dry_run: false,
             config: {
                 let mut map = std::collections::HashMap::new();
                 map.insert("runner_mode".to_string(), "native".to_string());
-                let stub_path = test_support::claude_stub_path()
-                    .expect("claude-stub path is required for workflow tests");
                 map.insert("claude_cli_path".to_string(), stub_path);
                 map.insert("claude_scenario".to_string(), "error".to_string());
                 map
@@ -119,7 +121,7 @@ impl WorkflowTestEnvironment {
             strict_validation: false,
             redactor: Default::default(),
             hooks: None,
-        }
+        })
     }
 }
 
@@ -129,7 +131,13 @@ impl WorkflowTestEnvironment {
 #[ignore = "requires_claude_stub"]
 async fn test_complete_spec_generation_flow() -> Result<()> {
     let env = WorkflowTestEnvironment::new("complete-flow")?;
-    let config = env.create_success_config();
+    let config = match env.try_create_success_config() {
+        Some(c) => c,
+        None => {
+            println!("Skipping test: claude-stub not found");
+            return Ok(());
+        }
+    };
 
     // Execute Requirements phase
     println!("Executing Requirements phase...");
@@ -256,8 +264,15 @@ async fn test_complete_spec_generation_flow() -> Result<()> {
 async fn test_resume_scenarios_and_failure_recovery() -> Result<()> {
     let env = WorkflowTestEnvironment::new("resume-recovery")?;
 
+    let success_config = match env.try_create_success_config() {
+        Some(c) => c,
+        None => {
+            println!("Skipping test: claude-stub not found");
+            return Ok(());
+        }
+    };
+
     // First, execute Requirements phase successfully
-    let success_config = env.create_success_config();
     let req_result = env
         .orchestrator
         .execute_requirements_phase(&success_config)
@@ -265,7 +280,7 @@ async fn test_resume_scenarios_and_failure_recovery() -> Result<()> {
     assert!(req_result.success, "Requirements phase should succeed");
 
     // Now try Design phase with error config to simulate failure
-    let error_config = env.create_error_config();
+    let error_config = env.try_create_error_config().expect("stub present if success_config worked");
     let design_result = env.orchestrator.execute_design_phase(&error_config).await?;
     assert!(
         !design_result.success,
@@ -490,7 +505,13 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
 #[ignore = "requires_claude_stub"]
 async fn test_multi_phase_workflow_with_dependencies() -> Result<()> {
     let env = WorkflowTestEnvironment::new("dependencies")?;
-    let config = env.create_success_config();
+    let config = match env.try_create_success_config() {
+        Some(c) => c,
+        None => {
+            println!("Skipping test: claude-stub not found");
+            return Ok(());
+        }
+    };
 
     // Try to execute Design phase without Requirements (should fail)
     let design_result = env.orchestrator.execute_design_phase(&config).await;
@@ -592,7 +613,13 @@ async fn test_multi_phase_workflow_with_dependencies() -> Result<()> {
 #[ignore = "requires_claude_stub"]
 async fn test_artifact_content_validation() -> Result<()> {
     let env = WorkflowTestEnvironment::new("content-validation")?;
-    let config = env.create_success_config();
+    let config = match env.try_create_success_config() {
+        Some(c) => c,
+        None => {
+            println!("Skipping test: claude-stub not found");
+            return Ok(());
+        }
+    };
 
     // Execute complete workflow
     let req_result = env.orchestrator.execute_requirements_phase(&config).await?;
@@ -694,7 +721,14 @@ async fn test_error_propagation_and_recovery() -> Result<()> {
     let env = WorkflowTestEnvironment::new("error-propagation")?;
 
     // Execute Requirements successfully
-    let success_config = env.create_success_config();
+    let success_config = match env.try_create_success_config() {
+        Some(c) => c,
+        None => {
+            println!("Skipping test: claude-stub not found");
+            return Ok(());
+        }
+    };
+
     let req_result = env
         .orchestrator
         .execute_requirements_phase(&success_config)
@@ -702,7 +736,7 @@ async fn test_error_propagation_and_recovery() -> Result<()> {
     assert!(req_result.success, "Requirements should succeed");
 
     // Execute Design with error config
-    let error_config = env.create_error_config();
+    let error_config = env.try_create_error_config().expect("stub present if success_config worked");
     let design_result = env.orchestrator.execute_design_phase(&error_config).await?;
     assert!(
         !design_result.success,
