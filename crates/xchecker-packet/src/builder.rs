@@ -395,7 +395,7 @@ impl PacketBuilder {
         // Try to get cached insights first (R3.4)
         if let Some(cache) = &mut self.cache
             && let Some(cached_insights) =
-                cache.get_insights(&file.path, &content_hash, phase, logger)?
+                cache.get_insights(&file.path, content_hash, phase, logger)?
         {
             // Cache hit - return formatted insights
             let insights_content = format!(
@@ -424,7 +424,7 @@ impl PacketBuilder {
             cache.store_insights(
                 &file.path,
                 &file.content,
-                &content_hash,
+                content_hash,
                 phase,
                 file.priority,
                 insights.clone(),

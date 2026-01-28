@@ -685,10 +685,10 @@ fn strip_shell_prompt(line: &str) -> &str {
 }
 
 fn extract_command_substitution(line: &str) -> &str {
-    if let (Some(start), Some(end)) = (line.find("$("), line.rfind(')')) {
-        if start + 2 < end {
-            return &line[start + 2..end];
-        }
+    if let (Some(start), Some(end)) = (line.find("$("), line.rfind(')'))
+        && start + 2 < end
+    {
+        return &line[start + 2..end];
     }
     line
 }
