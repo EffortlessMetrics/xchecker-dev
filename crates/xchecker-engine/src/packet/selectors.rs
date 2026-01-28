@@ -778,6 +778,16 @@ mod tests {
         fs::write(base_path.join("private.pem"), "PRIVATE KEY")?;
         fs::write(base_path.join("id_rsa"), "ssh-rsa ...")?;
 
+        // New patterns (Task 23.1)
+        fs::write(base_path.join("private.key"), "PRIVATE KEY")?;
+        fs::write(base_path.join("passwords.kdbx"), "DB")?;
+        fs::create_dir(base_path.join(".aws"))?;
+        fs::write(base_path.join(".aws/credentials"), "aws_access_key_id=...")?;
+        fs::create_dir(base_path.join(".kube"))?;
+        fs::write(base_path.join(".kube/config"), "apiVersion: v1...")?;
+        fs::write(base_path.join("auth.p8"), "PRIVATE KEY")?;
+        fs::write(base_path.join("secrets.yaml"), "secret: true")?;
+
         // Create a safe file that should be included
         fs::write(base_path.join("README.md"), "# Safe")?;
 

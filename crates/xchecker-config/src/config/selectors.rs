@@ -26,6 +26,13 @@ pub const ALWAYS_EXCLUDE_PATTERNS: &[&str] = &[
     "**/.ssh/**",
     "**/*.pfx",
     "**/*.p12",
+    "**/*.key",
+    "**/*.kdbx",
+    "**/.aws/**",
+    "**/.kube/**",
+    "**/*.p8",
+    "**/secrets.yaml",
+    "**/secrets.yml",
 ];
 
 impl Default for Selectors {
