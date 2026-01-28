@@ -128,9 +128,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
+    // We loop sleep to ensure the shell stays alive even if a sleep child dies from SIGTERM
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; for i in 1 2 3; do sleep 30; done")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -165,24 +166,19 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Process should still be running (it ignored SIGTERM)
     assert!(
-        is_process_running(pid),
-        "Process should still be running after SIGTERM"
+        child.try_wait()?.is_none(),
+        "Process should still be running after SIGTERM (ignored)"
     );
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should now be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination with timeout
+    match tokio::time::timeout(Duration::from_secs(1), child.wait()).await {
+        Ok(Ok(_)) => {}, // Process terminated successfully
+        Ok(Err(e)) => return Err(e.into()),
+        Err(_) => panic!("Process did not terminate within timeout after SIGKILL"),
+    }
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -225,17 +221,12 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should be terminated (sleep responds to SIGTERM)
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGTERM"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for graceful termination with timeout
+    match tokio::time::timeout(Duration::from_secs(2), child.wait()).await {
+        Ok(Ok(_)) => {}, // Process terminated successfully
+        Ok(Err(e)) => return Err(e.into()),
+        Err(_) => panic!("Process did not terminate within timeout after SIGTERM"),
+    }
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -294,17 +285,12 @@ async fn test_process_group_termination() -> Result<()> {
     let pgid = Pid::from_raw(parent_pid as i32);
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Verify parent is terminated
-    assert!(
-        !is_process_running(parent_pid),
-        "Parent process should be terminated"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination of parent with timeout
+    match tokio::time::timeout(Duration::from_secs(2), child.wait()).await {
+        Ok(Ok(_)) => {}, // Process terminated
+        Ok(Err(e)) => return Err(e.into()),
+        Err(_) => panic!("Parent process did not terminate within timeout after SIGKILL to group"),
+    }
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -326,12 +312,17 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     // Create a script that runs for a long time
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
-    // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Create a runner with a short timeout, using bash as the command
+    let runner = Runner::new(
+        xchecker::types::RunnerMode::Native,
+        Some("bash".to_string()),
+        None
+    );
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
 
+    // Pass the script as an argument to bash
     let result = runner
         .execute_claude(
             &[script_path.to_str().unwrap().to_string()],
@@ -414,16 +405,11 @@ async fn test_timeout_grace_period() -> Result<()> {
     let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    match tokio::time::timeout(Duration::from_secs(1), child.wait()).await {
+        Ok(Ok(_)) => {}, // Process terminated
+        Ok(Err(e)) => return Err(e.into()),
+        Err(_) => panic!("Process did not terminate within timeout after SIGKILL"),
+    }
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
