@@ -18,7 +18,7 @@
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::time::sleep;
-use xchecker::runner::{CommandSpec, Runner};
+use xchecker::runner::{CommandSpec, Runner, WslOptions};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -315,8 +315,10 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     // Create a runner with a short timeout, using bash as the command
     let runner = Runner::new(
         xchecker::types::RunnerMode::Native,
-        Some("bash".to_string()),
-        None
+        WslOptions {
+            distro: None,
+            claude_path: Some("bash".to_string()),
+        },
     );
 
     // Execute with a very short timeout (1 second)
