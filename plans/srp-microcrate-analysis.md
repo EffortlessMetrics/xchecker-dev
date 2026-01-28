@@ -1,6 +1,6 @@
 # xchecker SRP Microcrate Analysis
 
-**Document Version**: 1.0  
+**Document Version**: 2.0  
 **Date**: 2026-01-28  
 **Project**: xchecker  
 **Current Version**: 1.0.0  
@@ -10,76 +10,78 @@
 
 ## Executive Summary
 
-This analysis identifies opportunities for extracting Single Responsibility Principle (SRP) microcrates from the xchecker codebase. The project has already undergone significant modularization since the original modularization report (v4.0, 2026-01-17), with 7 new crates created. However, additional SRP violations and opportunities remain.
+This analysis identifies opportunities for extracting Single Responsibility Principle (SRP) microcrates from the xchecker codebase. The analysis distinguishes between the current state (main branch) and the target state (planned architecture), focusing on crate splits that provide real value based on a rigorous evaluation framework.
 
 **Key Findings:**
-- 7 new crates have been created since the original report
-- xchecker-engine remains a large, multi-responsibility crate
-- xchecker-utils still contains runner module (already extracted)
-- src/ directory still contains large CLI file (5471 lines)
-- xchecker-llm has well-abstracted provider traits but mixed concerns
+- xchecker-engine mixes three distinct responsibilities: domain rules, execution mechanics, and app orchestration
+- Several crates already exist but are not yet in the workspace (xchecker-fixup-model, xchecker-phases, xchecker-workspace)
+- The analysis focuses on crate splits that provide: dependency direction, testability, feature gating, reuse, or blast radius benefits
 
 **Recommendations:**
-- Create 9 additional microcrates for SRP compliance
-- Extract CLI layer into dedicated crate
-- Further decompose xchecker-engine orchestrator module
-- Create interface/contract crates for better abstraction
+- Create 3 high-impact microcrates: xchecker-cli, xchecker-orchestrator, xchecker-phase-api
+- Create 2 medium-impact microcrates: xchecker-fixup-model, xchecker-receipt
+- Keep execution concerns as modules within orchestrator crate, not separate crates
 
 ---
 
-## 1. Current Architecture Status
+## Part 1: Current State (Main Branch)
 
-### 1.1 Existing Crate Structure (Post-Modularization)
+### 1.1 Existing Crate Structure
+
+The workspace currently has the following members in [`Cargo.toml`](../Cargo.toml:2-26):
 
 | Crate | Purpose | Status | Notes |
 |-------|---------|--------|-------|
-| **xchecker-utils** | Foundation utilities | Partially modularized | Runner module still embedded |
+| **xchecker** | Root crate / facade | Stable | Re-exports from src/ |
+| **xchecker-utils** | Foundation utilities | Stable | Contains runner, redaction, lock, paths, etc. |
 | **xchecker-config** | Configuration management | Stable | Well-encapsulated |
 | **xchecker-llm** | LLM provider abstraction | Stable | Well-designed trait system |
 | **xchecker-engine** | Core orchestration | Needs decomposition | Multiple responsibilities |
-| **xchecker-receipt** | Receipt generation | **NEW** | Extracted from engine |
-| **xchecker-redaction** | Secret redaction | **NEW** | Extracted from utils |
-| **xchecker-runner** | Process execution | **NEW** | Extracted from utils |
-| **xchecker-status** | Status queries | **NEW** | Extracted from engine |
-| **xchecker-templates** | Template management | **NEW** | Extracted from engine |
-| **xchecker-tui** | Terminal UI | **NEW** | Extracted from src/ |
-| **xchecker-validation** | Validation logic | **NEW** | Extracted from engine |
-| **xchecker-workspace** | Workspace management | **NEW** | Extracted from engine |
-| **xchecker-gate** | CI/CD gate enforcement | **NEW** | Extracted from engine |
-| **xchecker-hooks** | Hook system | **NEW** | Extracted from engine |
-| **xchecker-benchmark** | Performance benchmarking | **NEW** | Extracted from engine |
-| **xchecker-doctor** | Health diagnostics | **NEW** | Extracted from engine |
-| **xchecker-extraction** | Content extraction | **NEW** | Extracted from engine |
-| **xchecker-fixup-model** | Fixup model types | **NEW** | Fixup types extracted |
-| **xchecker-packet** | Packet building | **NEW** | Extracted from engine |
-| **xchecker-phase-api** | Phase trait definitions | **NEW** | Phase contracts |
-| **xchecker-selectors** | Content selectors | **NEW** | Extracted from config |
-| **xchecker-lock** | Lock management | **NEW** | Extracted from utils |
-| **xchecker-prompt-template** | Prompt templating | **NEW** | Extracted from engine |
-| **xchecker-error-redaction** | Error redaction | **NEW** | Error handling |
-| **xchecker-error-reporter** | Error reporting | **NEW** | Error display |
+| **xchecker-gate** | CI/CD gate enforcement | Stable | Extracted from engine |
+| **xchecker-phase-api** | Phase trait definitions | Stable | Phase contracts |
+| **xchecker-packet** | Packet building | Stable | Extracted from engine |
+| **xchecker-receipt** | Receipt generation | Stable | Extracted from engine |
+| **xchecker-error-reporter** | Error display | Stable | Extracted from src/ |
+| **xchecker-tui** | Terminal UI | Stable | Extracted from src/ |
+| **xchecker-prompt-template** | Prompt templating | Stable | Extracted from engine |
+| **xchecker-selectors** | Content selectors | Stable | Extracted from config |
+| **xchecker-error-redaction** | Error redaction | Stable | Error handling |
+| **xchecker-redaction** | Secret redaction | Stable | Extracted from utils |
+| **xchecker-runner** | Process execution | Stable | Extracted from utils |
+| **xchecker-lock** | Lock management | Stable | Extracted from utils |
+| **xchecker-status** | Status queries | Stable | Extracted from engine |
+| **xchecker-templates** | Template management | Stable | Extracted from engine |
+| **xchecker-doctor** | Health diagnostics | Stable | Extracted from engine |
+| **xchecker-benchmark** | Performance benchmarking | Stable | Extracted from engine |
+| **xchecker-validation** | Validation logic | Stable | Extracted from engine |
+| **xchecker-extraction** | Content extraction | Stable | Extracted from engine |
+
+**Note**: The following crates exist in the `crates/` directory but are NOT yet in the workspace members:
+- `xchecker-fixup-model` - Fixup model types
+- `xchecker-phases` - Phase implementations
+- `xchecker-workspace` - Workspace management
 
 ### 1.2 xchecker-engine Current Structure
 
 ```
 crates/xchecker-engine/src/
 ├── orchestrator/
-│   ├── mod.rs (897 lines)
-│   ├── handle.rs (731 lines)
+│   ├── mod.rs
+│   ├── handle.rs
 │   ├── llm.rs
 │   ├── phase_exec.rs
 │   └── workflow.rs
 ├── fixup/
-│   ├── mod.rs (71 lines)
-│   ├── model.rs (9 lines - re-export)
-│   ├── parse.rs (447 lines)
+│   ├── mod.rs
+│   ├── model.rs
+│   ├── parse.rs
 │   ├── apply.rs
 │   ├── match_context.rs
 │   ├── paths.rs
 │   ├── phase.rs
 │   └── report.rs
-├── packet/ (empty - moved to xchecker-packet)
-├── receipt/ (empty - moved to xchecker-receipt)
+├── packet/ (moved to xchecker-packet)
+├── receipt/ (moved to xchecker-receipt)
 ├── phase.rs
 ├── phases.rs
 ├── example_generators.rs
@@ -88,36 +90,15 @@ crates/xchecker-engine/src/
 └── lib.rs
 ```
 
-### 1.3 xchecker-utils Current Structure
-
-```
-crates/xchecker-utils/src/
-├── atomic_write.rs
-├── cache.rs
-├── canonicalization.rs
-├── error.rs
-├── exit_codes.rs
-├── lock.rs
-├── logging.rs
-├── paths.rs
-├── process_memory.rs
-├── ring_buffer.rs
-├── runner/ (13 files - already extracted to xchecker-runner)
-├── source.rs
-├── spec_id.rs
-├── test_support.rs
-└── types.rs
-```
-
-### 1.4 src/ Directory Structure
+### 1.3 src/ Directory Structure
 
 ```
 src/
 ├── main.rs
 ├── lib.rs
-├── cli.rs (5471 lines - very large)
-├── tui.rs (822 lines - already extracted)
-├── error_reporter.rs (1223 lines - already extracted)
+├── cli.rs (large file with mixed concerns)
+├── tui.rs (822 lines - extracted to xchecker-tui)
+├── error_reporter.rs (1223 lines - extracted to xchecker-error-reporter)
 └── bin/
     ├── claude-stub.rs
     ├── regenerate_examples.rs
@@ -126,715 +107,473 @@ src/
 
 ---
 
-## 2. SRP Violations and Opportunities
+## Part 2: The Real SRP Violation
 
-### 2.1 High Priority Opportunities
+### 2.1 Three Kinds of Work in xchecker-engine
 
-#### Opportunity 1: Extract CLI Layer into xchecker-cli Crate
-
-**Name**: `xchecker-cli`
-
-**Purpose**: CLI command orchestration, argument parsing, and command execution
-
-**Current Location**: 
-- [`src/cli.rs`](../src/cli.rs:1) (5471 lines)
-- [`src/lib.rs`](../src/lib.rs:1) (public API facade)
-- [`src/main.rs`](../src/main.rs:1) (binary entry point)
-
-**Components to Extract**:
-- CLI command definitions and handlers
-- Argument parsing logic
-- Command execution orchestration
-- CLI-specific error handling
-- CLI-specific configuration
-
-**Dependencies**:
-- xchecker-engine (via OrchestratorHandle)
-- xchecker-config
-- xchecker-llm
-- xchecker-utils
-- All other domain crates
-
-**Dependents**:
-- src/main.rs (binary entry point)
-
-**Rationale**:
-- **SRP Violation**: CLI layer has multiple responsibilities mixed together:
-  - Command definition
-  - Argument parsing
-  - Command execution
-  - Output formatting
-  - Error handling
-- **Testability**: CLI logic can be tested independently without binary
-- **Reusability**: CLI crate could be reused for alternative frontends
-- **Maintainability**: 5471-line file is difficult to navigate and maintain
-- **Separation of Concerns**: CLI concerns are distinct from library concerns
-
-**Migration Strategy**:
-1. Create `crates/xchecker-cli/` directory structure
-2. Move `src/cli.rs` to `crates/xchecker-cli/src/cli.rs`
-3. Move CLI-specific modules from `src/lib.rs` to xchecker-cli
-4. Update `src/main.rs` to use xchecker-cli
-5. Update workspace Cargo.toml
-6. Run tests to verify CLI functionality preserved
-
-**Risks**:
-- Breaking changes for external consumers of xchecker-engine library
-- Need to maintain backward compatibility via re-exports
-
----
-
-#### Opportunity 2: Extract Orchestrator Config Conversion Logic
-
-**Name**: `xchecker-orchestrator-config`
-
-**Purpose**: Configuration conversion from Config to OrchestratorConfig
-
-**Current Location**:
-- [`crates/xchecker-engine/src/orchestrator/handle.rs`](../crates/xchecker-engine/src/orchestrator/handle.rs:182-349) (168 lines of config conversion logic)
-
-**Components to Extract**:
-- `from_config_internal()` function (lines 182-349)
-- Config to OrchestratorConfig mapping logic
-- Redactor construction from config
-- Hooks configuration mapping
-
-**Dependencies**:
-- xchecker-config
-- xchecker-redaction
-- xchecker-hooks
-
-**Dependents**:
-- xchecker-engine (OrchestratorHandle)
-- xchecker-cli (if created)
-
-**Rationale**:
-- **SRP Violation**: Config conversion is a distinct responsibility from orchestration logic
-- **Testability**: Config conversion logic can be tested independently
-- **Reusability**: Config conversion could be reused by other orchestrator implementations
-- **Complexity**: 168 lines of config mapping mixed with orchestration logic
-- **Single Responsibility**: Config conversion should have its own crate
-
-**Migration Strategy**:
-1. Create `crates/xchecker-orchestrator-config/` crate
-2. Extract config conversion logic from handle.rs
-3. Create trait for config conversion
-4. Update OrchestratorHandle to use new crate
-5. Run tests to verify config conversion
-
-**Risks**:
-- Internal implementation details may be exposed
-- Need to maintain backward compatibility
-
----
-
-#### Opportunity 3: Extract Phase Transition Validation Logic
-
-**Name**: `xchecker-phase-transitions`
-
-**Purpose**: Phase transition validation and workflow state management
-
-**Current Location**:
-- [`crates/xchecker-engine/src/orchestrator/mod.rs`](../crates/xchecker-engine/src/orchestrator/mod.rs:267-372) (validate_transition, get_current_phase, check_dependencies_satisfied)
-- [`crates/xchecker-engine/src/orchestrator/mod.rs`](../crates/xchecker-engine/src/orchestrator/mod.rs:306-372) (can_resume_from_phase)
-
-**Components to Extract**:
-- Phase transition validation rules
-- Dependency checking logic
-- Current phase state detection
-- Legal transition computation
-- Resume capability checking
-
-**Dependencies**:
-- xchecker-utils (for PhaseId)
-- xchecker-receipt (for receipt reading)
-
-**Dependents**:
-- xchecker-engine (PhaseOrchestrator)
-- xchecker-cli (if created)
-
-**Rationale**:
-- **SRP Violation**: Workflow state management is a distinct concern from phase execution
-- **Testability**: Transition rules can be tested independently
-- **Reusability**: Transition logic could be reused by alternative orchestrators
-- **Domain Logic**: Phase transitions are core domain logic, not orchestration detail
-- **Complexity**: Mixed with orchestration lifecycle management
-
-**Migration Strategy**:
-1. Create `crates/xchecker-phase-transitions/` crate
-2. Extract transition validation functions
-3. Create PhaseTransition trait or struct
-4. Update PhaseOrchestrator to use new crate
-5. Run tests for transition validation
-
-**Risks**:
-- Tight coupling with PhaseOrchestrator internals
-- Need to expose internal state for validation
-
----
-
-#### Opportunity 4: Extract LLM Provider Configuration Logic
-
-**Name**: `xchecker-llm-config`
-
-**Purpose**: LLM provider configuration and backend selection logic
-
-**Current Location**:
-- [`crates/xchecker-engine/src/orchestrator/llm.rs`](../crates/xchecker-engine/src/orchestrator/llm.rs)
-- Provider selection logic embedded in orchestrator
-
-**Components to Extract**:
-- LLM provider selection based on config
-- Backend binary path resolution
-- Provider-specific configuration handling
-- Fallback provider logic
-
-**Dependencies**:
-- xchecker-config
-- xchecker-llm (provider traits)
-
-**Dependents**:
-- xchecker-engine (orchestrator)
-- xchecker-cli (if created)
-
-**Rationale**:
-- **SRP Violation**: Provider configuration is distinct from LLM invocation
-- **Testability**: Provider selection can be tested independently
-- **Reusability**: Config logic could be reused by different orchestrator implementations
-- **Single Responsibility**: Provider configuration is a separate concern from execution
-
-**Migration Strategy**:
-1. Create `crates/xchecker-llm-config/` crate
-2. Extract provider selection logic from orchestrator/llm.rs
-3. Create ProviderConfig trait
-4. Update orchestrator to use new crate
-5. Run tests for provider selection
-
-**Risks**:
-- LLM provider backends may need refactoring
-- Configuration mapping complexity
-
----
-
-### 2.2 Medium Priority Opportunities
-
-#### Opportunity 5: Extract Workflow Execution Logic
-
-**Name**: `xchecker-workflow-execution`
-
-**Purpose**: Complete workflow execution and multi-phase orchestration
-
-**Current Location**:
-- [`crates/xchecker-engine/src/orchestrator/workflow.rs`](../crates/xchecker-engine/src/orchestrator/workflow.rs)
-
-**Components to Extract**:
-- Complete workflow execution from start to finish
-- Multi-phase coordination
-- Workflow state management
-- Error handling across phases
-
-**Dependencies**:
-- xchecker-engine (orchestrator)
-- xchecker-phase-transitions (if created)
-- xchecker-receipt
-
-**Dependents**:
-- xchecker-engine (orchestrator/handle)
-- xchecker-cli (if created)
-
-**Rationale**:
-- **SRP Violation**: Complete workflow execution is distinct from single-phase execution
-- **Testability**: Workflow scenarios can be tested independently
-- **Reusability**: Workflow logic could be reused for different execution strategies
-- **Separation of Concerns**: Workflow orchestration vs phase orchestration
-
-**Migration Strategy**:
-1. Create `crates/xchecker-workflow-execution/` crate
-2. Extract workflow execution logic
-3. Create WorkflowExecutor trait
-4. Update OrchestratorHandle to use new crate
-5. Run tests for workflow execution
-
-**Risks**:
-- May duplicate some orchestrator functionality
-- Need clear separation of responsibilities
-
----
-
-#### Opportunity 6: Extract Fixup Match Context Logic
-
-**Name**: `xchecker-fixup-match`
-
-**Purpose**: Diff hunk matching and context extraction for fixup application
-
-**Current Location**:
-- [`crates/xchecker-engine/src/fixup/match_context.rs`](../crates/xchecker-engine/src/fixup/match_context.rs)
-
-**Components to Extract**:
-- Diff hunk matching algorithms
-- Context extraction from source files
-- Line number mapping
-- Fuzzy matching logic
-
-**Dependencies**:
-- xchecker-fixup-model
-- xchecker-utils (paths)
-
-**Dependents**:
-- xchecker-engine (fixup/apply)
-- xchecker-fixup (if extracted as separate crate)
-
-**Rationale**:
-- **SRP Violation**: Match context finding is a distinct concern from diff application
-- **Testability**: Matching algorithms can be tested independently
-- **Reusability**: Match logic could be reused by other diff tools
-- **Complexity**: Fuzzy matching is complex and deserves its own module
-
-**Migration Strategy**:
-1. Create `crates/xchecker-fixup-match/` crate
-2. Extract match context logic
-3. Create DiffMatcher trait
-4. Update fixup/apply to use new crate
-5. Run tests for matching logic
-
-**Risks**:
-- Performance characteristics of matching algorithms
-- Integration with existing fixup logic
-
----
-
-#### Opportunity 7: Extract Phase Execution Engine
-
-**Name**: `xchecker-phase-execution`
-
-**Purpose**: Low-level phase execution engine with LLM invocation
-
-**Current Location**:
-- [`crates/xchecker-engine/src/orchestrator/phase_exec.rs`](../crates/xchecker-engine/src/orchestrator/phase_exec.rs)
-
-**Components to Extract**:
-- Phase execution orchestration
-- LLM invocation coordination
-- Secret scanning integration
-- Artifact generation
-- Receipt generation
-
-**Dependencies**:
-- xchecker-phase-api (Phase trait)
-- xchecker-packet
-- xchecker-receipt
-- xchecker-redaction
-- xchecker-llm
-- xchecker-runner
-
-**Dependents**:
-- xchecker-engine (orchestrator)
-- xchecker-cli (if created)
-
-**Rationale**:
-- **SRP Violation**: Phase execution is distinct from workflow orchestration
-- **Testability**: Execution engine can be tested independently
-- **Reusability**: Execution engine could be reused by different orchestrator implementations
-- **Separation of Concerns**: Execution details vs orchestration flow
-
-**Migration Strategy**:
-1. Create `crates/xchecker-phase-execution/` crate
-2. Extract phase execution logic
-3. Create PhaseExecutor trait
-4. Update orchestrator to use new crate
-5. Run tests for execution engine
-
-**Risks**:
-- May expose internal implementation details
-- Complex dependencies on multiple crates
-
----
-
-### 2.3 Low Priority Opportunities
-
-#### Opportunity 8: Extract Secret Scanning Logic
-
-**Name**: `xchecker-secret-scan`
-
-**Purpose**: Secret detection and redaction in packet content
-
-**Current Location**:
-- Embedded in phase execution logic
-- [`crates/xchecker-redaction/src/lib.rs`](../crates/xchecker-redaction/src/lib.rs) (already extracted)
-
-**Components to Extract**:
-- Secret pattern detection
-- Content scanning algorithms
-- Redaction application
-- Pattern matching
-
-**Dependencies**:
-- xchecker-utils
-- regex crate
-
-**Dependents**:
-- xchecker-phase-execution (if created)
-- xchecker-engine (current)
-
-**Rationale**:
-- **SRP Violation**: Secret scanning is a distinct concern from phase execution
-- **Testability**: Secret detection can be tested independently
-- **Reusability**: Secret scanning could be reused by other tools
-- **Security**: Security-sensitive code deserves focused attention
-
-**Migration Strategy**:
-1. Create `crates/xchecker-secret-scan/` crate
-2. Extract secret scanning logic from redaction
-3. Create SecretScanner trait
-4. Update phase execution to use new crate
-5. Run tests for secret detection
-
-**Risks**:
-- Security implications of extraction
-- Performance impact of scanning
-
----
-
-#### Opportunity 9: Extract Artifact Management Logic
-
-**Name**: `xchecker-artifact-manager`
-
-**Purpose**: Artifact storage, retrieval, and lifecycle management
-
-**Current Location**:
-- [`crates/xchecker-status/src/artifact.rs`](../crates/xchecker-status/src/artifact.rs) (already extracted to xchecker-status)
-
-**Components to Extract**:
-- Artifact storage operations
-- Artifact retrieval
-- Artifact lifecycle management
-- Atomic write operations
-
-**Dependencies**:
-- xchecker-utils (atomic_write, paths)
-- xchecker-receipt
-
-**Dependents**:
-- xchecker-engine (orchestrator)
-- xchecker-status (status queries)
-
-**Rationale**:
-- **SRP Violation**: Artifact management is distinct from status queries
-- **Testability**: Artifact operations can be tested independently
-- **Reusability**: Artifact management could be reused by other tools
-- **Separation of Concerns**: Storage vs query vs lifecycle
-
-**Migration Strategy**:
-1. Create `crates/xchecker-artifact-manager/` crate
-2. Extract artifact management logic from xchecker-status
-3. Create ArtifactManager trait
-4. Update dependent crates
-5. Run tests for artifact operations
-
-**Risks**:
-- May duplicate functionality in xchecker-status
-- Need clear separation of concerns
-
----
-
-#### Opportunity 10: Extract CLI Error Reporting
-
-**Name**: `xchecker-cli-error-reporting`
-
-**Purpose**: CLI-specific error formatting and user-friendly error display
-
-**Current Location**:
-- [`src/error_reporter.rs`](../src/error_reporter.rs:1) (1223 lines - already extracted to xchecker-error-reporter)
-
-**Components to Extract**:
-- Error message formatting
-- User-friendly error generation
-- Error context display
-- Suggestion generation
-
-**Dependencies**:
-- xchecker-error-redaction
-- xchecker-utils
-
-**Dependents**:
-- xchecker-cli (if created)
-- src/main.rs (until CLI extracted)
-
-**Rationale**:
-- **SRP Violation**: Error reporting is distinct from CLI command handling
-- **Testability**: Error formatting can be tested independently
-- **Reusability**: Error reporting could be reused by different CLIs
-- **User Experience**: Error display is critical for UX
-
-**Migration Strategy**:
-1. Already extracted to xchecker-error-reporter
-2. Update xchecker-cli to use xchecker-error-reporter
-3. Run tests for error formatting
-
-**Risks**:
-- None (already extracted)
-
----
-
-## 3. Interface/Contract Crate Opportunities
-
-### 3.1 Phase Contract Interface
-
-**Name**: `xchecker-phase-api` (already exists)
-
-**Purpose**: Define Phase trait and related contracts
-
-**Current Status**: Already extracted as a separate crate
-
-**Components**:
-- Phase trait definition
-- PhaseContext struct
-- PhaseResult type
-- NextStep enum
-
-**Rationale**:
-- **Already Implemented**: Phase trait is well-defined as an interface
-- **Dependency Inversion**: Higher-level code depends on Phase trait, not implementations
-- **Testability**: Implementations can be tested via trait
-
-**Recommendation**:
-- Keep as is - this is a good example of interface crate design
-- Consider adding more trait methods for better abstraction
-
----
-
-### 3.2 LLM Provider Interface
-
-**Name**: `xchecker-llm-provider` (enhancement to existing)
-
-**Purpose**: Define LLM provider trait and backend interface
-
-**Current Status**: Already well-abstracted in xchecker-llm
-
-**Components**:
-- LlmProvider trait
-- Provider-specific backends
-- Configuration traits
-
-**Rationale**:
-- **Already Well-Designed**: Provider trait is clean and extensible
-- **Multiple Implementations**: Supports Claude CLI, Gemini CLI, OpenRouter, Anthropic
-- **Dependency Inversion**: Orchestrator depends on trait, not implementations
-
-**Recommendation**:
-- Keep as is - excellent example of trait-based design
-- Consider standardizing provider configuration interface
-
----
-
-### 3.3 Packet Builder Interface
-
-**Name**: `xchecker-packet-builder` (enhancement to existing)
-
-**Purpose**: Define packet building interface and strategies
-
-**Current Status**: xchecker-packet exists but may need interface refinement
-
-**Components**:
-- PacketBuilder trait
-- File selection strategies
-- Budget enforcement
-- Evidence collection
-
-**Rationale**:
-- **SRP Opportunity**: Packet building could benefit from clearer interface
-- **Strategy Pattern**: Different packet building strategies (minimal, full, custom)
-- **Testability**: Builders can be tested independently
-
-**Recommendation**:
-- Refine xchecker-packet to expose clearer interfaces
-- Consider strategy pattern for different packet building approaches
-
----
-
-### 3.4 Fixup Application Interface
-
-**Name**: `xchecker-fixup-apply` (enhancement to existing)
-
-**Purpose**: Define fixup application interface and strategies
-
-**Current Status**: Part of xchecker-engine/fixup module
-
-**Components**:
-- FixupApplicator trait
-- Application strategies (preview, apply, dry-run)
-- Conflict resolution
-
-**Rationale**:
-- **SRP Opportunity**: Fixup application could benefit from trait-based design
-- **Strategy Pattern**: Different application modes and strategies
-- **Testability**: Applicators can be tested independently
-
-**Recommendation**:
-- Extract fixup application logic from xchecker-engine
-- Create FixupApplicator trait
-- Implement multiple strategies
-
----
-
-## 4. Dependency Analysis
-
-### 4.1 Current Dependency Graph
+xchecker-engine currently mixes three distinct types of work that need different tests, different owners, and different change cadence:
 
 ```mermaid
 graph TD
-    ENGINE[xchecker-engine] --> UTILS[xchecker-utils]
-    ENGINE --> CONFIG[xchecker-config]
-    ENGINE --> LLM[xchecker-llm]
+    ENGINE[xchecker-engine] --> DOMAIN[Domain Rules]
+    ENGINE --> EXECUTION[Execution Mechanics]
+    ENGINE --> ORCHESTRATION[App Orchestration]
     
-    CONFIG --> UTILS
-    LLM --> UTILS
-    LLM --> CONFIG
+    DOMAIN --> D1[Phase order]
+    DOMAIN --> D2[Next steps]
+    DOMAIN --> D3[Resume semantics]
     
-    UTILS --> RUNNER[xchecker-runner]
-    UTILS --> REDACTION[xchecker-redaction]
-    UTILS --> LOCK[xchecker-lock]
+    EXECUTION --> E1[Run LLM]
+    EXECUTION --> E2[Build packet]
+    EXECUTION --> E3[Redact secrets]
+    EXECUTION --> E4[Write receipt]
     
-    ENGINE --> RECEIPT[xchecker-receipt]
-    ENGINE --> STATUS[xchecker-status]
-    ENGINE --> TEMPLATES[xchecker-templates]
-    ENGINE --> GATE[xchecker-gate]
-    ENGINE --> HOOKS[xchecker-hooks]
-    ENGINE --> BENCHMARK[xchecker-benchmark]
-    ENGINE --> DOCTOR[xchecker-doctor]
-    ENGINE --> EXTRACTION[xchecker-extraction]
-    ENGINE --> FIXUP_MODEL[xchecker-fixup-model]
-    ENGINE --> PACKET[xchecker-packet]
-    ENGINE --> PHASE_API[xchecker-phase-api]
-    ENGINE --> SELECTORS[xchecker-selectors]
-    ENGINE --> PROMPT_TEMPLATE[xchecker-prompt-template]
+    ORCHESTRATION --> O1[CLI-facing workflow]
+    ORCHESTRATION --> O2[Printing]
+    ORCHESTRATION --> O3[Error presentation]
     
-    UTILS --> ERROR_RED[xchecker-error-redaction]
-    UTILS --> ERROR_REPORT[xchecker-error-reporter]
-    
-    SRC[src/] --> ENGINE
-    SRC --> UTILS
-    SRC --> CONFIG
-    SRC --> LLM
-    SRC --> ERROR_RED
-    SRC --> ERROR_REPORT
-    
-    style ENGINE fill:#96ceb4
-    style UTILS fill:#dfe6e9
-    style CONFIG fill:#45b7d1
-    style LLM fill:#ffeaa7
-    style RUNNER fill:#96ceb4
-    style RECEIPT fill:#96ceb4
-    style STATUS fill:#96ceb4
-    style TEMPLATES fill:#96ceb4
-    style GATE fill:#96ceb4
-    style HOOKS fill:#96ceb4
-    style BENCHMARK fill:#96ceb4
-    style DOCTOR fill:#96ceb4
-    style EXTRACTION fill:#96ceb4
-    style FIXUP_MODEL fill:#96ceb4
-    style PACKET fill:#96ceb4
-    style PHASE_API fill:#96ceb4
-    style SELECTORS fill:#96ceb4
-    style PROMPT_TEMPLATE fill:#96ceb4
-    style REDACTION fill:#96ceb4
-    style LOCK fill:#96ceb4
-    style ERROR_RED fill:#96ceb4
-    style ERROR_REPORT fill:#96ceb4
-    style SRC fill:#ff6b6b
+    style DOMAIN fill:#96ceb4
+    style EXECUTION fill:#ffeaa7
+    style ORCHESTRATION fill:#ff6b6b
 ```
 
-### 4.2 Dependency Inversion Opportunities
+### 2.2 Why This Matters
 
-| Current Pattern | Inversion Opportunity | Impact |
-|----------------|---------------------|---------|
-| Direct dependency on implementations | Dependency on traits | High |
-| Config conversion embedded | Separate config crate | High |
-| Phase execution mixed with orchestration | Extract execution engine | Medium |
-| Provider selection in orchestrator | Separate provider config | Medium |
-| CLI mixed concerns | Separate CLI crate | High |
-
----
-
-## 5. Recommendations Summary
-
-### 5.1 Priority Matrix
-
-| # | Opportunity | Priority | Impact | Effort | Value |
-|---|------------|----------|--------|--------|-------|
-| 1 | Extract CLI to xchecker-cli | **HIGH** | High | High | Very High |
-| 2 | Extract orchestrator config conversion | **HIGH** | Medium | Medium | High |
-| 3 | Extract phase transitions | **HIGH** | Medium | Medium | High |
-| 4 | Extract LLM provider config | **HIGH** | Medium | Medium | High |
-| 5 | Extract workflow execution | **MEDIUM** | Medium | High | Medium |
-| 6 | Extract fixup match context | **MEDIUM** | Low | Medium | Medium |
-| 7 | Extract phase execution | **MEDIUM** | Medium | High | Medium |
-| 8 | Extract secret scanning | **LOW** | Low | Medium | Low |
-| 9 | Extract artifact management | **LOW** | Low | Low | Low |
-| 10 | Extract CLI error reporting | **LOW** | Low | None | Low |
-
-### 5.2 Migration Phases
-
-#### Phase 1: High-Value Extractions (Weeks 1-4)
-
-1. **Create xchecker-cli crate**
-   - Extract CLI logic from src/
-   - Create clean CLI module structure
-   - Maintain backward compatibility
-
-2. **Create xchecker-orchestrator-config crate**
-   - Extract config conversion logic
-   - Define clear config mapping interface
-
-3. **Create xchecker-phase-transitions crate**
-   - Extract transition validation logic
-   - Create PhaseTransitionManager
-
-4. **Create xchecker-llm-config crate**
-   - Extract provider selection logic
-   - Standardize provider configuration
-
-#### Phase 2: Medium-Value Extractions (Weeks 5-8)
-
-5. **Create xchecker-workflow-execution crate**
-   - Extract workflow orchestration logic
-   - Define WorkflowExecutor trait
-
-6. **Create xchecker-fixup-match crate**
-   - Extract diff matching logic
-   - Create DiffMatcher trait
-
-7. **Create xchecker-phase-execution crate**
-   - Extract phase execution engine
-   - Define PhaseExecutor trait
-
-#### Phase 3: Low-Value Extractions (Weeks 9-10)
-
-8. **Extract xchecker-secret-scan crate**
-   - Extract secret scanning logic
-   - Create SecretScanner trait
-
-9. **Extract xchecker-artifact-manager crate**
-   - Extract artifact management logic
-   - Create ArtifactManager trait
-
-#### Phase 4: Cleanup and Verification (Week 11-12)
-
-10. **Update xchecker-engine**
-    - Remove extracted functionality
-    - Update dependencies
-    - Run full test suite
-
-11. **Update documentation**
-    - Update CLAUDE.md
-    - Update architecture docs
-    - Create migration guide
+| Aspect | Domain Rules | Execution Mechanics | App Orchestration |
+|--------|--------------|-------------------|-------------------|
+| **Testability** | Pure logic, no I/O | Needs mocks, integration tests | Needs CLI fixtures |
+| **Owner** | Product/Domain | Platform/Infra | UX/CLI |
+| **Change Cadence** | Rare, breaking changes | Medium, optimizations | Frequent, UX iterations |
+| **Dependencies** | Minimal (types only) | Heavy (IO, LLM, etc.) | Heavy (all crates) |
 
 ---
 
-## 6. Risks and Mitigation Strategies
+## Part 3: Target Architecture (4 Layers)
 
-### 6.1 Technical Risks
+### 3.1 Layer Overview
+
+```mermaid
+graph TD
+    APPS[Apps: CLI TUI] --> ORCH[Orchestrator]
+    ORCH --> DOMAIN[Domain Engines]
+    ORCH --> CONTRACTS[Contracts]
+    DOMAIN --> LEAF[Leaf Infrastructure]
+    LEAF --> CONTRACTS
+    
+    ORCH --> O1[xchecker-orchestrator]
+    APPS --> A1[xchecker-cli]
+    APPS --> A2[xchecker-tui]
+    
+    DOMAIN --> D1[xchecker-packet]
+    DOMAIN --> D2[xchecker-fixup]
+    DOMAIN --> D3[xchecker-receipt]
+    DOMAIN --> D4[xchecker-phases]
+    
+    CONTRACTS --> C1[xchecker-phase-api]
+    CONTRACTS --> C2[xchecker-fixup-model]
+    CONTRACTS --> C3[xchecker-receipt-schema]
+    
+    LEAF --> L1[xchecker-runner]
+    LEAF --> L2[xchecker-redaction]
+    LEAF --> L3[xchecker-lock]
+    LEAF --> L4[xchecker-paths]
+    LEAF --> L5[xchecker-atomic-write]
+    
+    style ORCH fill:#ff6b6b
+    style DOMAIN fill:#96ceb4
+    style CONTRACTS fill:#ffeaa7
+    style LEAF fill:#dfe6e9
+```
+
+### 3.2 Layer 1: Contracts (Tiny, Stable)
+
+| Crate | Purpose | Status |
+|-------|---------|--------|
+| **xchecker-phase-api** | Owns Phase, PhaseContext, PhaseResult, NextStep, PhaseId | **Exists** - High priority to consolidate |
+| **xchecker-fixup-model** | Owns fixup IR types, mode enums, conflict types | **Exists (not in workspace)** - Needs to be added |
+| **xchecker-receipt-schema** | Owns receipt structs + serde, schema version constants | **Proposed** - Optional, could stay in xchecker-receipt |
+
+**Rationale**: These crates provide the contracts that higher layers depend on. They are tiny, stable, and enable dependency inversion.
+
+### 3.3 Layer 2: Leaf Infrastructure (Platform/Security/IO)
+
+| Crate | Purpose | Status |
+|-------|---------|--------|
+| **xchecker-runner** | Process execution + platform kill semantics | **Exists** - Already extracted |
+| **xchecker-redaction** | Patterns + redact engine | **Exists** - Already extracted |
+| **xchecker-lock** | Locking semantics, file coordination | **Exists** - Already extracted |
+| **xchecker-paths** | Canonicalization/sandbox rules | **Proposed** - Only if utils stays too fat |
+| **xchecker-atomic-write** | Hard-isolate IO correctness | **Proposed** - Optional, currently in utils |
+
+**Rationale**: These crates have no dependencies on domain logic. They are leaf nodes in the dependency DAG.
+
+### 3.4 Layer 3: Domain Engines (The Work)
+
+| Crate | Purpose | Status |
+|-------|---------|--------|
+| **xchecker-packet** | Selectors + budget + packet assembly | **Exists** - Keep as one crate until stable |
+| **xchecker-fixup** | Owns parse/apply/report, depends on xchecker-fixup-model | **Proposed** - Consolidate fixup/ from engine |
+| **xchecker-receipt** | Write/read receipts | **Exists** - Already extracted |
+| **xchecker-phases** | Requirements/Design/Tasks/Review implementations | **Exists (not in workspace)** - Needs to be added |
+
+**Rationale**: These crates do the actual work. They depend on contracts and leaf infrastructure.
+
+### 3.5 Layer 4: Orchestrator and Apps
+
+| Crate | Purpose | Status |
+|-------|---------|--------|
+| **xchecker-orchestrator** | Workflow + phase execution in one place | **Proposed** - Extract from engine/orchestrator/ |
+| **xchecker-cli** | CLI parsing + command dispatch | **Proposed** - Extract from src/cli.rs |
+| **xchecker-tui** | Terminal UI | **Exists** - Already extracted |
+
+**Rationale**: These are the UX surfaces. They depend on everything below.
+
+### 3.6 xchecker-engine as Facade
+
+During migration, `xchecker-engine` becomes a facade that re-exports stable paths:
+
+```rust
+// crates/xchecker-engine/src/lib.rs
+// During migration: re-export for backward compatibility
+pub use xchecker_phase_api as phases;
+pub use xchecker_orchestrator as orchestrator;
+
+// Eventually: deprecate and remove
+```
+
+---
+
+## Part 4: Crate Split Evaluation Framework
+
+### 4.1 When Is a Crate Split Worth It?
+
+A crate split is worth it when it buys at least one of:
+
+| Criterion | Description | Example |
+|-----------|-------------|---------|
+| **Dependency Direction** | Prevents cycles by moving types/contracts down the DAG | xchecker-phase-api enables phase implementations to depend on contracts, not each other |
+| **Testability** | Leaf crate can be tested without orchestrator scaffolding | xchecker-runner can test process execution in isolation |
+| **Feature Gating** | Platform/dev-tools separation without contaminating core | xchecker-runner can have platform-specific features |
+| **Reuse** | Multiple crates legitimately consume the same thing | xchecker-fixup-model used by fixup, orchestrator, and CLI |
+| **Blast Radius** | Changes land in one crate with obvious owners and gates | xchecker-cli isolates UX churn from core |
+
+### 4.2 When Is a Crate Split NOT Worth It?
+
+A crate split is NOT worth it when:
+
+| Anti-Pattern | Description | Example |
+|--------------|-------------|---------|
+| **Module Masquerading** | Just a module, not a real crate | xchecker-phase-transitions - belongs in phase-api or orchestrator |
+| **Versioning Friction** | Creates more feature flags and circular dependencies | xchecker-workflow-execution - tightly coupled to orchestrator |
+| **No Dependency Benefit** | Doesn't change the DAG shape | xchecker-orchestrator-config - config mapping is internal to orchestrator |
+
+---
+
+## Part 5: Concrete Microcrates Worth Doing
+
+### 5.1 High Impact
+
+#### 1. xchecker-phase-api (Consolidate and Standardize)
+
+**Impact**: Eliminates duplicate Phase types and prevents the exact class of failures you just hit.
+
+**Current State**: Phase trait exists but types may be duplicated across crates.
+
+**Target State**: Single source of truth for Phase contracts.
+
+```rust
+// crates/xchecker-phase-api/src/lib.rs
+pub use self::phase::{Phase, PhaseContext, PhaseResult};
+pub use self::transition::{NextStep, PhaseId};
+```
+
+**Benefits**:
+- **Dependency Direction**: Phase implementations depend on contracts, not each other
+- **Testability**: Phases can be tested via trait without orchestrator
+- **Blast Radius**: Changes to Phase contract are isolated
+
+**Migration**:
+1. Audit all crates for duplicate Phase types
+2. Consolidate into xchecker-phase-api
+3. Update all imports
+4. Add tests for contract invariants
+
+---
+
+#### 2. xchecker-orchestrator (Extract as Real Crate)
+
+**Impact**: Lets xchecker-engine shrink into a facade. Workflow + phase execution in one place.
+
+**Current State**: [`crates/xchecker-engine/src/orchestrator/`](../crates/xchecker-engine/src/orchestrator/) is a module.
+
+**Target State**: `crates/xchecker-orchestrator/` as a real crate.
+
+**Structure**:
+```
+crates/xchecker-orchestrator/src/
+├── lib.rs
+├── workflow.rs       # Complete workflow execution
+├── phase_exec.rs    # Phase execution mechanics
+├── transitions.rs    # Phase transition rules (as module, not crate)
+└── llm.rs          # LLM invocation coordination
+```
+
+**Benefits**:
+- **Blast Radius**: Orchestrator changes are isolated
+- **Testability**: Workflow can be tested independently
+- **Reuse**: Could support alternative orchestrators in future
+
+**Migration**:
+1. Create `crates/xchecker-orchestrator/` crate
+2. Move orchestrator/ module contents
+3. Update xchecker-engine to re-export
+4. Run tests
+
+---
+
+#### 3. xchecker-cli (Extract from src/)
+
+**Impact**: Improves testability and keeps UX churn away from core.
+
+**Current State**: [`src/cli.rs`](../src/cli.rs:1) (large file) + CLI logic in [`src/lib.rs`](../src/lib.rs:1).
+
+**Target State**: `crates/xchecker-cli/` as a real crate.
+
+**Structure**:
+```
+crates/xchecker-cli/src/
+├── lib.rs
+├── commands/        # CLI command definitions
+├── parser.rs        # Argument parsing
+└── executor.rs      # Command execution
+```
+
+**Benefits**:
+- **Testability**: CLI can be tested without binary
+- **Blast Radius**: UX changes isolated from core
+- **Feature Gating**: CLI-specific features don't pollute core
+
+**Migration**:
+1. Create `crates/xchecker-cli/` crate
+2. Move CLI logic from src/
+3. Update src/main.rs to use xchecker-cli
+4. Run CLI tests
+
+---
+
+### 5.2 Medium Impact
+
+#### 4. xchecker-fixup-model (Add to Workspace)
+
+**Impact**: Prevents cycles and type duplication. Fixup types live below fixup/orchestrator.
+
+**Current State**: `crates/xchecker-fixup-model/` exists but NOT in workspace members.
+
+**Target State**: Add to workspace and ensure all fixup types come from here.
+
+```rust
+// crates/xchecker-fixup-model/src/lib.rs
+pub use self::diff::{DiffHunk, UnifiedDiff};
+pub use self::mode::{FixupMode, FixupConflict};
+pub use self::error::FixupError;
+```
+
+**Benefits**:
+- **Dependency Direction**: Fixup implementation depends on model, not vice versa
+- **Reuse**: Multiple crates can use fixup types
+- **Blast Radius**: Fixup model changes are isolated
+
+**Migration**:
+1. Add to workspace members in Cargo.toml
+2. Audit for duplicate fixup types
+3. Consolidate into xchecker-fixup-model
+4. Update imports
+
+---
+
+#### 5. xchecker-receipt (or receipt-schema)
+
+**Impact**: Receipts are the core artifact. Treat them like a first-class engine.
+
+**Current State**: `xchecker-receipt` exists and is in workspace.
+
+**Target State**: Either keep as-is, or split schema into `xchecker-receipt-schema` for stability.
+
+**Benefits**:
+- **Dependency Direction**: Receipt schema is a contract
+- **Testability**: Receipt validation can be tested independently
+- **Reuse**: Multiple tools can validate receipts
+
+**Migration**:
+1. Evaluate if schema needs separate crate
+2. If yes, extract xchecker-receipt-schema
+3. Update dependencies
+
+---
+
+### 5.3 Low Impact (Do Later)
+
+#### 6. Artifact Manager (Module, Not Crate)
+
+**Impact**: Likely a module in receipt/workspace, not a separate crate.
+
+**Rationale**: Artifact management is tightly coupled to receipt and workspace. Splitting it doesn't provide dependency direction or testability benefits.
+
+**Recommendation**: Keep as module in xchecker-receipt or xchecker-workspace.
+
+---
+
+#### 7. Phase Transitions (Module, Not Crate)
+
+**Impact**: Belongs inside phase-api (as pure rules) or inside orchestrator as a module.
+
+**Rationale**: Phase transition rules are pure logic that depends only on PhaseId. They don't need a separate crate.
+
+**Recommendation**: 
+- Option 1: Move to xchecker-phase-api as pure rules
+- Option 2: Keep as module in xchecker-orchestrator
+
+---
+
+## Part 6: Wave-Based Migration Strategy
+
+### 6.1 Wave Definition
+
+Each wave has a **Definition of Done**:
+- [ ] All crates in wave are created or modified
+- [ ] All tests pass (`cargo test --workspace --all-features`)
+- [ ] No circular dependencies (`cargo tree --duplicates`)
+- [ ] Documentation updated
+- [ ] Re-exports in place for backward compatibility
+
+### 6.2 Wave 1: High Impact (Foundation)
+
+**Goal**: Establish the foundation with high-impact crates.
+
+**Crates**:
+1. xchecker-phase-api (consolidate)
+2. xchecker-orchestrator (extract)
+3. xchecker-cli (extract)
+
+**Definition of Done**:
+- [ ] xchecker-phase-api has no duplicate Phase types
+- [ ] xchecker-orchestrator is a real crate with workflow/phase execution
+- [ ] xchecker-cli is a real crate with all CLI logic
+- [ ] xchecker-engine re-exports for backward compatibility
+- [ ] All tests pass with `--all-features`
+
+**Risks**:
+- Breaking changes for external consumers
+- Need to maintain stable paths during migration
+
+**Mitigation**:
+- Use `pub use` re-exports in xchecker-engine
+- Deprecate old paths with warnings
+- Support both old and new APIs during transition
+
+---
+
+### 6.3 Wave 2: Medium Impact (Consolidation)
+
+**Goal**: Consolidate fixup and receipt types.
+
+**Crates**:
+1. xchecker-fixup-model (add to workspace)
+2. xchecker-receipt (or split schema)
+
+**Definition of Done**:
+- [ ] xchecker-fixup-model is in workspace
+- [ ] All fixup types consolidated
+- [ ] Receipt schema stable (or split)
+- [ ] All tests pass with `--all-features`
+
+**Risks**:
+- Duplicate types may exist
+- Integration with existing fixup logic
+
+**Mitigation**:
+- Audit for duplicates before migration
+- Run comprehensive integration tests
+
+---
+
+### 6.4 Wave 3: Cleanup (Facade Removal)
+
+**Goal**: Remove xchecker-engine facade and complete migration.
+
+**Actions**:
+1. Remove re-exports from xchecker-engine
+2. Deprecate old paths
+3. Update all imports
+4. Remove unused code
+
+**Definition of Done**:
+- [ ] xchecker-engine is minimal or removed
+- [ ] All imports use new crate paths
+- [ ] All tests pass with `--all-features`
+- [ ] Documentation reflects new structure
+
+**Risks**:
+- External consumers may still use old paths
+- Breaking changes
+
+**Mitigation**:
+- Provide migration guide
+- Maintain deprecation period
+- Semantic versioning
+
+---
+
+### 6.5 Wave 4: Future Work (Optional)
+
+**Goal**: Address low-impact items if needed.
+
+**Items**:
+1. Evaluate xchecker-paths (if utils stays too fat)
+2. Evaluate xchecker-atomic-write (if needed)
+3. Artifact manager as module
+4. Phase transitions as module
+
+**Definition of Done**:
+- [ ] Evaluate each item against framework
+- [ ] Implement only if provides real value
+- [ ] All tests pass
+
+---
+
+## Part 7: Migration Principles
+
+### 7.1 Move Types First, Then Implementations
+
+1. Extract contracts to new crate
+2. Update dependents to use new contracts
+3. Move implementations
+4. Remove old code
+
+### 7.2 Keep Stable Paths via Facade
+
+During migration, maintain backward compatibility:
+```rust
+// In xchecker-engine/src/lib.rs
+pub use xchecker_phase_api::Phase;
+pub use xchecker_orchestrator::OrchestratorHandle;
+```
+
+Do NOT remove facade until last dependent moves.
+
+### 7.3 Treat `--all-features` as the Build
+
+If `cargo build --all-features` fails, the wave is not done.
+
+### 7.4 No `pub use` Until All Phases Move
+
+Do NOT use `pub use xchecker_phases as phases;` until every phase (including Fixup) has moved.
+
+---
+
+## Part 8: Risks and Mitigation
+
+### 8.1 Technical Risks
 
 | Risk | Probability | Impact | Mitigation |
 |-------|-------------|--------|------------|
@@ -844,7 +583,7 @@ graph TD
 | **Performance Regression** | Low | Medium | Benchmark before/after |
 | **API Instability** | Low | High | Semantic versioning, deprecation period |
 
-### 6.2 Mitigation Strategies
+### 8.2 Mitigation Strategies
 
 1. **Maintain Backward Compatibility**
    - Use `pub use` re-exports in xchecker-engine
@@ -858,7 +597,7 @@ graph TD
    - Document allowed dependency patterns
 
 3. **Ensure Test Coverage**
-   - Run full test suite after each extraction
+   - Run full test suite after each wave
    - Add integration tests for new crate boundaries
    - Use property-based testing for trait implementations
 
@@ -875,9 +614,9 @@ graph TD
 
 ---
 
-## 7. Success Criteria
+## Part 9: Success Criteria
 
-### 7.1 Technical Criteria
+### 9.1 Technical Criteria
 
 - [ ] All new crates have clear, single responsibilities
 - [ ] No circular dependencies in workspace
@@ -886,15 +625,15 @@ graph TD
 - [ ] Public APIs are stable and well-documented
 - [ ] Internal implementation details are hidden
 
-### 7.2 Process Criteria
+### 9.2 Process Criteria
 
-- [ ] Full test suite passes
+- [ ] Full test suite passes with `--all-features`
 - [ ] No regression in functionality
 - [ ] Documentation updated
 - [ ] Migration guide created
 - [ ] Code review completed
 
-### 7.3 Quality Criteria
+### 9.3 Quality Criteria
 
 - [ ] Code follows Rust best practices
 - [ ] Error handling is comprehensive
@@ -904,169 +643,80 @@ graph TD
 
 ---
 
-## 8. Conclusion
+## Part 10: Conclusion
 
-The xchecker codebase has undergone significant modularization since the original modularization report, with 17 new crates created. However, additional SRP violations and opportunities remain, particularly in:
+The xchecker codebase has significant modularization opportunities, but the previous analysis mixed current state with target state and proposed too many microcrates that are really just modules.
 
-1. **xchecker-engine** - Still contains multiple distinct responsibilities
-2. **src/cli.rs** - Very large file (5471 lines) with mixed concerns
-3. **Orchestrator module** - Complex config conversion and validation logic embedded
-4. **Phase execution** - Mixed with orchestration concerns
+**Key Insights**:
 
-The proposed 9 new microcrates would further improve:
-- **Separation of Concerns**: Each crate has a single, well-defined responsibility
-- **Testability**: Smaller, focused crates are easier to test
-- **Reusability**: Domain-specific crates can be reused independently
-- **Maintainability**: Clear boundaries make code easier to understand and modify
+1. **The Real SRP Violation**: xchecker-engine mixes three kinds of work (domain rules, execution mechanics, app orchestration) that need different tests, owners, and change cadence.
 
-The migration should be approached incrementally, with careful attention to backward compatibility and test coverage. Each extraction should be validated with a comprehensive test suite before proceeding to the next.
+2. **Target Architecture**: 4 layers (Contracts, Leaf Infrastructure, Domain Engines, Orchestrator and Apps) provide clear separation of concerns.
+
+3. **High Impact Microcrates**: xchecker-phase-api, xchecker-orchestrator, and xchecker-cli provide the most value by enabling dependency direction, testability, and blast radius benefits.
+
+4. **Medium Impact**: xchecker-fixup-model and xchecker-receipt consolidate types and prevent cycles.
+
+5. **Low Impact**: Items like artifact manager and phase transitions should remain as modules, not crates.
+
+6. **Wave-Based Migration**: Each wave has a clear definition of done, and `--all-features` is the build gate.
+
+The migration should be approached incrementally, with careful attention to backward compatibility and test coverage. Each wave should be validated with a comprehensive test suite before proceeding to the next.
 
 ---
 
-## Appendix A: Detailed Crate Specifications
+## Appendix A: Dependency Graph (Target State)
 
-### A.1 xchecker-cli Specification
-
-```toml
-[package]
-name = "xchecker-cli"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-xchecker-engine = { workspace = true }
-xchecker-config = { workspace = true }
-xchecker-llm = { workspace = true }
-xchecker-utils = { workspace = true }
-xchecker-error-reporter = { workspace = true }
-```
-
-**Modules**:
-- `commands/` - CLI command definitions
-- `parser/` - Argument parsing
-- `executor/` - Command execution
-- `formatter/` - Output formatting
-
-### A.2 xchecker-orchestrator-config Specification
-
-```toml
-[package]
-name = "xchecker-orchestrator-config"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-xchecker-config = { workspace = true }
-xchecker-redaction = { workspace = true }
-xchecker-hooks = { workspace = true }
-```
-
-**Public API**:
-```rust
-pub trait OrchestratorConfigConverter {
-    fn convert_to_orchestrator_config(
-        &Config,
-        &HooksConfig,
-    ) -> Result<OrchestratorConfig>;
-}
-```
-
-### A.3 xchecker-phase-transitions Specification
-
-```toml
-[package]
-name = "xchecker-phase-transitions"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-xchecker-utils = { workspace = true }
-xchecker-receipt = { workspace = true }
-```
-
-**Public API**:
-```rust
-pub struct PhaseTransition {
-    pub from_phase: Option<PhaseId>,
-    pub to_phase: PhaseId,
-    pub is_valid: bool,
-}
-
-pub trait PhaseTransitionValidator {
-    fn validate_transition(&self, from: Option<PhaseId>, to: PhaseId) -> Result<()>;
-    fn get_current_phase(&self, receipts: &ReceiptManager) -> Result<Option<PhaseId>>;
-    fn check_dependencies(&self, phase: PhaseId) -> Result<()>;
-}
+```mermaid
+graph TD
+    CLI[xchecker-cli] --> ORCH[xchecker-orchestrator]
+    TUI[xchecker-tui] --> ORCH
+    ORCH --> PHASE_API[xchecker-phase-api]
+    ORCH --> PACKET[xchecker-packet]
+    ORCH --> FIXUP[xchecker-fixup]
+    ORCH --> RECEIPT[xchecker-receipt]
+    ORCH --> PHASES[xchecker-phases]
+    
+    FIXUP --> FIXUP_MODEL[xchecker-fixup-model]
+    RECEIPT --> RECEIPT_SCHEMA[xchecker-receipt-schema]
+    PHASES --> PHASE_API
+    
+    PACKET --> RUNNER[xchecker-runner]
+    PACKET --> REDACTION[xchecker-redaction]
+    FIXUP --> RUNNER
+    RECEIPT --> RUNNER
+    
+    RUNNER --> LOCK[xchecker-lock]
+    REDACTION --> LOCK
+    
+    style CLI fill:#ff6b6b
+    style TUI fill:#ff6b6b
+    style ORCH fill:#ff6b6b
+    style PHASE_API fill:#ffeaa7
+    style FIXUP_MODEL fill:#ffeaa7
+    style RECEIPT_SCHEMA fill:#ffeaa7
+    style PACKET fill:#96ceb4
+    style FIXUP fill:#96ceb4
+    style RECEIPT fill:#96ceb4
+    style PHASES fill:#96ceb4
+    style RUNNER fill:#dfe6e9
+    style REDACTION fill:#dfe6e9
+    style LOCK fill:#dfe6e9
 ```
 
 ---
 
-## Appendix B: Migration Checklist
+## Appendix B: Evaluation Framework Checklist
 
-### B.1 xchecker-cli Extraction
+When evaluating a potential crate split, ask:
 
-- [ ] Create crate directory structure
-- [ ] Move src/cli.rs to xchecker-cli/src/cli.rs
-- [ ] Extract CLI-specific modules from src/lib.rs
-- [ ] Create xchecker-cli/src/lib.rs with re-exports
-- [ ] Update src/main.rs to use xchecker-cli
-- [ ] Update workspace Cargo.toml
-- [ ] Run CLI tests
-- [ ] Update documentation
+- [ ] **Dependency Direction**: Does this move types down the DAG?
+- [ ] **Testability**: Can this be tested independently?
+- [ ] **Feature Gating**: Does this enable platform/dev-tools separation?
+- [ ] **Reuse**: Will multiple crates legitimately consume this?
+- [ ] **Blast Radius**: Does this isolate changes to obvious owners?
 
-### B.2 xchecker-orchestrator-config Extraction
-
-- [ ] Create crate directory
-- [ ] Extract config conversion logic
-- [ ] Create OrchestratorConfigConverter trait
-- [ ] Update OrchestratorHandle to use new crate
-- [ ] Run tests for config conversion
-- [ ] Update documentation
-
-### B.3 xchecker-phase-transitions Extraction
-
-- [ ] Create crate directory
-- [ ] Extract transition validation logic
-- [ ] Create PhaseTransitionValidator trait
-- [ ] Update PhaseOrchestrator to use new crate
-- [ ] Run tests for transitions
-- [ ] Update documentation
-
-### B.4 xchecker-llm-config Extraction
-
-- [ ] Create crate directory
-- [ ] Extract provider selection logic
-- [ ] Create ProviderConfig trait
-- [ ] Update orchestrator to use new crate
-- [ ] Run tests for provider selection
-- [ ] Update documentation
-
-### B.5 xchecker-workflow-execution Extraction
-
-- [ ] Create crate directory
-- [ ] Extract workflow execution logic
-- [ ] Create WorkflowExecutor trait
-- [ ] Update OrchestratorHandle to use new crate
-- [ ] Run tests for workflow execution
-- [ ] Update documentation
-
-### B.6 xchecker-fixup-match Extraction
-
-- [ ] Create crate directory
-- [ ] Extract match context logic
-- [ ] Create DiffMatcher trait
-- [ ] Update fixup/apply to use new crate
-- [ ] Run tests for matching
-- [ ] Update documentation
-
-### B.7 xchecker-phase-execution Extraction
-
-- [ ] Create crate directory
-- [ ] Extract phase execution logic
-- [ ] Create PhaseExecutor trait
-- [ ] Update orchestrator to use new crate
-- [ ] Run tests for execution
-- [ ] Update documentation
+If the answer is NO to all, it's likely a module, not a crate.
 
 ---
 
@@ -1074,7 +724,7 @@ pub trait PhaseTransitionValidator {
 
 | Field | Value |
 |--------|--------|
-| Version | 1.0 |
+| Version | 2.0 |
 | Date | 2026-01-28 |
 | Author | SRP Analysis Team |
 | Status | Draft - Pending Review |
