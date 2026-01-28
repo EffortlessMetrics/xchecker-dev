@@ -15,14 +15,13 @@ use std::time::Duration;
 
 // Stable public API imports from crate root
 // _Requirements: FR-CLI-2_
-use crate::{CliArgs, Config, ExitCode, OrchestratorHandle, PhaseId, XCheckerError, emit_jcs};
+use crate::{CliArgs, Config, ExitCode, PhaseId, XCheckerError, emit_jcs};
 
 // Internal module imports (not part of stable public API)
 use crate::atomic_write::write_file_atomic;
 use crate::error::{ConfigError, PhaseError};
 use crate::error_reporter::{ErrorReport, utils as error_utils};
 use crate::logging::Logger;
-use crate::orchestrator::OrchestratorConfig;
 use crate::redaction::SecretRedactor;
 use crate::source::SourceResolver;
 use crate::spec_id::sanitize_spec_id;
@@ -1490,11 +1489,6 @@ fn emit_resume_json(output: &crate::types::ResumeJsonOutput) -> Result<String> {
     emit_jcs(output).context("Failed to emit resume JSON")
 }
 
-/// Count pending fixups for a spec
-/// Returns the number of target files with pending fixups
-fn count_pending_fixups(handle: &OrchestratorHandle) -> u32 {
-    crate::fixup::pending_fixups_from_handle(handle).targets
-}
 
 /// Execute the status command
 fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<()> {
@@ -1583,7 +1577,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
         }
 
         // Count pending fixups
-        let pending_fixups = count_pending_fixups(&handle);
+        let pending_fixups = count_pending_fixups_for_spec(spec_id);
 
         // Collect artifacts with blake3_first8 from receipts
         let mut artifact_hashes: BTreeMap<String, String> = BTreeMap::new();
@@ -1898,7 +1892,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
     }
 
     // Check for pending fixups and show intended targets (R5.6)
-    check_and_display_fixup_targets(&handle, spec_id)?;
+    check_and_display_fixup_targets(spec_id)?;
 
     // Show resume suggestions
     match latest_completed {
@@ -1938,11 +1932,11 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
 }
 
 /// Check for pending fixups and display intended targets (R5.6)
-fn check_and_display_fixup_targets(handle: &OrchestratorHandle, spec_id: &str) -> Result<()> {
+fn check_and_display_fixup_targets(spec_id: &str) -> Result<()> {
     use crate::fixup::{FixupMode, FixupParser};
 
     // Check if Review phase is completed and has fixup markers
-    let base_path = handle.artifact_manager().base_path();
+    let base_path = crate::paths::spec_root(spec_id);
     let review_md_path = base_path.join("artifacts").join("30-review.md");
 
     if !review_md_path.exists() {

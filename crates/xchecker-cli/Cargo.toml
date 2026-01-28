@@ -8,7 +8,6 @@ publish = false
 [dependencies]
 xchecker-utils = { path = "../xchecker-utils" }
 xchecker-config = { path = "../xchecker-config" }
-xchecker-orchestrator = { path = "../xchecker-orchestrator" }
 xchecker-engine = { path = "../xchecker-engine" }
 xchecker-error-reporter = { path = "../xchecker-error-reporter" }
 anyhow = { workspace = true }

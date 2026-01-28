@@ -3,13 +3,11 @@
 //! This crate provides the command-line interface for the xchecker tool,
 //! including command parsing, argument handling, and CLI-specific logic.
 
-// Re-export engine types for backward compatibility
-pub use xchecker_engine::{
-    CliArgs, Config, ExitCode, OrchestratorHandle, PhaseId, XCheckerError,
-};
-
-// Re-export orchestrator for direct use
-pub use xchecker_orchestrator::OrchestratorHandle as OrchestratorHandleNew;
+// Re-export types from their new locations after modularization
+pub use xchecker_config::{CliArgs, Config};
+pub use xchecker_utils::error::XCheckerError;
+pub use xchecker_utils::exit_codes::ExitCode;
+pub use xchecker_utils::types::PhaseId;
 
 /// Main CLI entry point
 ///

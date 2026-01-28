@@ -8,7 +8,6 @@ pub use xchecker_extraction as extraction;
 pub use xchecker_fixup_model as fixup_model;
 pub use xchecker_gate as gate;
 pub use xchecker_hooks as hooks;
-pub use xchecker_orchestrator as orchestrator;
 pub use xchecker_packet as packet;
 pub use xchecker_receipt as receipt;
 pub use xchecker_redaction as redaction;
@@ -39,5 +38,8 @@ pub mod example_generators;
 pub mod fixup;
 pub mod integration_tests;
 pub mod orchestrator;
+
+// Re-export orchestrator types for backward compatibility
+pub use orchestrator::{OrchestratorHandle, OrchestratorConfig};
 pub mod phase;
 pub mod phases;

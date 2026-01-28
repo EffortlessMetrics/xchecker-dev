@@ -4273,7 +4273,6 @@ dependencies = [
  "xchecker-config",
  "xchecker-engine",
  "xchecker-error-reporter",
- "xchecker-orchestrator",
  "xchecker-utils",
 ]
 
@@ -4338,7 +4337,6 @@ dependencies = [
  "xchecker-gate",
  "xchecker-hooks",
  "xchecker-llm",
- "xchecker-orchestrator",
  "xchecker-packet",
  "xchecker-phase-api",
  "xchecker-phases",
@@ -4379,12 +4377,6 @@ dependencies = [
 [[package]]
 name = "xchecker-fixup-model"
 version = "1.0.0"
-dependencies = [
- "anyhow",
- "camino",
- "serde",
- "thiserror 2.0.18",
-]
 
 [[package]]
 name = "xchecker-gate"
@@ -4455,47 +4447,6 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "winapi",
-]
-
-[[package]]
-name = "xchecker-orchestrator"
-version = "1.0.0"
-dependencies = [
- "anyhow",
- "blake3",
- "camino",
- "chrono",
- "clap",
- "regex",
- "serde",
- "serde_json",
- "serde_json_canonicalizer",
- "serde_yaml_ng",
- "strum",
- "tempfile",
- "thiserror 2.0.18",
- "tokio",
- "toml 0.9.9+spec-1.0.0",
- "tracing",
- "which",
- "xchecker-config",
- "xchecker-doctor",
- "xchecker-extraction",
- "xchecker-fixup-model",
- "xchecker-gate",
- "xchecker-hooks",
- "xchecker-llm",
- "xchecker-packet",
- "xchecker-phase-api",
- "xchecker-phases",
- "xchecker-receipt",
- "xchecker-redaction",
- "xchecker-runner",
- "xchecker-status",
- "xchecker-templates",
- "xchecker-utils",
- "xchecker-validation",
- "xchecker-workspace",
 ]
 
 [[package]]

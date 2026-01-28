@@ -27,7 +27,6 @@ xchecker-hooks = { path = "../xchecker-hooks" }
 xchecker-workspace = { path = "../xchecker-workspace" }
 xchecker-gate = { path = "../xchecker-gate" }
 xchecker-fixup-model = { path = "../xchecker-fixup-model" }
-xchecker-orchestrator = { path = "../xchecker-orchestrator" }
 xchecker-phases = { path = "../xchecker-phases" }
 xchecker-phase-api = { path = "../xchecker-phase-api" }
 anyhow = { workspace = true }
