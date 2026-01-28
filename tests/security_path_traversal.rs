@@ -78,9 +78,13 @@ fn test_fixup_path_traversal_rejection() -> Result<()> {
     // Ensure the base path directory exists (FixupParser needs this for sandbox validation)
     std::fs::create_dir_all(base_path.as_path())?;
 
+    // Convert to absolute path for sandbox validation
+    // (SandboxRoot::new requires the path to exist and be canonicalizable)
+    let abs_base_path = std::env::current_dir()?.join(base_path.as_std_path());
+
     // Initialize FixupParser in Apply mode
-    let parser = FixupParser::new(FixupMode::Apply, base_path.into_std_path_buf())
-        .expect("Failed to create FixupParser");
+    let parser =
+        FixupParser::new(FixupMode::Apply, abs_base_path).expect("Failed to create FixupParser");
 
     // Case 1: Parent directory traversal
     let traversal_diff = UnifiedDiff {

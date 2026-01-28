@@ -288,9 +288,9 @@ impl ContentSelector {
 
                 let mut all_candidates = Vec::with_capacity(paths.len());
                 for handle in handles {
-                    if let Ok(chunk_candidates) = handle.join() {
-                        all_candidates.extend(chunk_candidates);
-                    }
+                    let chunk_candidates =
+                        handle.join().expect("candidate selection worker panicked");
+                    all_candidates.extend(chunk_candidates);
                 }
                 all_candidates
             })

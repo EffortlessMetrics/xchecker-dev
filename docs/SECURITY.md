@@ -21,7 +21,7 @@ The SecretRedactor component detects and blocks secrets before they reach Claude
 ### Default Secret Patterns
 
 <!-- BEGIN GENERATED:DEFAULT_SECRET_PATTERNS -->
-xchecker includes **42 default secret patterns** across 8 categories.
+xchecker includes **43 default secret patterns** across 8 categories.
 
 #### AWS Credentials (5 patterns)
 
@@ -70,11 +70,12 @@ xchecker includes **42 default secret patterns** across 8 categories.
 | `jwt_token` | `eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*` | JSON Web Tokens |
 | `oauth_token` | `(?i)(?:access_token\|refresh_token)[=:][A-Za-z0-9._-]{20,}` | OAuth tokens |
 
-#### LLM Provider Tokens (3 patterns)
+#### LLM Provider Tokens (4 patterns)
 
 | Pattern ID | Regex | Description |
 |------------|-------|-------------|
 | `anthropic_api_key` | `sk-ant-api03-[A-Za-z0-9_-]{20,}` | Anthropic API keys |
+| `huggingface_token` | `hf_[A-Za-z0-9]{34}` | Hugging Face access tokens |
 | `openai_api_key` | `sk-(?:proj\|org)-[A-Za-z0-9_-]{20,}` | OpenAI Project/Org API keys |
 | `openai_legacy_key` | `sk-[A-Za-z0-9]{48}` | OpenAI Legacy API keys |
 
