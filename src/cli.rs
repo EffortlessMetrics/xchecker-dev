@@ -15,7 +15,10 @@ use std::time::Duration;
 
 // Stable public API imports from crate root
 // _Requirements: FR-CLI-2_
-use crate::{CliArgs, Config, ExitCode, PhaseId, XCheckerError, emit_jcs};
+use crate::{
+    CliArgs, Config, ExitCode, OrchestratorConfig, OrchestratorHandle, PhaseId, XCheckerError,
+    emit_jcs,
+};
 
 // Internal module imports (not part of stable public API)
 use crate::atomic_write::write_file_atomic;
@@ -1488,7 +1491,6 @@ fn emit_resume_json(output: &crate::types::ResumeJsonOutput) -> Result<String> {
     // Use emit_jcs from crate root for JCS canonicalization
     emit_jcs(output).context("Failed to emit resume JSON")
 }
-
 
 /// Execute the status command
 fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<()> {

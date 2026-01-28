@@ -1,8 +1,8 @@
-use std::path::PathBuf;
 use super::model::FixupMode;
 use super::parse::FixupParser;
 use crate::gate::{PendingFixupsResult, PendingFixupsStats};
 use crate::orchestrator::OrchestratorHandle;
+use std::path::PathBuf;
 
 /// Get pending fixups result for a spec by ID
 ///

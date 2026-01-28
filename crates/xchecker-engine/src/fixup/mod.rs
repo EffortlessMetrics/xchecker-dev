@@ -31,10 +31,7 @@ pub use model::{
 pub use parse::FixupParser;
 pub use paths::validate_fixup_target;
 pub use phase::FixupPhase;
-pub use report::{
-    pending_fixups_for_spec,
-    pending_fixups_result_from_handle,
-};
+pub use report::{pending_fixups_for_spec, pending_fixups_result_from_handle};
 
 #[cfg(test)]
 mod tests {

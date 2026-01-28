@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use xchecker::artifact::ArtifactManager;
 use xchecker::paths;
 use xchecker::receipt::ReceiptManager;
-use xchecker::status::StatusManager;
+use xchecker::status::status::StatusManager;
 use xchecker::types::{ConfigSource, DriftPair, FileHash, LockDrift, PacketEvidence, PhaseId};
 
 /// Helper to generate status using the internal method

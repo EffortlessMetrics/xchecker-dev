@@ -6,5 +6,8 @@
 // Re-export all Phase trait types from xchecker-phase-api
 pub use xchecker_phase_api::{NextStep, Phase, PhaseContext, PhaseId, PhaseMetadata, PhaseResult};
 
+// Re-export packet types for backward compatibility
+pub use xchecker_packet::{BudgetUsage, Packet};
+
 // Re-export artifact types from status module
 pub use crate::status::artifact::Artifact;

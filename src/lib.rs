@@ -73,7 +73,7 @@
 // ============================================================================
 
 // Re-export orchestrator types for backward compatibility
-pub use xchecker_engine::orchestrator::{OrchestratorHandle, OrchestratorConfig};
+pub use xchecker_engine::orchestrator::{OrchestratorConfig, OrchestratorHandle};
 
 /// Phase identifiers for the spec generation workflow.
 ///
@@ -198,9 +198,17 @@ pub use xchecker_llm as llm;
 #[doc(hidden)]
 pub use xchecker_engine::{
     benchmark, doctor, example_generators, extraction, fixup, gate, hooks, integration_tests,
-    packet, phase, phases, receipt, runner, templates, validation, workspace,
+    orchestrator, packet, phase, phases, receipt, runner, templates, validation, workspace,
 };
 pub use xchecker_status as status;
+
+// Re-export artifact module from status crate for tests
+#[doc(hidden)]
+pub use xchecker_status::artifact;
+
+// Re-export wsl module from doctor crate for tests
+#[doc(hidden)]
+pub use xchecker_doctor::wsl;
 
 // Legacy wrapper; follow-up spec (V19+) to delete once tests migrate
 #[cfg(feature = "legacy_claude")]

@@ -255,6 +255,7 @@ impl FixupParser {
         let mut current_hunk_header: Option<((usize, usize), (usize, usize))> = None;
 
         // Regex to match hunk headers: @@ -old_start,old_count +new_start,new_count @@
+        // Note: Optional count groups must come after their respective start numbers
         let hunk_header_regex = Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap();
 
         for line in lines {
@@ -465,9 +466,11 @@ pub fn test() {
 "#;
 
         let diffs = parser.parse_diffs(content).unwrap();
-        assert_eq!(diffs.len(), 1);
+        assert_eq!(diffs.len(), 2);
         assert_eq!(diffs[0].target_file, "src/main.rs");
         assert_eq!(diffs[0].hunks.len(), 1);
+        assert_eq!(diffs[1].target_file, "src/lib.rs");
+        assert_eq!(diffs[1].hunks.len(), 1);
     }
 
     #[test]
@@ -530,16 +533,16 @@ line 10
         assert_eq!(hunk2.old_range, (10, 1));
         assert_eq!(hunk2.new_range, (11, 2));
 
-        // Verify first hunk
+        // Verify first hunk - start should match old_range.0
         let hunk1 = &diffs[0].hunks[0];
-        assert_eq!(hunk1.start, 1);
+        assert_eq!(hunk1.start, 5); // old_range.0
         assert_eq!(hunk1.remove_count, 3);
         assert_eq!(hunk1.add_count, 4);
 
         // Verify second hunk
         let hunk2 = &diffs[0].hunks[1];
         assert_eq!(hunk2.old_range, (10, 1));
-        assert_eq!(hunk2.remove_count, 2);
+        assert_eq!(hunk2.remove_count, 1); // old_range.1
         assert_eq!(hunk2.new_range, (11, 2));
     }
 

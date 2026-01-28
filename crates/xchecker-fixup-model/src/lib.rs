@@ -16,6 +16,17 @@ pub enum FixupMode {
     Apply,
 }
 
+impl FixupMode {
+    /// Returns the string representation of the mode
+    #[must_use]
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Preview => "preview",
+            Self::Apply => "apply",
+        }
+    }
+}
+
 /// A single hunk in a unified diff
 ///
 /// Represents a contiguous block of changes with context lines.
@@ -137,10 +148,16 @@ mod tests {
             remove_count: 2,
             add_count: 3,
             remove_lines: vec!["old line 1".to_string(), "old line 2".to_string()],
-            add_lines: vec!["new line 1".to_string(), "new line 2".to_string(), "new line 3".to_string()],
+            add_lines: vec![
+                "new line 1".to_string(),
+                "new line 2".to_string(),
+                "new line 3".to_string(),
+            ],
             old_range: (10, 2),
             new_range: (10, 3),
-            content: "@@ -10,2 +10,3 @@\n-old line 1\n-old line 2\n+new line 1\n+new line 2\n+new line 3".to_string(),
+            content:
+                "@@ -10,2 +10,3 @@\n-old line 1\n-old line 2\n+new line 1\n+new line 2\n+new line 3"
+                    .to_string(),
         };
 
         assert_eq!(hunk.start, 10);
@@ -168,7 +185,8 @@ mod tests {
         let diff = UnifiedDiff {
             path: "a/src/main.rs".to_string(),
             target_file: "src/main.rs".to_string(),
-            diff_content: "--- a/src/main.rs\n+++ b/src/main.rs\n@@ -1,1 +1,1 @@\n-old\n+new".to_string(),
+            diff_content: "--- a/src/main.rs\n+++ b/src/main.rs\n@@ -1,1 +1,1 @@\n-old\n+new"
+                .to_string(),
             hunks: vec![hunk],
         };
 

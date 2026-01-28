@@ -84,9 +84,15 @@ fn test_fixup_path_traversal_rejection() -> Result<()> {
 
     // Case 1: Parent directory traversal
     let traversal_diff = UnifiedDiff {
+        path: "a/../evil.txt".to_string(),
         target_file: "../evil.txt".to_string(),
         diff_content: "diff --git a/../evil.txt b/../evil.txt\n...".to_string(),
         hunks: vec![DiffHunk {
+            start: 1,
+            remove_count: 1,
+            add_count: 1,
+            remove_lines: vec!["old".to_string()],
+            add_lines: vec!["new".to_string()],
             old_range: (1, 1),
             new_range: (1, 1),
             content: "@@ -1,1 +1,1 @@\n-old\n+new".to_string(),
@@ -117,9 +123,15 @@ fn test_fixup_path_traversal_rejection() -> Result<()> {
     let abs_path = "C:\\Windows\\Temp\\evil.txt";
 
     let abs_diff = UnifiedDiff {
+        path: format!("a{}", abs_path),
         target_file: abs_path.to_string(),
         diff_content: format!("diff --git a{} b{}\n...", abs_path, abs_path),
         hunks: vec![DiffHunk {
+            start: 1,
+            remove_count: 1,
+            add_count: 1,
+            remove_lines: vec!["old".to_string()],
+            add_lines: vec!["new".to_string()],
             old_range: (1, 1),
             new_range: (1, 1),
             content: "@@ -1,1 +1,1 @@\n-old\n+new".to_string(),

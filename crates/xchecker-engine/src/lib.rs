@@ -40,6 +40,6 @@ pub mod integration_tests;
 pub mod orchestrator;
 
 // Re-export orchestrator types for backward compatibility
-pub use orchestrator::{OrchestratorHandle, OrchestratorConfig};
+pub use orchestrator::{OrchestratorConfig, OrchestratorHandle};
 pub mod phase;
 pub mod phases;
