@@ -203,6 +203,11 @@ spec_id: "test-spec-123"
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_complete_multi_phase_flow() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M3TestEnvironment::new("multi-phase-flow")?;
 
     let config = OrchestratorConfig {
@@ -412,6 +417,11 @@ async fn test_complete_multi_phase_flow() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_resume_functionality_from_intermediate_phases() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M3TestEnvironment::new("resume-functionality")?;
 
     let config = OrchestratorConfig {
@@ -542,6 +552,11 @@ async fn test_resume_functionality_from_intermediate_phases() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_generated_core_yaml_canonicalization() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M3TestEnvironment::new("generated-yaml-canon")?;
 
     let config = OrchestratorConfig {
@@ -623,6 +638,11 @@ async fn test_generated_core_yaml_canonicalization() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_resume_dependency_validation() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M3TestEnvironment::new("resume-deps")?;
 
     let config = OrchestratorConfig {
@@ -704,6 +724,11 @@ async fn test_resume_dependency_validation() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_canonicalization_metadata_in_receipts() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M3TestEnvironment::new("canon-metadata")?;
 
     let config = OrchestratorConfig {
