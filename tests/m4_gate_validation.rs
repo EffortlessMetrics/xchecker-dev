@@ -278,6 +278,11 @@ These changes are essential for a complete specification.
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_status_command_shows_complete_phase_information() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M4TestEnvironment::new("status-info")?;
 
     let config = OrchestratorConfig {
@@ -419,6 +424,11 @@ async fn test_status_command_shows_complete_phase_information() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_verbose_logging_provides_debugging_information() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M4TestEnvironment::new("verbose-logging")?;
 
     // Create sample files that match the packet builder's default patterns.
@@ -645,6 +655,11 @@ fn test_status_command_handles_empty_spec() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_review_phase_integration_with_fixup_detection() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = M4TestEnvironment::new("review-integration")?;
 
     let config = OrchestratorConfig {
