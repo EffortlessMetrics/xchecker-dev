@@ -10,9 +10,13 @@ use globset::Glob;
 /// # Patterns
 ///
 /// - `.env` and `.env.*` - Environment variable files
-/// - `*.pem`, `*.pfx`, `*.p12` - Certificate/key files
+/// - `*.pem`, `*.pfx`, `*.p12`, `*.key`, `*.p8` - Certificate/key files
 /// - `id_rsa`, `id_ed25519` - SSH private keys
 /// - `.ssh/**` - SSH configuration directory
+/// - `.aws/**` - AWS credentials directory
+/// - `.kube/**` - Kubernetes config directory
+/// - `*.kdbx` - KeePass password databases
+/// - `secrets.yaml`, `secrets.yml` - Secrets configuration files
 pub const ALWAYS_EXCLUDE_PATTERNS: &[&str] = &[
     "**/.env",
     "**/.env.*",
@@ -22,6 +26,13 @@ pub const ALWAYS_EXCLUDE_PATTERNS: &[&str] = &[
     "**/.ssh/**",
     "**/*.pfx",
     "**/*.p12",
+    "**/*.key",
+    "**/*.kdbx",
+    "**/.aws/**",
+    "**/.kube/**",
+    "**/*.p8",
+    "**/secrets.yaml",
+    "**/secrets.yml",
 ];
 
 /// Content selection configuration
