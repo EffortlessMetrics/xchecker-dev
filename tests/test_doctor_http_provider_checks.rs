@@ -385,19 +385,15 @@ provider = "openrouter"
             ..Default::default()
         };
 
-        let config = Config::discover(&cli_args).unwrap();
-        let mut doctor = DoctorCommand::new(config);
-        let output = doctor.run_with_options().unwrap();
+        // Config discovery should fail because model is required
+        let config_result = Config::discover(&cli_args);
+        assert!(config_result.is_err(), "Config discovery should fail without required model");
 
-        let llm_check = output
-            .checks
-            .iter()
-            .find(|c| c.name == "llm_provider")
-            .unwrap();
-
-        assert_eq!(llm_check.status, CheckStatus::Fail);
+        let err = config_result.unwrap_err();
+        let err_msg = err.to_string();
         assert!(
-            llm_check.details.contains("model") || llm_check.details.contains("not configured")
+            err_msg.contains("model") && err_msg.contains("configured"),
+            "Error should mention missing model configuration: {}", err_msg
         );
 
         // Cleanup
@@ -524,19 +520,15 @@ provider = "anthropic"
             ..Default::default()
         };
 
-        let config = Config::discover(&cli_args).unwrap();
-        let mut doctor = DoctorCommand::new(config);
-        let output = doctor.run_with_options().unwrap();
+        // Config discovery should fail because model is required
+        let config_result = Config::discover(&cli_args);
+        assert!(config_result.is_err(), "Config discovery should fail without required model");
 
-        let llm_check = output
-            .checks
-            .iter()
-            .find(|c| c.name == "llm_provider")
-            .unwrap();
-
-        assert_eq!(llm_check.status, CheckStatus::Fail);
+        let err = config_result.unwrap_err();
+        let err_msg = err.to_string();
         assert!(
-            llm_check.details.contains("model") || llm_check.details.contains("not configured")
+            err_msg.contains("model") && err_msg.contains("configured"),
+            "Error should mention missing model configuration: {}", err_msg
         );
 
         // Cleanup
