@@ -245,19 +245,56 @@ impl ContentSelector {
     /// Select candidates from a directory with priority-based ordering
     /// Returns files grouped by priority, with LIFO ordering within each group
     /// This method is lazy: it does not read file content.
+    ///
+    /// For large datasets (>= 500 files), priority assignment is parallelized
+    /// using `std::thread::scope` to improve performance on multi-core systems.
     pub fn select_candidates(&self, base_path: &Utf8Path) -> Result<Vec<CandidateFile>> {
         let mut paths = Vec::new();
 
         // Walk the directory tree, passing root for symlink sandbox validation
         self.walk_directory_paths(base_path, base_path, &mut paths)?;
 
-        let mut candidates: Vec<CandidateFile> = paths
-            .into_iter()
-            .map(|path| {
-                let priority = self.get_priority(&path);
-                CandidateFile { path, priority }
+        let num_threads = thread::available_parallelism().map_or(1, |n| n.get());
+
+        let mut candidates = if paths.len() < 500 || num_threads <= 1 {
+            // Sequential processing for small datasets or single-core avoids thread overhead
+            paths
+                .into_iter()
+                .map(|path| {
+                    let priority = self.get_priority(&path);
+                    CandidateFile { path, priority }
+                })
+                .collect()
+        } else {
+            // Parallel processing for large datasets
+            let chunk_size = paths.len().div_ceil(num_threads);
+
+            thread::scope(|s| {
+                let mut handles = Vec::new();
+                for chunk in paths.chunks(chunk_size) {
+                    let handle = s.spawn(move || {
+                        let mut chunk_candidates = Vec::with_capacity(chunk.len());
+                        for path in chunk {
+                            let priority = self.get_priority(path);
+                            chunk_candidates.push(CandidateFile {
+                                path: path.clone(),
+                                priority,
+                            });
+                        }
+                        chunk_candidates
+                    });
+                    handles.push(handle);
+                }
+
+                let mut all_candidates = Vec::with_capacity(paths.len());
+                for handle in handles {
+                    if let Ok(chunk_candidates) = handle.join() {
+                        all_candidates.extend(chunk_candidates);
+                    }
+                }
+                all_candidates
             })
-            .collect();
+        };
 
         // Sort by priority (Upstream first, then High, Medium, Low)
         // Within each priority, maintain LIFO order (reverse chronological)
@@ -299,7 +336,7 @@ impl ContentSelector {
                     let mut chunk_results = Vec::with_capacity(chunk.len());
                     for candidate in chunk {
                         // Optimization: Open file once to avoid redundant path resolution and TOCTOU
-                        let mut file = fs::File::open(&candidate.path)
+                        let file = fs::File::open(&candidate.path)
                             .with_context(|| format!("Failed to open file: {}", candidate.path))?;
 
                         // DoS protection: check file size before reading to prevent memory exhaustion
@@ -336,8 +373,33 @@ impl ContentSelector {
 
                         // Pre-allocate buffer to avoid reallocations
                         let mut content = String::with_capacity(metadata.len() as usize);
-                        file.read_to_string(&mut content)
+
+                        // Security: Use take() to enforce hard limit on read size
+                        // This prevents DoS if the file grows concurrently (TOCTOU race)
+                        file.take(self.max_file_size + 1)
+                            .read_to_string(&mut content)
                             .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+                        // Post-read size check: handles case where file grew during read
+                        if content.len() as u64 > self.max_file_size {
+                            if candidate.priority == Priority::Upstream {
+                                return Err(anyhow::anyhow!(
+                                    "Upstream file {} exceeds size limit of {} bytes (read: {}). \
+                                     Critical context files must fit within the configured limit.",
+                                    candidate.path,
+                                    self.max_file_size,
+                                    content.len()
+                                ));
+                            }
+
+                            warn!(
+                                "Skipping large file: {} ({} bytes > limit {}) - file grew during read",
+                                candidate.path,
+                                content.len(),
+                                self.max_file_size
+                            );
+                            continue;
+                        }
 
                         // Calculate pre-redaction hash
                         let mut hasher = Hasher::new();
