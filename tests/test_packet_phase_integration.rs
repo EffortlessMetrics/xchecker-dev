@@ -11,18 +11,19 @@
 
 use anyhow::Result;
 use std::fs;
-use tempfile::TempDir;
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::test_support;
 use xchecker::types::PhaseId;
 
 /// Helper to set up test environment with sample files
-fn setup_test_environment_with_files(test_name: &str) -> (PhaseOrchestrator, TempDir) {
+fn setup_test_environment_with_files(test_name: &str) -> (PhaseOrchestrator, xchecker::paths::HomeGuard) {
     // Use isolated home for each test to avoid conflicts
     let temp_dir = xchecker::paths::with_isolated_home();
 
     // Create spec directory structure
     let spec_id = format!("test-packet-phase-{}", test_name);
+    // Explicitly create the spec directory to satisfy SandboxRoot requirements
+    std::fs::create_dir_all(temp_dir.path().join("specs").join(&spec_id)).unwrap();
     let orchestrator = PhaseOrchestrator::new(&spec_id).unwrap();
 
     // Create some sample files in the spec directory for packet building
