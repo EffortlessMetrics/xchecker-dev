@@ -5,7 +5,7 @@
 
 use crate::error::XCheckerError;
 use anyhow::{Context, Result};
-use regex::Regex;
+use regex::{Regex, RegexSet};
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -361,6 +361,11 @@ pub struct SecretRedactor {
     extra_patterns: HashMap<String, Regex>,
     /// Patterns to ignore (suppress detection)
     ignored_patterns: Vec<String>,
+
+    // Optimization: RegexSet for fast pre-filtering
+    // and a parallel list of (ID, Regex) corresponding to the set indices
+    regex_set: RegexSet,
+    patterns_linear: Vec<(String, Regex)>,
 }
 
 /// Information about a detected secret
@@ -413,11 +418,46 @@ impl SecretRedactor {
             default_patterns.insert(def.id.to_string(), regex);
         }
 
-        Ok(Self {
+        let mut redactor = Self {
             default_patterns,
             extra_patterns: HashMap::new(),
             ignored_patterns: Vec::new(),
-        })
+            regex_set: RegexSet::empty(),
+            patterns_linear: Vec::new(),
+        };
+
+        redactor.rebuild_regex_set()?;
+
+        Ok(redactor)
+    }
+
+    /// Rebuilds the internal RegexSet and linear pattern list.
+    /// This should be called whenever patterns are added or ignored.
+    fn rebuild_regex_set(&mut self) -> Result<()> {
+        let mut patterns_to_compile = Vec::new();
+        let mut linear = Vec::new();
+
+        // Collect all patterns (default + extra)
+        let mut all_patterns: Vec<(&String, &Regex)> = self.default_patterns.iter()
+            .chain(self.extra_patterns.iter())
+            .collect();
+
+        // Sort by ID for deterministic behavior
+        all_patterns.sort_by(|(id1, _), (id2, _)| id1.cmp(id2));
+
+        for (id, regex) in all_patterns {
+            if self.is_pattern_ignored(id) {
+                continue;
+            }
+            patterns_to_compile.push(regex.as_str());
+            linear.push((id.clone(), regex.clone()));
+        }
+
+        self.regex_set = RegexSet::new(patterns_to_compile)
+            .context("Failed to compile RegexSet for secret redaction")?;
+        self.patterns_linear = linear;
+
+        Ok(())
     }
 
     /// Create a `SecretRedactor` from a `Config`.
@@ -464,16 +504,23 @@ impl SecretRedactor {
     pub fn from_config<T: SecretConfigProvider>(config: &T) -> Result<Self> {
         let mut redactor = Self::new()?;
 
+        // Add ignored patterns from config first (so they are excluded from rebuilds)
+        for pattern_id in config.ignore_secret_patterns() {
+            // We use internal method to avoid rebuilding on every add
+            redactor.ignored_patterns.push(pattern_id.to_string());
+        }
+
         // Add extra patterns from config
+        // This will trigger rebuilds, but usually there are few extra patterns
         for (idx, pattern) in config.extra_secret_patterns().iter().enumerate() {
             let pattern_id = format!("extra_pattern_{}", idx);
             redactor.add_extra_pattern(pattern_id, pattern)?;
         }
 
-        // Add ignored patterns from config
-        for pattern_id in config.ignore_secret_patterns() {
-            redactor.add_ignored_pattern(pattern_id.to_string());
-        }
+        // Rebuild once at the end if we only added ignored patterns and no extra patterns
+        // (add_extra_pattern calls rebuild, but if loops are empty or only ignored patterns added...)
+        // Actually, let's just make sure we rebuild.
+        redactor.rebuild_regex_set()?;
 
         Ok(redactor)
     }
@@ -490,22 +537,17 @@ impl SecretRedactor {
     /// The redacted text with secrets replaced by "***"
     #[must_use]
     pub fn redact_string(&self, text: &str) -> String {
-        let mut redacted = text.to_string();
-
-        // Apply default patterns
-        for (pattern_id, regex) in &self.default_patterns {
-            if self.is_pattern_ignored(pattern_id) {
-                continue;
-            }
-            redacted = regex.replace_all(&redacted, "***").to_string();
+        let matches = self.regex_set.matches(text);
+        if !matches.matched_any() {
+            return text.to_string();
         }
 
-        // Apply extra patterns
-        for (pattern_id, regex) in &self.extra_patterns {
-            if self.is_pattern_ignored(pattern_id) {
-                continue;
+        let mut redacted = text.to_string();
+
+        for index in matches.iter() {
+            if let Some((_, regex)) = self.patterns_linear.get(index) {
+                redacted = regex.replace_all(&redacted, "***").to_string();
             }
-            redacted = regex.replace_all(&redacted, "***").to_string();
         }
 
         redacted
@@ -548,6 +590,7 @@ impl SecretRedactor {
         })?;
 
         self.extra_patterns.insert(pattern_id, regex);
+        self.rebuild_regex_set()?;
         Ok(())
     }
 
@@ -556,35 +599,29 @@ impl SecretRedactor {
     #[allow(dead_code)] // Extended API for pattern configuration
     pub fn add_ignored_pattern(&mut self, pattern: String) {
         self.ignored_patterns.push(pattern);
+        // We must rebuild because ignored patterns are excluded from the set
+        let _ = self.rebuild_regex_set();
     }
 
     /// Scan content for secrets and return matches without redacting
     pub fn scan_for_secrets(&self, content: &str, file_path: &str) -> Result<Vec<SecretMatch>> {
-        let mut matches = Vec::new();
-
-        // Scan with default patterns
-        for (pattern_id, regex) in &self.default_patterns {
-            if self.is_pattern_ignored(pattern_id) {
-                continue;
-            }
-
-            let pattern_matches =
-                self.find_matches_in_content(content, file_path, pattern_id, regex)?;
-            matches.extend(pattern_matches);
+        // Optimization: Use RegexSet to check which patterns match before iterating
+        let matches = self.regex_set.matches(content);
+        if !matches.matched_any() {
+            return Ok(Vec::new());
         }
 
-        // Scan with extra patterns
-        for (pattern_id, regex) in &self.extra_patterns {
-            if self.is_pattern_ignored(pattern_id) {
-                continue;
-            }
+        let mut results = Vec::new();
 
-            let pattern_matches =
-                self.find_matches_in_content(content, file_path, pattern_id, regex)?;
-            matches.extend(pattern_matches);
+        for index in matches.iter() {
+            if let Some((pattern_id, regex)) = self.patterns_linear.get(index) {
+                let pattern_matches =
+                    self.find_matches_in_content(content, file_path, pattern_id, regex)?;
+                results.extend(pattern_matches);
+            }
         }
 
-        Ok(matches)
+        Ok(results)
     }
 
     /// Redact secrets from content, replacing them with placeholder text
