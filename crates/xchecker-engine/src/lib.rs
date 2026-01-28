@@ -21,8 +21,8 @@ pub use xchecker_utils::test_support;
 pub use xchecker_utils::types;
 pub use xchecker_packet as packet;
 pub use xchecker_receipt as receipt;
+pub use xchecker_status as status;
 
-pub mod artifact;
 pub mod benchmark;
 #[cfg(any(test, feature = "legacy_claude"))]
 pub mod claude;
@@ -36,7 +36,6 @@ pub mod integration_tests;
 pub mod orchestrator;
 pub mod phase;
 pub mod phases;
-pub mod status;
 pub mod template;
 pub mod validation;
 pub mod workspace;

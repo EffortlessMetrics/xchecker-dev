@@ -7,7 +7,7 @@ use anyhow::Result;
 use camino::Utf8PathBuf;
 use std::collections::HashMap;
 
-use crate::artifact::{Artifact, ArtifactType};
+use crate::status::artifact::{Artifact, ArtifactType};
 use crate::cache::InsightCache;
 use crate::extraction::{summarize_design, summarize_requirements, summarize_tasks};
 use crate::fixup::{FixupMode, FixupParser};

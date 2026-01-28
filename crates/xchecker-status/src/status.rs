@@ -12,7 +12,6 @@ use chrono::Utc;
 use std::collections::BTreeMap;
 
 use crate::artifact::ArtifactManager;
-use crate::orchestrator::PhaseOrchestrator;
 use crate::receipt::ReceiptManager;
 use crate::types::{ArtifactInfo, ConfigSource, ConfigValue, LockDrift, StatusOutput};
 
@@ -26,14 +25,12 @@ impl StatusManager {
     /// Reserved for orchestration APIs; not currently used by CLI.
     #[allow(dead_code)] // Reserved for orchestration APIs; not currently used by CLI
     pub fn generate_status_from_orchestrator(
-        orchestrator: &PhaseOrchestrator,
+        artifact_manager: &ArtifactManager,
+        receipt_manager: &ReceiptManager,
         effective_config: BTreeMap<String, (String, String)>,
         lock_drift: Option<LockDrift>,
         pending_fixups: Option<crate::types::PendingFixupsSummary>,
     ) -> Result<StatusOutput> {
-        let artifact_manager = orchestrator.artifact_manager();
-        let receipt_manager = orchestrator.receipt_manager();
-
         Self::generate_status_internal(
             artifact_manager,
             receipt_manager,
@@ -282,4 +279,109 @@ pub fn generate_status(
             reason: format!("Failed to generate status: {e}"),
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_status_manager_creation() {
+        // Test that StatusManager can be instantiated
+        let _manager = StatusManager;
+    }
+
+    #[test]
+    fn test_generate_status_from_orchestrator_fresh_spec() {
+        // Test status generation for a fresh spec with no receipts
+        let temp_dir = crate::paths::with_isolated_home();
+        let spec_id = "test-spec-fresh";
+
+        let artifact_manager = ArtifactManager::new(spec_id).unwrap();
+        let base_path = crate::paths::spec_root(spec_id);
+        let receipt_manager = ReceiptManager::new(&base_path);
+
+        let effective_config = BTreeMap::new();
+        let lock_drift = None;
+        let pending_fixups = None;
+
+        let result = StatusManager::generate_status_from_orchestrator(
+            &artifact_manager,
+            &receipt_manager,
+            effective_config,
+            lock_drift,
+            pending_fixups,
+        );
+
+        assert!(result.is_ok());
+        let status = result.unwrap();
+
+        assert_eq!(status.schema_version, "1");
+        assert_eq!(status.artifacts.len(), 0);
+        assert_eq!(status.last_receipt_path, "");
+        assert_eq!(status.runner, "native"); // Default for fresh spec
+        assert!(status.runner_distro.is_none());
+        assert!(!status.fallback_used);
+        assert_eq!(status.canonicalization_version, "1.0.0");
+        assert_eq!(status.canonicalization_backend, "jcs-rfc8785");
+
+        drop(temp_dir);
+    }
+
+    #[test]
+    fn test_build_effective_config() {
+        let mut config_map = BTreeMap::new();
+        config_map.insert("key1".to_string(), ("value1".to_string(), "cli".to_string()));
+        config_map.insert("key2".to_string(), ("value2".to_string(), "config".to_string()));
+        config_map.insert("key3".to_string(), ("123".to_string(), "env".to_string()));
+        config_map.insert("key4".to_string(), ("true".to_string(), "default".to_string()));
+
+        let result = StatusManager::build_effective_config(config_map, None);
+
+        assert_eq!(result.len(), 4);
+
+        let key1 = result.get("key1").unwrap();
+        assert_eq!(key1.source, ConfigSource::Cli);
+        assert_eq!(key1.value, serde_json::json!("value1"));
+
+        let key2 = result.get("key2").unwrap();
+        assert_eq!(key2.source, ConfigSource::Config);
+        assert_eq!(key2.value, serde_json::json!("value2"));
+
+        let key3 = result.get("key3").unwrap();
+        assert_eq!(key3.source, ConfigSource::Env);
+        assert_eq!(key3.value, serde_json::json!(123));
+
+        let key4 = result.get("key4").unwrap();
+        assert_eq!(key4.source, ConfigSource::Default);
+        assert_eq!(key4.value, serde_json::json!(true));
+    }
+
+    #[test]
+    fn test_emit_json() {
+        let status = StatusOutput {
+            schema_version: "1".to_string(),
+            emitted_at: Utc::now(),
+            runner: "native".to_string(),
+            runner_distro: None,
+            fallback_used: false,
+            canonicalization_version: "1.0.0".to_string(),
+            canonicalization_backend: "jcs-rfc8785".to_string(),
+            artifacts: Vec::new(),
+            last_receipt_path: "receipts/test.json".to_string(),
+            effective_config: BTreeMap::new(),
+            lock_drift: None,
+            pending_fixups: None,
+        };
+
+        let result = StatusManager::emit_json(&status);
+
+        assert!(result.is_ok());
+        let json_str = result.unwrap();
+
+        // Verify it's valid JSON
+        let parsed: serde_json::Value = serde_json::from_str(&json_str).unwrap();
+        assert_eq!(parsed["schema_version"], "1");
+        assert_eq!(parsed["runner"], "native");
+    }
 }

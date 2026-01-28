@@ -2,6 +2,7 @@
 name = "xchecker-engine"
 version = "1.0.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 publish = false
 
 [features]
@@ -16,6 +17,7 @@ xchecker-redaction = { path = "../xchecker-redaction" }
 xchecker-runner = { path = "../xchecker-runner" }
 xchecker-packet = { path = "../xchecker-packet" }
 xchecker-receipt = { path = "../xchecker-receipt" }
+xchecker-status = { path = "../xchecker-status" }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -25,7 +25,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::artifact::ArtifactManager;
+use crate::status::artifact::ArtifactManager;
 use crate::config::{CliArgs, Config};
 use crate::error::{ConfigError, XCheckerError};
 use crate::receipt::ReceiptManager;
@@ -530,7 +530,7 @@ impl OrchestratorHandle {
             }
         }
 
-        crate::status::StatusManager::generate_status_internal(
+        crate::status::status::StatusManager::generate_status_internal(
             self.orchestrator.artifact_manager(),
             self.orchestrator.receipt_manager(),
             effective_config,

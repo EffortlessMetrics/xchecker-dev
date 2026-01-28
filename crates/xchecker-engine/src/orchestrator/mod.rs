@@ -23,7 +23,7 @@ use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::artifact::ArtifactManager;
+use crate::status::artifact::ArtifactManager;
 use crate::config::Selectors;
 use crate::error::{PhaseError, XCheckerError};
 use crate::hooks::HooksConfig;

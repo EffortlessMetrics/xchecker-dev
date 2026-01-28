@@ -4076,6 +4076,7 @@ dependencies = [
  "xchecker-error-reporter",
  "xchecker-llm",
  "xchecker-redaction",
+ "xchecker-status",
  "xchecker-tui",
  "xchecker-utils",
 ]
@@ -4123,6 +4124,7 @@ dependencies = [
  "xchecker-receipt",
  "xchecker-redaction",
  "xchecker-runner",
+ "xchecker-status",
  "xchecker-utils",
 ]
 
@@ -4253,6 +4255,25 @@ version = "1.0.0"
 dependencies = [
  "globset",
  "serde",
+ "xchecker-utils",
+]
+
+[[package]]
+name = "xchecker-status"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "camino",
+ "chrono",
+ "serde",
+ "serde_json",
+ "serde_json_canonicalizer",
+ "tempfile",
+ "tracing",
+ "xchecker-config",
+ "xchecker-receipt",
+ "xchecker-redaction",
  "xchecker-utils",
 ]
 

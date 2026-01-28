@@ -15,6 +15,7 @@ members = [
     "crates/xchecker-redaction",
     "crates/xchecker-runner",
     "crates/xchecker-lock",
+    "crates/xchecker-status",
 ]
 
 [workspace.dependencies]
@@ -136,6 +137,7 @@ xchecker-engine = { path = "crates/xchecker-engine" }
 xchecker-error-reporter = { path = "crates/xchecker-error-reporter" }
 xchecker-tui = { path = "crates/xchecker-tui" }
 xchecker-redaction = { path = "crates/xchecker-redaction" }
+xchecker-status = { path = "crates/xchecker-status" }
 
 reqwest = { workspace = true }
 tokio = { workspace = true }

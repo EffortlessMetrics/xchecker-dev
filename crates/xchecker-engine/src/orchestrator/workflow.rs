@@ -338,8 +338,8 @@ impl PhaseOrchestrator {
                 FileType::from_extension(ext.to_str().unwrap_or(""))
             } else {
                 match artifact.artifact_type {
-                    crate::artifact::ArtifactType::Markdown => FileType::Markdown,
-                    crate::artifact::ArtifactType::CoreYaml => FileType::Yaml,
+                    crate::status::artifact::ArtifactType::Markdown => FileType::Markdown,
+                    crate::status::artifact::ArtifactType::CoreYaml => FileType::Yaml,
                     _ => FileType::Text,
                 }
             };

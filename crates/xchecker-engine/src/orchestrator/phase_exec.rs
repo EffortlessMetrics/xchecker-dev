@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
-use crate::artifact::{Artifact, ArtifactType};
+use crate::status::artifact::{Artifact, ArtifactType};
 use crate::error::{PhaseError, XCheckerError};
 use crate::exit_codes;
 use crate::fixup::FixupMode;

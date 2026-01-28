@@ -53,7 +53,7 @@ pub struct PhaseContext {
 }
 
 // Re-export artifact types from the artifact module
-pub use crate::artifact::Artifact;
+pub use crate::status::artifact::Artifact;
 
 /// Metadata about phase execution
 #[derive(Debug, Clone, Default)]

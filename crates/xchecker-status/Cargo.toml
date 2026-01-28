@@ -1,5 +1,5 @@
 [package]
-name = "xchecker-receipt"
+name = "xchecker-status"
 version = "1.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -7,12 +7,17 @@ publish = false
 
 [dependencies]
 xchecker-utils = { path = "../xchecker-utils" }
-xchecker-redaction = { path = "../xchecker-redaction", version = "1.0.0" }
+xchecker-config = { path = "../xchecker-config" }
+xchecker-redaction = { path = "../xchecker-redaction" }
+xchecker-receipt = { path = "../xchecker-receipt" }
 anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+blake3 = { workspace = true }
+serde_json_canonicalizer = { workspace = true }
 camino = { workspace = true }
 chrono = { workspace = true }
-serde_json = { workspace = true }
-serde_json_canonicalizer = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }

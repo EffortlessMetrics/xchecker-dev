@@ -277,10 +277,11 @@ pub use xchecker_llm as llm;
 
 #[doc(hidden)]
 pub use xchecker_engine::{
-    artifact, benchmark, doctor, example_generators, extraction, fixup, gate, hooks,
-    integration_tests, orchestrator, packet, phase, phases, receipt, runner, status, template,
+    benchmark, doctor, example_generators, extraction, fixup, gate, hooks,
+    integration_tests, orchestrator, packet, phase, phases, receipt, runner, template,
     validation, workspace, wsl,
 };
+pub use xchecker_status as status;
 
 // Legacy wrapper; follow-up spec (V19+) to delete once tests migrate
 #[cfg(feature = "legacy_claude")]
