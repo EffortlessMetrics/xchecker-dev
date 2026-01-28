@@ -127,14 +127,43 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
 
-    // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    // We loop sleep to ensure the shell stays alive even if a sleep child dies from SIGTERM
-    let mut cmd = CommandSpec::new("sh")
-        .arg("-c")
-        .arg("trap '' TERM; for i in 1 2 3; do sleep 30; done")
-        .to_tokio_command();
+    // Compile a C helper that ignores SIGTERM to avoid interpreter/shim issues
+    let temp_dir = tempfile::TempDir::new()?;
+    let src_path = temp_dir.path().join("ignore_sigterm.c");
+    let exe_path = temp_dir.path().join("ignore_sigterm");
+
+    std::fs::write(
+        &src_path,
+        r#"
+        #include <signal.h>
+        #include <unistd.h>
+        #include <stdio.h>
+        #include <stdlib.h>
+
+        int main() {
+            if (signal(SIGTERM, SIG_IGN) == SIG_ERR) {
+                perror("signal");
+                return 1;
+            }
+            printf("Ready\n");
+            fflush(stdout);
+            // Sleep for 30 seconds
+            sleep(30);
+            return 0;
+        }
+    "#,
+    )?;
+
+    let status = std::process::Command::new("cc")
+        .arg(&src_path)
+        .arg("-o")
+        .arg(&exe_path)
+        .status()?;
+    assert!(status.success(), "Failed to compile C helper");
+
+    let mut cmd = CommandSpec::new(exe_path.to_str().unwrap()).to_tokio_command();
     cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped()) // Capture stdout for synchronization
         .stderr(Stdio::null());
 
     {
@@ -152,6 +181,25 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Synchronize: Wait for "Ready" to ensure signal handler is installed
+    {
+        let stdout = child.stdout.take().expect("Failed to take stdout");
+        let mut reader = tokio::io::BufReader::new(stdout);
+        let mut line = String::new();
+        use tokio::io::AsyncBufReadExt;
+
+        // Wait up to 5 seconds for startup
+        match tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await {
+            Ok(Ok(_)) => {
+                if line.trim() != "Ready" {
+                    panic!("Unexpected output from C helper: {}", line);
+                }
+            }
+            Ok(Err(e)) => panic!("Failed to read from C helper: {}", e),
+            Err(_) => panic!("Timed out waiting for C helper startup"),
+        }
+    }
+
     // Verify process is running
     assert!(
         is_process_running(pid),
@@ -165,10 +213,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
-    assert!(
-        child.try_wait()?.is_none(),
-        "Process should still be running after SIGTERM (ignored)"
-    );
+    if let Some(status) = child.try_wait()? {
+        panic!(
+            "Process exited unexpectedly after SIGTERM (should have been ignored). Exit status: {:?}",
+            status
+        );
+    }
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
