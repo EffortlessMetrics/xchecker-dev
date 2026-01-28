@@ -128,6 +128,11 @@ impl WorkflowTestEnvironment {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_complete_spec_generation_flow() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = WorkflowTestEnvironment::new("complete-flow")?;
     let config = env.create_success_config();
 
@@ -254,6 +259,11 @@ async fn test_complete_spec_generation_flow() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_resume_scenarios_and_failure_recovery() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = WorkflowTestEnvironment::new("resume-recovery")?;
 
     // First, execute Requirements phase successfully
@@ -489,6 +499,11 @@ async fn test_determinism_with_identical_inputs() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_multi_phase_workflow_with_dependencies() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = WorkflowTestEnvironment::new("dependencies")?;
     let config = env.create_success_config();
 
@@ -591,6 +606,11 @@ async fn test_multi_phase_workflow_with_dependencies() -> Result<()> {
 #[tokio::test]
 #[ignore = "requires_claude_stub"]
 async fn test_artifact_content_validation() -> Result<()> {
+    if !test_support::should_run_e2e() {
+        eprintln!("(skipped) E2E test requires Claude CLI or XCHECKER_E2E=1");
+        return Ok(());
+    }
+
     let env = WorkflowTestEnvironment::new("content-validation")?;
     let config = env.create_success_config();
 
