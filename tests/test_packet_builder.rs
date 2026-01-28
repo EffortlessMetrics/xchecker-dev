@@ -234,11 +234,13 @@ fn test_packet_preview_written_on_overflow() -> Result<()> {
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
 
-    // Create large upstream file that will cause overflow
-    let large_content = "data: value\n".repeat(1000);
-    fs::write(base_path.join("large.core.yaml"), &large_content)?;
+    // Create multiple upstream files that fit individually but overflow collectively
+    // Each file is 60 bytes, limit is 100 bytes. 60 < 100 (passes file check), but 120 > 100 (fails packet check)
+    let content = "data: value\n".repeat(5); // ~60 bytes
+    fs::write(base_path.join("a.core.yaml"), &content)?;
+    fs::write(base_path.join("b.core.yaml"), &content)?;
 
-    let mut builder = PacketBuilder::with_limits(100, 5)?;
+    let mut builder = PacketBuilder::with_limits(100, 50)?;
     let _result = builder.build_packet(&base_path, "test", &context_dir, None);
 
     // Even though build failed, context file should exist
@@ -547,11 +549,12 @@ fn test_packet_manifest_on_overflow() -> Result<()> {
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
 
-    // Create large upstream file that will cause overflow
-    let large_content = "data: value\n".repeat(1000);
-    fs::write(base_path.join("large.core.yaml"), &large_content)?;
+    // Create multiple upstream files that fit individually but overflow collectively
+    let content = "data: value\n".repeat(5); // ~60 bytes
+    fs::write(base_path.join("a.core.yaml"), &content)?;
+    fs::write(base_path.join("b.core.yaml"), &content)?;
 
-    let mut builder = PacketBuilder::with_limits(100, 5)?;
+    let mut builder = PacketBuilder::with_limits(100, 50)?;
     let _result = builder.build_packet(&base_path, "test", &context_dir, None);
 
     // Verify manifest file was written
@@ -567,7 +570,7 @@ fn test_packet_manifest_on_overflow() -> Result<()> {
     assert!(manifest_content.contains("used_bytes"));
     assert!(manifest_content.contains("used_lines"));
     assert!(manifest_content.contains("files"));
-    assert!(manifest_content.contains("large.core.yaml"));
+    assert!(manifest_content.contains("a.core.yaml"));
 
     // Verify manifest does NOT contain actual file content
     assert!(!manifest_content.contains("data: value"));
@@ -582,15 +585,13 @@ fn test_manifest_no_content_leak() -> Result<()> {
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
 
-    // Create file with non-secret content that exceeds the limit
-    // Must be Upstream (*.core.yaml) to trigger overflow and manifest writing
-    let unique_content = "unique_content_value_that_should_not_leak ".repeat(10);
-    let file_path = base_path.join("config.core.yaml");
-    fs::write(&file_path, &unique_content)?;
+    // Create multiple upstream files that fit individually but overflow collectively
+    // Limit is 50. Each file 30. Total 60.
+    let unique_content = "unique_content_value_leaked_?"; // ~30 chars
+    fs::write(base_path.join("a.core.yaml"), unique_content)?;
+    fs::write(base_path.join("b.core.yaml"), unique_content)?;
 
-    assert!(file_path.exists(), "Test file must exist");
-
-    let mut builder = PacketBuilder::with_limits(50, 3)?;
+    let mut builder = PacketBuilder::with_limits(50, 30)?;
     let result = builder.build_packet(&base_path, "test", &context_dir, None);
 
     assert!(result.is_err(), "Packet should have overflowed");
@@ -605,7 +606,7 @@ fn test_manifest_no_content_leak() -> Result<()> {
     assert!(!manifest_content.contains("unique_content_value"));
 
     // Verify manifest has metadata
-    assert!(manifest_content.contains("config.core.yaml"));
+    assert!(manifest_content.contains("a.core.yaml"));
     assert!(manifest_content.contains("blake3_pre_redaction"));
     assert!(manifest_content.contains("priority"));
 
@@ -670,11 +671,11 @@ fn test_manifest_includes_priorities() -> Result<()> {
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
 
-    // Create files with different priorities
-    fs::write(base_path.join("upstream.core.yaml"), "x".repeat(200))?;
-    fs::write(base_path.join("SPEC.md"), "x".repeat(200))?;
+    // Create multiple upstream files that fit individually but overflow collectively
+    fs::write(base_path.join("a.core.yaml"), "x".repeat(60))?;
+    fs::write(base_path.join("b.core.yaml"), "x".repeat(60))?;
 
-    let mut builder = PacketBuilder::with_limits(100, 5)?;
+    let mut builder = PacketBuilder::with_limits(100, 50)?;
     let _result = builder.build_packet(&base_path, "test", &context_dir, None);
 
     // Read manifest
@@ -683,7 +684,7 @@ fn test_manifest_includes_priorities() -> Result<()> {
 
     // Verify priorities are included
     assert!(manifest_content.contains("Upstream") || manifest_content.contains("priority"));
-    assert!(manifest_content.contains("upstream.core.yaml"));
+    assert!(manifest_content.contains("a.core.yaml"));
 
     Ok(())
 }
@@ -695,10 +696,11 @@ fn test_manifest_includes_blake3_hashes() -> Result<()> {
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
     let context_dir = base_path.join("context");
 
-    // Create file that will cause overflow
-    fs::write(base_path.join("large.core.yaml"), "x".repeat(200))?;
+    // Create multiple upstream files that fit individually but overflow collectively
+    fs::write(base_path.join("a.core.yaml"), "x".repeat(60))?;
+    fs::write(base_path.join("b.core.yaml"), "x".repeat(60))?;
 
-    let mut builder = PacketBuilder::with_limits(100, 5)?;
+    let mut builder = PacketBuilder::with_limits(100, 50)?;
     let _result = builder.build_packet(&base_path, "test", &context_dir, None);
 
     // Read manifest
