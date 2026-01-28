@@ -113,6 +113,11 @@ path = "tests/dev_tools/claude_stub_cli.rs"
 required-features = ["dev-tools"]
 
 [[test]]
+name = "comprehensive_test_suite"
+path = "tests/comprehensive_test_suite.rs"
+required-features = ["dev-tools"]
+
+[[test]]
 name = "doc_validation"
 path = "tests/test_doc_validation.rs"
 required-features = ["dev-tools"]

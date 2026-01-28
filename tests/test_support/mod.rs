@@ -95,7 +95,29 @@ pub(crate) fn claude_stub_path() -> Option<String> {
 
     // PATH fallback: only check for claude-stub binary
     // Do NOT fall back to real `claude` - tests using the stub rely on stub-specific scenarios
-    which::which("claude-stub")
-        .ok()
-        .map(|path| path.to_string_lossy().to_string())
+    if let Ok(path) = which::which("claude-stub") {
+        return Some(path.to_string_lossy().to_string());
+    }
+
+    // Fallback: look in target/debug relative to the test binary
+    // This handles cases where CARGO_BIN_EXE_ isn't set and CWD has changed
+    if let Ok(current_exe) = std::env::current_exe() {
+        // current_exe is usually target/debug/deps/test-binary
+        // we want target/debug/claude-stub
+        if let Some(deps_dir) = current_exe.parent() {
+            if let Some(debug_dir) = deps_dir.parent() {
+                let candidates = [
+                    debug_dir.join("claude-stub"),
+                    debug_dir.join("claude-stub.exe"),
+                ];
+                for candidate in &candidates {
+                    if candidate.exists() {
+                        return Some(candidate.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }

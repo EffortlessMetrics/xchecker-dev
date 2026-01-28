@@ -541,18 +541,39 @@ pub fn ensure_dir_all<P: AsRef<std::path::Path>>(p: P) -> std::io::Result<()> {
     }
 }
 
+/// RAII guard for isolated home that clears thread-local state on drop
+#[cfg(any(test, feature = "test-utils"))]
+pub struct HomeGuard {
+    inner: tempfile::TempDir,
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+impl Drop for HomeGuard {
+    fn drop(&mut self) {
+        THREAD_HOME.with(|tl| *tl.borrow_mut() = None);
+    }
+}
+
+#[cfg(any(test, feature = "test-utils"))]
+impl std::ops::Deref for HomeGuard {
+    type Target = tempfile::TempDir;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
 /// Test helper: provides isolated workspace testing; not part of public API stability guarantees.
 ///
 /// Give this test a unique home under the system temp dir.
-/// Hold the `TempDir` for the test's duration so the directory stays alive.
+/// Hold the `HomeGuard` for the test's duration so the directory stays alive and env is cleaned up.
 #[cfg(any(test, feature = "test-utils"))]
 #[cfg_attr(not(test), allow(dead_code))]
 #[must_use]
-pub fn with_isolated_home() -> tempfile::TempDir {
+pub fn with_isolated_home() -> HomeGuard {
     let td = tempfile::TempDir::new().expect("create temp home");
     let p = Utf8PathBuf::from_path_buf(td.path().to_path_buf()).unwrap();
     THREAD_HOME.with(|tl| *tl.borrow_mut() = Some(p));
-    td
+    HomeGuard { inner: td }
 }
 
 // ============================================================================

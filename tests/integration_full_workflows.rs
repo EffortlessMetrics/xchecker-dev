@@ -16,7 +16,6 @@
 
 use anyhow::Result;
 use std::path::PathBuf;
-use tempfile::TempDir;
 
 use xchecker::orchestrator::{OrchestratorConfig, PhaseOrchestrator};
 use xchecker::types::{PhaseId, Receipt};
@@ -46,38 +45,46 @@ fn normalize_core_yaml_for_determinism(content: &str) -> String {
 /// Test environment setup for full workflow validation
 ///
 /// Note: Field order matters for drop semantics. Fields drop in declaration order,
-/// so `_cwd_guard` must be declared first to restore CWD before `temp_dir` is deleted.
+/// so `_cwd_guard` must be declared first to restore CWD before `_home_guard` is dropped.
 struct WorkflowTestEnvironment {
     #[allow(dead_code)]
     _cwd_guard: test_support::CwdGuard,
-    temp_dir: TempDir,
+    _home_guard: xchecker::paths::HomeGuard,
     orchestrator: PhaseOrchestrator,
     spec_id: String,
 }
 
 impl WorkflowTestEnvironment {
     fn new(test_name: &str) -> Result<Self> {
-        let temp_dir = TempDir::new()?;
-        let cwd_guard = test_support::CwdGuard::new(temp_dir.path())?;
+        // Use thread-local isolated home to prevent parallel tests from conflicting
+        // via global env vars or leaking THREAD_HOME.
+        let home_guard = xchecker::paths::with_isolated_home();
 
-        // Create .xchecker directory structure
-        std::fs::create_dir_all(temp_dir.path().join(".xchecker/specs"))?;
+        let cwd_guard = test_support::CwdGuard::new(home_guard.path())?;
+
+        // Create directory structure
+        // Note: xchecker_home() returns home_guard.path() due to THREAD_HOME
+        // spec_root() returns home_guard.path()/specs/<id>
+
+        std::fs::create_dir_all(home_guard.path().join("specs"))?;
 
         let spec_id = format!("workflow-{test_name}");
+        // Create the spec directory to satisfy SandboxRoot requirements
+        std::fs::create_dir_all(home_guard.path().join("specs").join(&spec_id))?;
+
         let orchestrator = PhaseOrchestrator::new(&spec_id)?;
 
         Ok(Self {
             _cwd_guard: cwd_guard,
-            temp_dir,
+            _home_guard: home_guard,
             orchestrator,
             spec_id,
         })
     }
 
     fn spec_dir(&self) -> PathBuf {
-        self.temp_dir
-            .path()
-            .join(".xchecker/specs")
+        self._home_guard.path()
+            .join("specs")
             .join(&self.spec_id)
     }
 
