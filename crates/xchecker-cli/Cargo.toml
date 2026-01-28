@@ -1,0 +1,17 @@
+[package]
+name = "xchecker-cli"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+xchecker-config = { path = "../xchecker-config" }
+xchecker-orchestrator = { path = "../xchecker-orchestrator" }
+xchecker-engine = { path = "../xchecker-engine" }
+xchecker-error-reporter = { path = "../xchecker-error-reporter" }
+anyhow = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+tokio = { workspace = true }
+tracing = { workspace = true }

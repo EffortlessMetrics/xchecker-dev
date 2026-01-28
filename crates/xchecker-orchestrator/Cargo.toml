@@ -1,15 +1,12 @@
 [package]
-name = "xchecker-engine"
+name = "xchecker-orchestrator"
 version = "1.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 publish = false
 
-[features]
-test-utils = ["dep:strum"]
-legacy_claude = []
-
 [dependencies]
+# Workspace dependencies
 xchecker-utils = { path = "../xchecker-utils" }
 xchecker-config = { path = "../xchecker-config" }
 xchecker-llm = { path = "../xchecker-llm" }
@@ -20,16 +17,15 @@ xchecker-receipt = { path = "../xchecker-receipt" }
 xchecker-status = { path = "../xchecker-status" }
 xchecker-templates = { path = "../xchecker-templates" }
 xchecker-doctor = { path = "../xchecker-doctor" }
-xchecker-benchmark = { path = "../xchecker-benchmark" }
 xchecker-validation = { path = "../xchecker-validation" }
 xchecker-extraction = { path = "../xchecker-extraction" }
 xchecker-hooks = { path = "../xchecker-hooks" }
 xchecker-workspace = { path = "../xchecker-workspace" }
 xchecker-gate = { path = "../xchecker-gate" }
 xchecker-fixup-model = { path = "../xchecker-fixup-model" }
-xchecker-orchestrator = { path = "../xchecker-orchestrator" }
 xchecker-phases = { path = "../xchecker-phases" }
 xchecker-phase-api = { path = "../xchecker-phase-api" }
+
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -50,7 +46,3 @@ strum = { workspace = true, optional = true }
 
 [dev-dependencies]
 xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
-toml = { workspace = true }
-
-[target.'cfg(windows)'.dependencies]
-dunce = { workspace = true }

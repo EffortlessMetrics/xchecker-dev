@@ -1,10 +1,32 @@
 # xchecker SRP Microcrate Analysis
 
-**Document Version**: 2.0  
+**Document Version**: 2.1  
 **Date**: 2026-01-28  
 **Project**: xchecker  
 **Current Version**: 1.0.0  
-**Rust Edition**: 2024
+**Rust Edition**: 2024  
+**Base Ref**: main (2026-01-28)
+
+---
+
+## Source of Truth
+
+This document is grounded in actual workspace state. The following commands were used to verify current workspace members:
+
+```bash
+# Count workspace members
+cargo metadata --format-version 1 --no-deps | jq '.workspace_members | length'
+
+# List all workspace member names
+cargo metadata --format-version 1 --no-deps | jq -r '.packages[].name' | sort
+
+# List crates in crates/ directory
+ls -1 crates/
+```
+
+**Workspace Members (23 total)**: The crates that are currently compiled in CI as defined in [`Cargo.toml`](../Cargo.toml:2-26).
+
+**Crates Present but Not in Workspace**: The crates that exist in `crates/` directory but are not yet added to workspace members.
 
 ---
 
@@ -14,7 +36,7 @@ This analysis identifies opportunities for extracting Single Responsibility Prin
 
 **Key Findings:**
 - xchecker-engine mixes three distinct responsibilities: domain rules, execution mechanics, and app orchestration
-- Several crates already exist but are not yet in the workspace (xchecker-fixup-model, xchecker-phases, xchecker-workspace)
+- Several crates already exist but are not yet in the workspace (xchecker-fixup-model, xchecker-phases, xchecker-workspace, xchecker-hooks)
 - The analysis focuses on crate splits that provide: dependency direction, testability, feature gating, reuse, or blast radius benefits
 
 **Recommendations:**
@@ -60,6 +82,7 @@ The workspace currently has the following members in [`Cargo.toml`](../Cargo.tom
 - `xchecker-fixup-model` - Fixup model types
 - `xchecker-phases` - Phase implementations
 - `xchecker-workspace` - Workspace management
+- `xchecker-hooks` - Hook system
 
 ### 1.2 xchecker-engine Current Structure
 
@@ -267,6 +290,25 @@ A crate split is NOT worth it when:
 | **Versioning Friction** | Creates more feature flags and circular dependencies | xchecker-workflow-execution - tightly coupled to orchestrator |
 | **No Dependency Benefit** | Doesn't change the DAG shape | xchecker-orchestrator-config - config mapping is internal to orchestrator |
 
+### 4.3 Crates vs Modules: A Rule
+
+**Rule**: Crates are for contracts + leaf infra + app surfaces. Modules are for execution mechanics inside domain engines.
+
+| When to use a Crate | When to use a Module |
+|---------------------|----------------------|
+| **Contracts** (types, traits) | Always use a crate - enables dependency inversion |
+| **Leaf Infrastructure** (platform, IO) | Always use a crate - enables feature gating and reuse |
+| **App Surfaces** (CLI, TUI) | Always use a crate - isolates UX churn |
+| **Execution Mechanics** | Usually a module - keeps related logic together |
+| **Domain Engines** | Use a crate when there are multiple consumers or clear boundary |
+
+**Examples**:
+- ✅ `xchecker-phase-api` as crate (contracts)
+- ✅ `xchecker-runner` as crate (leaf infra)
+- ✅ `xchecker-cli` as crate (app surface)
+- ❌ `xchecker-phase-transitions` as crate (belongs in orchestrator as module)
+- ❌ `xchecker-workflow-execution` as crate (tightly coupled to orchestrator)
+
 ---
 
 ## Part 5: Concrete Microcrates Worth Doing
@@ -445,6 +487,9 @@ Each wave has a **Definition of Done**:
 - [ ] No circular dependencies (`cargo tree --duplicates`)
 - [ ] Documentation updated
 - [ ] Re-exports in place for backward compatibility
+- [ ] `cargo build --all-features` succeeds (build gate, not just test)
+- [ ] No duplicate types across crate boundaries
+- [ ] All imports use new crate paths where applicable
 
 ### 6.2 Wave 1: High Impact (Foundation)
 
@@ -461,6 +506,9 @@ Each wave has a **Definition of Done**:
 - [ ] xchecker-cli is a real crate with all CLI logic
 - [ ] xchecker-engine re-exports for backward compatibility
 - [ ] All tests pass with `--all-features`
+- [ ] `cargo build --all-features` succeeds
+- [ ] No circular dependencies detected
+- [ ] Documentation updated (CLAUDE.md, architecture docs)
 
 **Risks**:
 - Breaking changes for external consumers
@@ -486,6 +534,8 @@ Each wave has a **Definition of Done**:
 - [ ] All fixup types consolidated
 - [ ] Receipt schema stable (or split)
 - [ ] All tests pass with `--all-features`
+- [ ] `cargo build --all-features` succeeds
+- [ ] No circular dependencies detected
 
 **Risks**:
 - Duplicate types may exist
@@ -511,7 +561,9 @@ Each wave has a **Definition of Done**:
 - [ ] xchecker-engine is minimal or removed
 - [ ] All imports use new crate paths
 - [ ] All tests pass with `--all-features`
+- [ ] `cargo build --all-features` succeeds
 - [ ] Documentation reflects new structure
+- [ ] Migration guide created
 
 **Risks**:
 - External consumers may still use old paths
@@ -538,6 +590,7 @@ Each wave has a **Definition of Done**:
 - [ ] Evaluate each item against framework
 - [ ] Implement only if provides real value
 - [ ] All tests pass
+- [ ] `cargo build --all-features` succeeds
 
 ---
 
@@ -568,6 +621,17 @@ If `cargo build --all-features` fails, the wave is not done.
 ### 7.4 No `pub use` Until All Phases Move
 
 Do NOT use `pub use xchecker_phases as phases;` until every phase (including Fixup) has moved.
+
+### 7.5 Cycle Prevention Checklist
+
+Before completing any wave, verify:
+
+- [ ] No circular dependencies in workspace (`cargo tree --duplicates` returns nothing)
+- [ ] Dependency graph is acyclic (no A -> B -> A paths)
+- [ ] All contract crates have minimal dependencies (only types, no domain logic)
+- [ ] No duplicate type definitions across crate boundaries
+- [ ] All new crates can be built independently
+- [ ] No workspace member depends on another workspace member's internal modules only
 
 ---
 
@@ -628,6 +692,7 @@ Do NOT use `pub use xchecker_phases as phases;` until every phase (including Fix
 ### 9.2 Process Criteria
 
 - [ ] Full test suite passes with `--all-features`
+- [ ] `cargo build --all-features` succeeds
 - [ ] No regression in functionality
 - [ ] Documentation updated
 - [ ] Migration guide created
@@ -724,7 +789,7 @@ If the answer is NO to all, it's likely a module, not a crate.
 
 | Field | Value |
 |--------|--------|
-| Version | 2.0 |
+| Version | 2.1 |
 | Date | 2026-01-28 |
 | Author | SRP Analysis Team |
 | Status | Draft - Pending Review |

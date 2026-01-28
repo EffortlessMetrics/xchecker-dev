@@ -23,6 +23,9 @@ members = [
     "crates/xchecker-benchmark",
     "crates/xchecker-validation",
     "crates/xchecker-extraction",
+    "crates/xchecker-orchestrator",
+    "crates/xchecker-fixup-model",
+    "crates/xchecker-cli",
 ]
 
 [workspace.dependencies]
