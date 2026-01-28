@@ -299,7 +299,7 @@ impl ContentSelector {
                     let mut chunk_results = Vec::with_capacity(chunk.len());
                     for candidate in chunk {
                         // Optimization: Open file once to avoid redundant path resolution and TOCTOU
-                        let file = fs::File::open(&candidate.path)
+                        let mut file = fs::File::open(&candidate.path)
                             .with_context(|| format!("Failed to open file: {}", candidate.path))?;
 
                         // DoS protection: check file size before reading to prevent memory exhaustion
@@ -336,33 +336,8 @@ impl ContentSelector {
 
                         // Pre-allocate buffer to avoid reallocations
                         let mut content = String::with_capacity(metadata.len() as usize);
-
-                        // Security: Use take() to enforce hard limit on read size
-                        // This prevents DoS if the file grows concurrently (TOCTOU)
-                        file.take(self.max_file_size + 1)
-                            .read_to_string(&mut content)
+                        file.read_to_string(&mut content)
                             .with_context(|| format!("Failed to read file: {}", candidate.path))?;
-
-                        if content.len() as u64 > self.max_file_size {
-                            // For upstream files (critical context), fail hard if they exceed the limit
-                            if candidate.priority == Priority::Upstream {
-                                return Err(anyhow::anyhow!(
-                                    "Upstream file {} exceeds size limit of {} bytes (read: {}). \
-                                     Critical context files must fit within the configured limit.",
-                                    candidate.path,
-                                    self.max_file_size,
-                                    content.len()
-                                ));
-                            }
-
-                            warn!(
-                                "Skipping large file: {} ({} bytes > limit {}) - file grew during read",
-                                candidate.path,
-                                content.len(),
-                                self.max_file_size
-                            );
-                            continue;
-                        }
 
                         // Calculate pre-redaction hash
                         let mut hasher = Hasher::new();
