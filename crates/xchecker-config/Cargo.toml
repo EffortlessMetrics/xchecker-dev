@@ -2,6 +2,7 @@
 name = "xchecker-config"
 version = "1.0.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 publish = false
 
 [features]
@@ -9,6 +10,9 @@ test-utils = []
 
 [dependencies]
 xchecker-utils = { path = "../xchecker-utils" }
+xchecker-redaction = { path = "../xchecker-redaction", version = "1.0.0" }
+xchecker-prompt-template = { path = "../xchecker-prompt-template" }
+xchecker-selectors = { path = "../xchecker-selectors" }
 serde = { workspace = true }
 toml = { workspace = true }
 globset = { workspace = true }

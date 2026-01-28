@@ -2,10 +2,11 @@
 name = "xchecker-utils"
 version = "1.0.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 publish = false
 
 [features]
-test-utils = ["dep:strum"]
+test-utils = ["dep:strum", "xchecker-lock/test-utils"]
 dev-tools = []
 
 [dependencies]
@@ -29,6 +30,9 @@ tokio = { workspace = true }
 serde_yaml = { workspace = true }
 crossterm = { workspace = true }
 strum = { workspace = true, optional = true }
+xchecker-redaction = { path = "../xchecker-redaction", version = "1.0.0" }
+xchecker-lock = { path = "../xchecker-lock", version = "1.0.0" }
+xchecker-runner = { path = "../xchecker-runner", version = "1.0.0" }
 
 [dev-dependencies]
 proptest = { workspace = true }

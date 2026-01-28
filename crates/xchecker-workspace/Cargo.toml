@@ -1,0 +1,18 @@
+[package]
+name = "xchecker-workspace"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+anyhow = { workspace = true }
+camino = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+
+[dev-dependencies]
+xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
+tempfile = { workspace = true }

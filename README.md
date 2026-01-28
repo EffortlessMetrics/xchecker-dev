@@ -243,6 +243,21 @@ For fixup limitations and workarounds, see the [Debugging Guide](docs/DEBUGGING_
 
 ## Development
 
+### Nix (optional)
+
+The repo includes a Nix flake for a pinned Rust toolchain (MSRV 1.89) and common dev tools.
+
+```bash
+# Enter dev shell
+nix develop
+
+# Build the CLI
+nix build
+
+# Run xchecker
+nix run
+```
+
 ```bash
 # Run fast tests (~30s)
 cargo test --lib --bins

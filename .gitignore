@@ -49,3 +49,8 @@ issue_work/
 .xchecker/
 **/.xchecker/
 /.runs/
+
+# Nix/direnv
+.direnv/
+/result
+/result-*

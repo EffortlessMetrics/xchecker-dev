@@ -1,0 +1,17 @@
+[package]
+name = "xchecker-redaction"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[features]
+dev-tools = []
+
+[dependencies]
+anyhow = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

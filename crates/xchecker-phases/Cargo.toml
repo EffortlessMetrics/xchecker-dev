@@ -1,0 +1,26 @@
+[package]
+name = "xchecker-phases"
+version = "1.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+xchecker-phase-api = { path = "../xchecker-phase-api" }
+xchecker-packet = { path = "../xchecker-packet" }
+xchecker-extraction = { path = "../xchecker-extraction" }
+xchecker-fixup-model = { path = "../xchecker-fixup-model" }
+xchecker-redaction = { path = "../xchecker-redaction" }
+xchecker-validation = { path = "../xchecker-validation" }
+xchecker-status = { path = "../xchecker-status" }
+xchecker-utils = { path = "../xchecker-utils" }
+xchecker-config = { path = "../xchecker-config" }
+anyhow = { workspace = true }
+blake3 = { workspace = true }
+camino = { workspace = true }
+chrono = { workspace = true }
+regex = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }

@@ -336,8 +336,8 @@ mod tests {
             "Types module should define ErrorKind enum"
         );
 
-        // Receipt module should handle error receipts (now a directory with mod.rs)
-        let receipt_path = Path::new("crates/xchecker-engine/src/receipt/mod.rs");
+        // Receipt module should handle error receipts (moved to xchecker-receipt crate)
+        let receipt_path = Path::new("crates/xchecker-receipt/src/errors.rs");
         assert!(receipt_path.exists(), "Receipt module should exist");
 
         let receipt_content = fs::read_to_string(receipt_path).unwrap();

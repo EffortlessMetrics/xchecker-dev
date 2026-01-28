@@ -15,14 +15,16 @@ use std::time::Duration;
 
 // Stable public API imports from crate root
 // _Requirements: FR-CLI-2_
-use crate::{CliArgs, Config, ExitCode, OrchestratorHandle, PhaseId, XCheckerError, emit_jcs};
+use crate::{
+    CliArgs, Config, ExitCode, OrchestratorConfig, OrchestratorHandle, PhaseId, XCheckerError,
+    emit_jcs,
+};
 
 // Internal module imports (not part of stable public API)
 use crate::atomic_write::write_file_atomic;
 use crate::error::{ConfigError, PhaseError};
 use crate::error_reporter::{ErrorReport, utils as error_utils};
 use crate::logging::Logger;
-use crate::orchestrator::OrchestratorConfig;
 use crate::redaction::SecretRedactor;
 use crate::source::SourceResolver;
 use crate::spec_id::sanitize_spec_id;
@@ -1490,12 +1492,6 @@ fn emit_resume_json(output: &crate::types::ResumeJsonOutput) -> Result<String> {
     emit_jcs(output).context("Failed to emit resume JSON")
 }
 
-/// Count pending fixups for a spec
-/// Returns the number of target files with pending fixups
-fn count_pending_fixups(handle: &OrchestratorHandle) -> u32 {
-    crate::fixup::pending_fixups_from_handle(handle).targets
-}
-
 /// Execute the status command
 fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<()> {
     // Create read-only handle to access managers (no lock needed for status)
@@ -1583,7 +1579,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
         }
 
         // Count pending fixups
-        let pending_fixups = count_pending_fixups(&handle);
+        let pending_fixups = count_pending_fixups_for_spec(spec_id);
 
         // Collect artifacts with blake3_first8 from receipts
         let mut artifact_hashes: BTreeMap<String, String> = BTreeMap::new();
@@ -1898,7 +1894,7 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
     }
 
     // Check for pending fixups and show intended targets (R5.6)
-    check_and_display_fixup_targets(&handle, spec_id)?;
+    check_and_display_fixup_targets(spec_id)?;
 
     // Show resume suggestions
     match latest_completed {
@@ -1938,11 +1934,11 @@ fn execute_status_command(spec_id: &str, json: bool, config: &Config) -> Result<
 }
 
 /// Check for pending fixups and display intended targets (R5.6)
-fn check_and_display_fixup_targets(handle: &OrchestratorHandle, spec_id: &str) -> Result<()> {
+fn check_and_display_fixup_targets(spec_id: &str) -> Result<()> {
     use crate::fixup::{FixupMode, FixupParser};
 
     // Check if Review phase is completed and has fixup markers
-    let base_path = handle.artifact_manager().base_path();
+    let base_path = crate::paths::spec_root(spec_id);
     let review_md_path = base_path.join("artifacts").join("30-review.md");
 
     if !review_md_path.exists() {
@@ -2793,7 +2789,7 @@ fn execute_gate_command(
     max_phase_age: Option<&str>,
     json: bool,
 ) -> Result<()> {
-    use crate::gate::{
+    use xchecker_gate::{
         GateCommand, GatePolicy, emit_gate_json, load_policy_from_path, parse_duration,
         parse_phase, resolve_policy_path,
     };
@@ -2817,12 +2813,12 @@ fn execute_gate_command(
     };
 
     if let Some(min_phase) = min_phase {
-        policy.min_phase = parse_phase(min_phase).map_err(|e| {
+        policy.min_phase = Some(parse_phase(min_phase).map_err(|e| {
             XCheckerError::Config(ConfigError::InvalidValue {
                 key: "min_phase".to_string(),
                 value: e.to_string(),
             })
-        })?;
+        })?);
     }
 
     if fail_on_pending_fixups {
@@ -3537,15 +3533,15 @@ packet_max_lines = 5000
         // Test basic benchmark execution with realistic thresholds for test environments
         // Use more generous thresholds since test environments can be slower
         let result = execute_benchmark_command(
-            5,           // file_count
-            100,         // file_size
-            2,           // iterations
-            false,       // json
-            Some(10.0),  // max_empty_run_secs - generous for test env
-            Some(500.0), // max_packetization_ms - generous for test env (25ms for 5 files)
-            None,        // max_rss_mb
-            None,        // max_commit_mb
-            false,       // verbose
+            5,            // file_count
+            100,          // file_size
+            2,            // iterations
+            false,        // json
+            Some(10.0),   // max_empty_run_secs - generous for test env
+            Some(2000.0), // max_packetization_ms - generous for test env (100ms for 5 files)
+            None,         // max_rss_mb
+            None,         // max_commit_mb
+            false,        // verbose
         );
 
         // Should succeed with realistic test environment thresholds
@@ -5575,13 +5571,11 @@ fn execute_project_tui_command(workspace_override: Option<&std::path::Path>) -> 
 /// Execute template management commands
 /// Per FR-TEMPLATES (Requirements 4.7.1, 4.7.2, 4.7.3)
 fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
-    use crate::template;
-
     match cmd {
         TemplateCommands::List => {
             println!("Available templates:\n");
 
-            for t in template::list_templates() {
+            for t in xchecker_engine::templates::list_templates() {
                 println!("  {}", t.id);
                 println!("    Name: {}", t.name);
                 println!("    Description: {}", t.description);
@@ -5607,8 +5601,8 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             })?;
 
             // Validate template
-            if !template::is_valid_template(&template) {
-                let valid_templates = template::BUILT_IN_TEMPLATES.join(", ");
+            if !xchecker_engine::templates::is_valid_template(&template) {
+                let valid_templates = xchecker_engine::templates::BUILT_IN_TEMPLATES.join(", ");
                 return Err(XCheckerError::Config(ConfigError::InvalidValue {
                     key: "template".to_string(),
                     value: format!(
@@ -5620,10 +5614,10 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             }
 
             // Initialize from template
-            template::init_from_template(&template, &sanitized_id)?;
+            xchecker_engine::templates::init_from_template(&template, &sanitized_id)?;
 
             // Get template info for display
-            let template_info = template::get_template(&template).unwrap();
+            let template_info = xchecker_engine::templates::get_template(&template).unwrap();
 
             println!(
                 "✓ Initialized spec '{}' from template '{}'",

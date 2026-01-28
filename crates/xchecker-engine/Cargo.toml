@@ -2,6 +2,7 @@
 name = "xchecker-engine"
 version = "1.0.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 publish = false
 
 [features]
@@ -12,6 +13,22 @@ legacy_claude = []
 xchecker-utils = { path = "../xchecker-utils" }
 xchecker-config = { path = "../xchecker-config" }
 xchecker-llm = { path = "../xchecker-llm" }
+xchecker-redaction = { path = "../xchecker-redaction" }
+xchecker-runner = { path = "../xchecker-runner" }
+xchecker-packet = { path = "../xchecker-packet" }
+xchecker-receipt = { path = "../xchecker-receipt" }
+xchecker-status = { path = "../xchecker-status" }
+xchecker-templates = { path = "../xchecker-templates" }
+xchecker-doctor = { path = "../xchecker-doctor" }
+xchecker-benchmark = { path = "../xchecker-benchmark" }
+xchecker-validation = { path = "../xchecker-validation" }
+xchecker-extraction = { path = "../xchecker-extraction" }
+xchecker-hooks = { path = "../xchecker-hooks" }
+xchecker-workspace = { path = "../xchecker-workspace" }
+xchecker-gate = { path = "../xchecker-gate" }
+xchecker-fixup-model = { path = "../xchecker-fixup-model" }
+xchecker-phases = { path = "../xchecker-phases" }
+xchecker-phase-api = { path = "../xchecker-phase-api" }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -19,7 +36,6 @@ blake3 = { workspace = true }
 serde_json_canonicalizer = { workspace = true }
 tokio = { workspace = true }
 camino = { workspace = true }
-globset = { workspace = true }
 regex = { workspace = true }
 chrono = { workspace = true }
 tempfile = { workspace = true }

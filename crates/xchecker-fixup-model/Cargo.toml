@@ -1,0 +1,15 @@
+[package]
+name = "xchecker-fixup-model"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.89"
+description = "Fixup model types for spec generation workflows"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/EffortlessMetrics/xchecker"
+homepage = "https://github.com/EffortlessMetrics/xchecker"
+readme = "../../../README.md"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["cli", "spec", "requirements", "workflow", "automation"]
+
+[dependencies]
+# No external dependencies - this is a pure types crate

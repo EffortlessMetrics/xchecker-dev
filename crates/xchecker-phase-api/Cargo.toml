@@ -1,0 +1,19 @@
+[package]
+name = "xchecker-phase-api"
+version = "0.1.0"
+edition = "2021"
+description = "Shared contract for phase execution in xchecker"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/xchecker/xchecker"
+
+[dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+xchecker-packet = { path = "../xchecker-packet" }
+xchecker-status = { path = "../xchecker-status" }
+xchecker-selectors = { path = "../xchecker-selectors" }
+xchecker-redaction = { path = "../xchecker-redaction" }
+xchecker-utils = { path = "../xchecker-utils" }
+
+[dev-dependencies]
+tempfile = "3"

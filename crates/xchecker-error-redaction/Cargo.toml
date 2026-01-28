@@ -1,0 +1,9 @@
+[package]
+name = "xchecker-error-redaction"
+version = "1.0.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+xchecker-utils = { path = "../xchecker-utils" }
+regex = { workspace = true }
