@@ -3185,6 +3185,7 @@ impl Drop for SpinnerGuard {
 #[allow(clippy::await_holding_lock)] // Test synchronization using mutex guards across awaits is intentional
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
     use std::sync::{Mutex, MutexGuard, OnceLock};
     use tempfile::TempDir;
@@ -3271,6 +3272,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_spec_command_execution() -> anyhow::Result<()> {
         use tempfile::TempDir;
 

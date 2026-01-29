@@ -4144,7 +4144,7 @@ checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
 name = "xchecker"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -4200,7 +4200,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-benchmark"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -4211,7 +4211,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-cli"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -4225,7 +4225,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-config"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "camino",
  "globset",
@@ -4240,7 +4240,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-doctor"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4256,7 +4256,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-engine"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4299,7 +4299,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-error-redaction"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "regex",
  "xchecker-utils",
@@ -4307,7 +4307,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-error-reporter"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "tracing",
  "xchecker-redaction",
@@ -4316,18 +4316,18 @@ dependencies = [
 
 [[package]]
 name = "xchecker-extraction"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "regex",
 ]
 
 [[package]]
 name = "xchecker-fixup-model"
-version = "1.0.0"
+version = "1.1.0"
 
 [[package]]
 name = "xchecker-gate"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -4336,6 +4336,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_json_canonicalizer",
+ "serial_test",
  "tempfile",
  "toml",
  "xchecker-receipt",
@@ -4344,7 +4345,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-hooks"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4361,7 +4362,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-llm"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "async-trait",
  "libc",
@@ -4381,7 +4382,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-lock"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -4398,7 +4399,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-packet"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4414,7 +4415,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-phase-api"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -4428,7 +4429,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-phases"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4449,7 +4450,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-prompt-template"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "serde",
  "thiserror 2.0.18",
@@ -4458,7 +4459,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-receipt"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -4472,7 +4473,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-redaction"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -4482,7 +4483,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-runner"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4500,7 +4501,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-selectors"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "globset",
  "serde",
@@ -4509,7 +4510,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-status"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4528,7 +4529,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-templates"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "camino",
@@ -4538,7 +4539,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-tui"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4551,7 +4552,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-utils"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "blake3",
@@ -4586,7 +4587,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-validation"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "regex",
  "xchecker-utils",
@@ -4594,7 +4595,7 @@ dependencies = [
 
 [[package]]
 name = "xchecker-workspace"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "camino",

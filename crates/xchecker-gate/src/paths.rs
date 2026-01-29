@@ -23,11 +23,13 @@ pub fn spec_root(spec_id: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_spec_root_default() {
         // Clear XCHECKER_HOME for test
-        // SAFETY: Test is run in single-threaded test environment
+        // SAFETY: Test runs with #[serial] to prevent concurrent env access
         unsafe { std::env::remove_var("XCHECKER_HOME") };
 
         let path = spec_root("test-spec");
@@ -35,8 +37,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_spec_root_with_env() {
-        // SAFETY: Test is run in single-threaded test environment
+        // SAFETY: Test runs with #[serial] to prevent concurrent env access
         unsafe { std::env::set_var("XCHECKER_HOME", "/custom/home") };
 
         let path = spec_root("test-spec");
@@ -44,7 +47,7 @@ mod tests {
         assert!(path.ends_with("specs/test-spec"));
 
         // Clean up
-        // SAFETY: Test is run in single-threaded test environment
+        // SAFETY: Test runs with #[serial] to prevent concurrent env access
         unsafe { std::env::remove_var("XCHECKER_HOME") };
     }
 }
