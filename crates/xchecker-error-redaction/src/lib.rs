@@ -90,13 +90,41 @@ pub fn redact_error_message_for_logging(message: &str) -> String {
         .to_string();
 
     // Also redact long alphanumeric strings that look like keys (without explicit prefix)
-    // Pattern: 20+ alphanumeric/underscore/dash characters that look like a key
+    // Pattern: 32+ alphanumeric/underscore/dash characters that look like a key
     // Only match standalone keys (not embedded in URLs or after @)
-    // Use word boundary to avoid matching within URLs
-    let long_key_regex = regex::Regex::new(r"\b[a-zA-Z0-9_-]{32,}\b").unwrap();
-    redacted = long_key_regex
-        .replace_all(&redacted, "[REDACTED_KEY]")
-        .to_string();
+    // Manually check boundaries to handle hyphens correctly (which \b doesn't handle well)
+    let long_key_regex = regex::Regex::new(r"[a-zA-Z0-9_-]{32,}").unwrap();
+    let mut replacements = Vec::new();
+
+    for mat in long_key_regex.find_iter(&redacted) {
+        let start = mat.start();
+        let end = mat.end();
+
+        // Check boundary before
+        let boundary_before = if start == 0 {
+            true
+        } else {
+            let prev_char = redacted[..start].chars().last().unwrap();
+            !prev_char.is_alphanumeric() && prev_char != '_' && prev_char != '-'
+        };
+
+        // Check boundary after
+        let boundary_after = if end == redacted.len() {
+            true
+        } else {
+            let next_char = redacted[end..].chars().next().unwrap();
+            !next_char.is_alphanumeric() && next_char != '_' && next_char != '-'
+        };
+
+        if boundary_before && boundary_after {
+            replacements.push((start, end));
+        }
+    }
+
+    // Apply replacements in reverse order to preserve indices
+    for (start, end) in replacements.into_iter().rev() {
+        redacted.replace_range(start..end, "[REDACTED_KEY]");
+    }
 
     // Redact URLs with embedded credentials first to avoid breaking patterns
     // Pattern: `http://user:pass@host/path` or `https://token123:secret456@host/path`

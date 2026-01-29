@@ -223,8 +223,14 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "Redis URLs with credentials",
     },
     // =========================================================================
-    // SSH and PEM Private Keys (5 patterns)
+    // SSH and PEM Private Keys (6 patterns)
     // =========================================================================
+    SecretPatternDef {
+        id: "age_secret_key",
+        category: "SSH and PEM Private Keys",
+        regex: r"AGE-SECRET-KEY-1[a-z0-9]{58}",
+        description: "Age encryption secret keys",
+    },
     SecretPatternDef {
         id: "ssh_private_key",
         category: "SSH and PEM Private Keys",
@@ -256,8 +262,14 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "OpenSSH format markers",
     },
     // =========================================================================
-    // Platform-Specific Tokens (12 patterns)
+    // Platform-Specific Tokens (13 patterns)
     // =========================================================================
+    SecretPatternDef {
+        id: "hashicorp_vault_token",
+        category: "Platform-Specific Tokens",
+        regex: r"hv[bs]\.[a-zA-Z0-9_-]{20,}",
+        description: "HashiCorp Vault tokens",
+    },
     SecretPatternDef {
         id: "github_pat",
         category: "Platform-Specific Tokens",
@@ -1403,6 +1415,26 @@ mod tests {
     }
 
     #[test]
+    fn test_new_infrastructure_patterns() {
+        let redactor = SecretRedactor::new().unwrap();
+
+        // Test Age Secret Key
+        // Length must be exactly 58 chars after prefix
+        let age_key = "AGE-SECRET-KEY-1qpzry9x8gf2tvdw0s3jn54khce6mua7lqpzry9x8gf2tvdw0s3jn54khab";
+        let content1 = format!("age_secret = {}", age_key);
+        let matches1 = redactor.scan_for_secrets(&content1, "test.txt").unwrap();
+        assert_eq!(matches1.len(), 1);
+        assert_eq!(matches1[0].pattern_id, "age_secret_key");
+
+        // Test Vault Service Token
+        let vault_token = "hvs.CAESIKP1234567890abcdef1234567890abcdef12345";
+        let content2 = format!("vault_token = {}", vault_token);
+        let matches2 = redactor.scan_for_secrets(&content2, "test.txt").unwrap();
+        assert_eq!(matches2.len(), 1);
+        assert_eq!(matches2[0].pattern_id, "hashicorp_vault_token");
+    }
+
+    #[test]
     fn test_all_default_patterns_exist() {
         let redactor = SecretRedactor::new().unwrap();
         let pattern_ids = redactor.get_pattern_ids();
@@ -1442,6 +1474,7 @@ mod tests {
         assert!(pattern_ids.contains(&"redis_url".to_string()));
 
         // SSH/PEM keys
+        assert!(pattern_ids.contains(&"age_secret_key".to_string()));
         assert!(pattern_ids.contains(&"ssh_private_key".to_string()));
         assert!(pattern_ids.contains(&"rsa_private_key".to_string()));
         assert!(pattern_ids.contains(&"ec_private_key".to_string()));
@@ -1449,6 +1482,7 @@ mod tests {
         assert!(pattern_ids.contains(&"openssh_private_key".to_string()));
 
         // Platform-specific tokens
+        assert!(pattern_ids.contains(&"hashicorp_vault_token".to_string()));
         assert!(pattern_ids.contains(&"github_pat".to_string()));
         assert!(pattern_ids.contains(&"github_oauth".to_string()));
         assert!(pattern_ids.contains(&"github_app_token".to_string()));
