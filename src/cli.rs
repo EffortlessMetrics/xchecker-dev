@@ -30,6 +30,51 @@ use crate::redaction::SecretRedactor;
 use crate::source::SourceResolver;
 use crate::spec_id::sanitize_spec_id;
 
+/// Check if colored output should be used.
+///
+/// Returns true only if:
+/// - stdout is a terminal (TTY)
+/// - NO_COLOR environment variable is not set
+fn use_color() -> bool {
+    std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none()
+}
+
+/// Return a styled check mark (✓) if colors are enabled, otherwise plain.
+fn styled_check() -> String {
+    if use_color() {
+        format!("{}", "✓".with(Color::Green).bold())
+    } else {
+        "✓".to_string()
+    }
+}
+
+/// Return a styled warning mark (⚠) if colors are enabled, otherwise plain.
+fn styled_warning() -> String {
+    if use_color() {
+        format!("{}", "⚠".with(Color::Yellow).bold())
+    } else {
+        "⚠".to_string()
+    }
+}
+
+/// Return styled success text if colors are enabled, otherwise plain.
+fn styled_success(text: &str) -> String {
+    if use_color() {
+        format!("{}", text.with(Color::Green).bold())
+    } else {
+        text.to_string()
+    }
+}
+
+/// Return styled info text (cyan) if colors are enabled, otherwise plain.
+fn styled_info(text: &str) -> String {
+    if use_color() {
+        format!("{}", text.with(Color::Cyan).bold())
+    } else {
+        text.to_string()
+    }
+}
+
 /// xchecker - Claude orchestration tool for spec generation
 #[derive(Parser)]
 #[command(name = "xchecker")]
@@ -2316,10 +2361,7 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
         std::fs::remove_dir_all(&artifacts_path)
             .with_context(|| format!("Failed to remove artifacts directory: {artifacts_path}"))?;
         removed_count += artifacts.len();
-        println!(
-            "{} Removed artifacts directory",
-            "✓".with(Color::Green).bold()
-        );
+        println!("{} Removed artifacts directory", styled_check());
     }
 
     // Remove receipts directory
@@ -2327,20 +2369,14 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
         std::fs::remove_dir_all(&receipts_path)
             .with_context(|| format!("Failed to remove receipts directory: {receipts_path}"))?;
         removed_count += receipts.len();
-        println!(
-            "{} Removed receipts directory",
-            "✓".with(Color::Green).bold()
-        );
+        println!("{} Removed receipts directory", styled_check());
     }
 
     // Remove context directory
     if context_path.exists() {
         std::fs::remove_dir_all(&context_path)
             .with_context(|| format!("Failed to remove context directory: {context_path}"))?;
-        println!(
-            "{} Removed context directory",
-            "✓".with(Color::Green).bold()
-        );
+        println!("{} Removed context directory", styled_check());
     }
 
     // Remove the spec directory
@@ -2349,34 +2385,25 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
             // With --hard, remove the entire spec directory including any remaining files
             std::fs::remove_dir_all(&base_path)
                 .with_context(|| format!("Failed to remove spec directory: {base_path}"))?;
-            println!(
-                "{} Removed spec directory completely",
-                "✓".with(Color::Green).bold()
-            );
+            println!("{} Removed spec directory completely", styled_check());
         } else {
             // Without --hard, only remove if empty
             match std::fs::remove_dir(&base_path) {
                 Ok(()) => {
-                    println!(
-                        "{} Removed empty spec directory",
-                        "✓".with(Color::Green).bold()
-                    );
+                    println!("{} Removed empty spec directory", styled_check());
                 }
                 Err(_) => {
                     // Directory not empty, that's fine
                     println!(
                         "{} Spec directory retained (contains other files)",
-                        "✓".with(Color::Green).bold()
+                        styled_check()
                     );
                 }
             }
         }
     }
 
-    println!(
-        "\n{}",
-        "Clean completed successfully.".with(Color::Green).bold()
-    );
+    println!("\n{}", styled_success("Clean completed successfully."));
     println!("  Removed {removed_count} files total");
 
     Ok(())
@@ -2864,7 +2891,8 @@ fn execute_gate_command(
 
     // Output results
     if json {
-        let json_output = emit_gate_json(&result).with_context(|| "Failed to emit gate JSON")?;
+        let json_output =
+            emit_gate_json(&result, spec_id).with_context(|| "Failed to emit gate JSON")?;
         println!("{json_output}");
     } else {
         // Human-friendly output
@@ -2908,10 +2936,7 @@ fn execute_gate_command(
 fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Result<()> {
     use crate::lock::XCheckerLock;
 
-    println!(
-        "{}",
-        format!("Initializing spec: {spec_id}").with(Color::Cyan).bold()
-    );
+    println!("{}", styled_info(&format!("Initializing spec: {spec_id}")));
 
     // Create spec directory structure
     let spec_dir = PathBuf::from(".xchecker").join("specs").join(spec_id);
@@ -2931,7 +2956,7 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
             if create_lock {
                 println!(
                     "  {} Warning: --create-lock specified but lockfile already exists",
-                    "⚠".with(Color::Yellow).bold()
+                    styled_warning()
                 );
                 println!("  To update the lockfile, delete it first and run init again");
             }
@@ -2961,21 +2986,12 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
 
         println!(
             "  {} Created spec directory: {}",
-            "✓".with(Color::Green).bold(),
+            styled_check(),
             spec_dir.display()
         );
-        println!(
-            "  {} Created artifacts directory",
-            "✓".with(Color::Green).bold()
-        );
-        println!(
-            "  {} Created receipts directory",
-            "✓".with(Color::Green).bold()
-        );
-        println!(
-            "  {} Created context directory",
-            "✓".with(Color::Green).bold()
-        );
+        println!("  {} Created artifacts directory", styled_check());
+        println!("  {} Created receipts directory", styled_check());
+        println!("  {} Created context directory", styled_check());
     }
 
     // Create lockfile if requested
@@ -2993,10 +3009,7 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
         lock.save(spec_id)
             .with_context(|| "Failed to save lockfile")?;
 
-        println!(
-            "  {} Created lockfile: lock.json",
-            "✓".with(Color::Green).bold()
-        );
+        println!("  {} Created lockfile: lock.json", styled_check());
         println!("    Model: {model}");
         println!("    Claude CLI version: {claude_cli_version}");
         println!("    Schema version: 1");
@@ -3012,9 +3025,7 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
 
     println!(
         "\n{}",
-        format!("Spec '{spec_id}' initialized successfully")
-            .with(Color::Green)
-            .bold()
+        styled_success(&format!("Spec '{spec_id}' initialized successfully"))
     );
     println!("  Directory: {}", spec_dir.display());
 
@@ -3174,9 +3185,11 @@ impl Drop for SpinnerGuard {
 #[allow(clippy::await_holding_lock)] // Test synchronization using mutex guards across awaits is intentional
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::env;
     use std::sync::{Mutex, MutexGuard, OnceLock};
     use tempfile::TempDir;
+    use xchecker_utils::test_support::EnvVarGuard;
 
     // Global lock for tests that mutate process-global CLI state (env vars, cwd).
     // Any test that uses `TestEnvGuard` or `cli_env_guard()` will be serialized.
@@ -3191,16 +3204,14 @@ mod tests {
         _lock: MutexGuard<'static, ()>,
         _temp_dir: TempDir,
         original_dir: PathBuf,
-        original_xchecker_home: Option<String>,
+        // EnvVarGuard handles save/restore of XCHECKER_HOME automatically on drop
+        _env_guard: EnvVarGuard,
     }
 
     impl Drop for TestEnvGuard {
         fn drop(&mut self) {
-            // Restore env and cwd while still holding the lock
-            match &self.original_xchecker_home {
-                Some(val) => unsafe { env::set_var("XCHECKER_HOME", val) },
-                None => unsafe { env::remove_var("XCHECKER_HOME") },
-            }
+            // Restore cwd while still holding the lock
+            // _env_guard drops after this, restoring XCHECKER_HOME
             let _ = env::set_current_dir(&self.original_dir);
             // _lock field drops last, releasing the mutex
         }
@@ -3212,7 +3223,9 @@ mod tests {
 
         let temp_dir = TempDir::new().unwrap();
         let original_dir = env::current_dir().unwrap();
-        let original_xchecker_home = env::var("XCHECKER_HOME").ok();
+
+        // EnvVarGuard captures original value and will restore on drop
+        let env_guard = EnvVarGuard::cleared("XCHECKER_HOME");
 
         // From here onwards we're serialized against other CLI tests
         env::set_current_dir(temp_dir.path()).unwrap();
@@ -3221,7 +3234,7 @@ mod tests {
             _lock: lock,
             _temp_dir: temp_dir,
             original_dir,
-            original_xchecker_home,
+            _env_guard: env_guard,
         }
     }
 
@@ -3260,16 +3273,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial]
     async fn test_spec_command_execution() -> anyhow::Result<()> {
         use tempfile::TempDir;
 
         // Take the global CLI lock for env/cwd mutations
         let _lock = cli_env_guard();
-
-        // Save original state
-        let original_dir = std::env::current_dir()?;
-        let original_xchecker_home = std::env::var("XCHECKER_HOME").ok();
-        let original_skip_llm = std::env::var("XCHECKER_SKIP_LLM_TESTS").ok();
 
         // Setup isolated test root
         let temp = TempDir::new()?;
@@ -3278,12 +3287,13 @@ mod tests {
         // Make it look like a repo root
         std::fs::create_dir_all(root.join(".git"))?;
 
-        // Set process environment
+        // Use guards that restore env vars on drop (including on panic)
+        let _home_guard = EnvVarGuard::set("XCHECKER_HOME", root.to_str().unwrap());
+        let _skip_guard = EnvVarGuard::set("XCHECKER_SKIP_LLM_TESTS", "1");
+
+        // Save and change CWD
+        let original_dir = std::env::current_dir()?;
         std::env::set_current_dir(root)?;
-        unsafe {
-            std::env::set_var("XCHECKER_HOME", root);
-            std::env::set_var("XCHECKER_SKIP_LLM_TESTS", "1");
-        }
 
         // Create minimal config
         std::fs::write(
@@ -3325,16 +3335,8 @@ packet_max_lines = 5000
         )
         .await;
 
-        // Restore original environment before asserting
+        // Restore CWD before asserting (env vars restored by guards on drop)
         let _ = std::env::set_current_dir(&original_dir);
-        match original_xchecker_home {
-            Some(val) => unsafe { std::env::set_var("XCHECKER_HOME", val) },
-            None => unsafe { std::env::remove_var("XCHECKER_HOME") },
-        }
-        match original_skip_llm {
-            Some(val) => unsafe { std::env::set_var("XCHECKER_SKIP_LLM_TESTS", val) },
-            None => unsafe { std::env::remove_var("XCHECKER_SKIP_LLM_TESTS") },
-        }
 
         // In dry-run mode with a valid source, this should succeed
         // The important thing is it doesn't hang and completes quickly

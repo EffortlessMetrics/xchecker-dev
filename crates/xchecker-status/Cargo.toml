@@ -1,15 +1,20 @@
 [package]
 name = "xchecker-status"
-version = "1.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Spec status tracking for xchecker"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
-xchecker-utils = { path = "../xchecker-utils" }
-xchecker-config = { path = "../xchecker-config" }
-xchecker-redaction = { path = "../xchecker-redaction" }
-xchecker-receipt = { path = "../xchecker-receipt" }
+xchecker-utils = { workspace = true }
+xchecker-config = { workspace = true }
+xchecker-redaction = { workspace = true }
+xchecker-receipt = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -20,5 +25,5 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
+xchecker-utils = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true }

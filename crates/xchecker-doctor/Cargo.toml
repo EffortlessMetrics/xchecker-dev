@@ -1,16 +1,21 @@
 [package]
 name = "xchecker-doctor"
-version = "1.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Environment health checks and diagnostics for xchecker"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [features]
 test-utils = ["dep:strum"]
 
 [dependencies]
-xchecker-utils = { path = "../xchecker-utils" }
-xchecker-config = { path = "../xchecker-config" }
+xchecker-utils = { workspace = true }
+xchecker-config = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 which = { workspace = true }

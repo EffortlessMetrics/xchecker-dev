@@ -225,7 +225,7 @@ fn test_gate_json_output_matches_schema() {
     };
 
     // Emit JSON
-    let json_str = emit_gate_json(&result).expect("Failed to emit gate JSON");
+    let json_str = emit_gate_json(&result, "test-spec").expect("Failed to emit gate JSON");
     let json_value: serde_json::Value =
         serde_json::from_str(&json_str).expect("Failed to parse emitted JSON");
 

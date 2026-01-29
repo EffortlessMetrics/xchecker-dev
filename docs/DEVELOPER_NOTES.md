@@ -1,6 +1,6 @@
-# Troubleshooting Guide
+# Developer Notes
 
-This document captures common issues and their stable fixes.
+This document captures common development issues and their stable fixes when contributing to xchecker. For user troubleshooting (exit codes, artifacts, debugging), see [DEBUGGING_GUIDE.md](DEBUGGING_GUIDE.md).
 
 ## Test Helper Visibility Issues
 

@@ -443,7 +443,9 @@ impl SecretRedactor {
         let mut linear = Vec::new();
 
         // Collect all patterns (default + extra)
-        let mut all_patterns: Vec<(&String, &Regex)> = self.default_patterns.iter()
+        let mut all_patterns: Vec<(&String, &Regex)> = self
+            .default_patterns
+            .iter()
             .chain(self.extra_patterns.iter())
             .collect();
 

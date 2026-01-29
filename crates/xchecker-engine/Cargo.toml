@@ -1,34 +1,39 @@
 [package]
 name = "xchecker-engine"
-version = "1.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Core orchestration engine for xchecker phase execution"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [features]
 test-utils = ["dep:strum"]
 legacy_claude = []
 
 [dependencies]
-xchecker-utils = { path = "../xchecker-utils" }
-xchecker-config = { path = "../xchecker-config" }
-xchecker-llm = { path = "../xchecker-llm" }
-xchecker-redaction = { path = "../xchecker-redaction" }
-xchecker-runner = { path = "../xchecker-runner" }
-xchecker-packet = { path = "../xchecker-packet" }
-xchecker-receipt = { path = "../xchecker-receipt" }
-xchecker-status = { path = "../xchecker-status" }
-xchecker-templates = { path = "../xchecker-templates" }
-xchecker-doctor = { path = "../xchecker-doctor" }
-xchecker-benchmark = { path = "../xchecker-benchmark" }
-xchecker-validation = { path = "../xchecker-validation" }
-xchecker-extraction = { path = "../xchecker-extraction" }
-xchecker-hooks = { path = "../xchecker-hooks" }
-xchecker-workspace = { path = "../xchecker-workspace" }
-xchecker-gate = { path = "../xchecker-gate" }
-xchecker-fixup-model = { path = "../xchecker-fixup-model" }
-xchecker-phases = { path = "../xchecker-phases" }
-xchecker-phase-api = { path = "../xchecker-phase-api" }
+xchecker-utils = { workspace = true }
+xchecker-config = { workspace = true }
+xchecker-llm = { workspace = true }
+xchecker-redaction = { workspace = true }
+xchecker-runner = { workspace = true }
+xchecker-packet = { workspace = true }
+xchecker-receipt = { workspace = true }
+xchecker-status = { workspace = true }
+xchecker-templates = { workspace = true }
+xchecker-doctor = { workspace = true }
+xchecker-benchmark = { workspace = true }
+xchecker-validation = { workspace = true }
+xchecker-extraction = { workspace = true }
+xchecker-hooks = { workspace = true }
+xchecker-workspace = { workspace = true }
+xchecker-gate = { workspace = true }
+xchecker-fixup-model = { workspace = true }
+xchecker-phases = { workspace = true }
+xchecker-phase-api = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -48,7 +53,7 @@ toml = { workspace = true }
 strum = { workspace = true, optional = true }
 
 [dev-dependencies]
-xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
+xchecker-utils = { workspace = true, features = ["test-utils"] }
 toml = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]

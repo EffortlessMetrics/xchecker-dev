@@ -13,7 +13,7 @@ pub use command::GateCommand;
 pub use exit_codes::{POLICY_VIOLATION, SUCCESS};
 pub use json::emit_gate_json;
 pub use policy::{
-    load_policy_from_path, parse_duration, parse_phase, resolve_policy_path, GatePolicy,
+    GatePolicy, load_policy_from_path, parse_duration, parse_phase, resolve_policy_path,
 };
 pub use types::{
     GateCondition, GateResult, PendingFixupsResult, PendingFixupsStats, SpecDataProvider,

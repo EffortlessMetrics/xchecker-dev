@@ -215,7 +215,7 @@ mod tests {
         );
 
         // Verify status module handles drift detection
-        let status_path = Path::new("crates/xchecker-engine/src/status.rs");
+        let status_path = Path::new("crates/xchecker-status/src/status.rs");
         assert!(status_path.exists(), "Status module should exist");
 
         let status_content = fs::read_to_string(status_path).unwrap();
