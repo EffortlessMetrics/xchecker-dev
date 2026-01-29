@@ -111,6 +111,31 @@ pub(crate) fn claude_stub_path() -> Option<String> {
         return Some(path);
     }
 
+    // Fallback: Check target directories relative to CARGO_MANIFEST_DIR
+    // This is needed when running tests where the binary was built but not as part of the current
+    // test package target set (e.g. running integration tests without --features dev-tools).
+    if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        let root = PathBuf::from(manifest_dir);
+        // Try common target locations
+        let candidates = [
+            root.join("target/debug/claude-stub"),
+            root.join("target/debug/claude-stub.exe"),
+            root.join("target/release/claude-stub"),
+            root.join("target/release/claude-stub.exe"),
+            // Handle workspace layouts where target might be up a level
+            root.join("../target/debug/claude-stub"),
+            root.join("../target/debug/claude-stub.exe"),
+            root.join("../target/release/claude-stub"),
+            root.join("../target/release/claude-stub.exe"),
+        ];
+
+        for candidate in &candidates {
+            if candidate.exists() {
+                return Some(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+
     // PATH fallback: only check for claude-stub binary
     // Do NOT fall back to real `claude` - tests using the stub rely on stub-specific scenarios
     if let Ok(path) = which::which("claude-stub") {
