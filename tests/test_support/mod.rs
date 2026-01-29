@@ -113,7 +113,30 @@ pub(crate) fn claude_stub_path() -> Option<String> {
 
     // PATH fallback: only check for claude-stub binary
     // Do NOT fall back to real `claude` - tests using the stub rely on stub-specific scenarios
-    which::which("claude-stub")
-        .ok()
-        .map(|path| path.to_string_lossy().to_string())
+    if let Ok(path) = which::which("claude-stub") {
+        return Some(path.to_string_lossy().to_string());
+    }
+
+    // Fallback: check target/debug/claude-stub
+    // This is useful in CI environments where the binary might not be in PATH
+    // We walk up the directory tree to find the project root
+    let current_dir = std::env::current_dir().ok()?;
+    let mut dir = current_dir.as_path();
+    loop {
+        let debug_path = dir.join("target/debug/claude-stub");
+        if debug_path.exists() {
+            return Some(debug_path.to_string_lossy().to_string());
+        }
+        let release_path = dir.join("target/release/claude-stub");
+        if release_path.exists() {
+            return Some(release_path.to_string_lossy().to_string());
+        }
+
+        match dir.parent() {
+            Some(parent) => dir = parent,
+            None => break,
+        }
+    }
+
+    None
 }
