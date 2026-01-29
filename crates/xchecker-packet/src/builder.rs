@@ -5,6 +5,8 @@ use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use xchecker_config::Selectors;
 use xchecker_redaction::SecretRedactor;
 use xchecker_utils::cache::InsightCache;
@@ -239,7 +241,7 @@ impl PacketBuilder {
         base_path: &Utf8Path,
         phase: &str,
         context_dir: &Utf8Path,
-        logger: Option<&Logger>,
+        _logger: Option<&Logger>,
     ) -> Result<Packet> {
         // Select candidates using lazy selection (no content reading yet)
         let candidates = self
@@ -247,60 +249,117 @@ impl PacketBuilder {
             .select_candidates(base_path)
             .with_context(|| format!("Failed to select files from {base_path}"))?;
 
-        // Build packet content with budget enforcement and redaction
+        // Prepare for parallel processing
+        // Extract cache to wrap in Arc<Mutex>
+        let cache_arc = self.cache.take().map(|c| Arc::new(Mutex::new(c)));
+        let redactor_ref = &self.redactor;
+        let max_file_size = self.selector.get_max_file_size();
+
+        // Process files in parallel
+        // We use std::thread::scope to allow sharing references (like redactor_ref)
+        let num_threads = thread::available_parallelism().map_or(4, |n| n.get());
+        let chunk_size = if candidates.is_empty() {
+            1
+        } else {
+            candidates.len().div_ceil(num_threads)
+        };
+
+        // Process candidates in chunks
+        let process_results = thread::scope(|s| {
+            let mut handles = Vec::new();
+            for chunk in candidates.chunks(chunk_size) {
+                // Clone the Arc for the cache (cheap)
+                let cache_clone = cache_arc.as_ref().map(|arc| arc.clone());
+
+                let handle = s.spawn(move || {
+                    let mut results = Vec::with_capacity(chunk.len());
+                    for candidate in chunk {
+                        let result = process_candidate_file(
+                            candidate,
+                            max_file_size,
+                            phase,
+                            redactor_ref,
+                            cache_clone.as_ref(),
+                        );
+                        results.push(result);
+                    }
+                    results
+                });
+                handles.push(handle);
+            }
+
+            // Collect results preserving order
+            let mut all_results = Vec::with_capacity(candidates.len());
+            for handle in handles {
+                if let Ok(chunk_results) = handle.join() {
+                    all_results.extend(chunk_results);
+                } else {
+                    // One thread panicked
+                    return Err(anyhow::anyhow!("Worker thread panicked during packet assembly"));
+                }
+            }
+            Ok(all_results)
+        })?;
+
+        // Restore cache to self
+        if let Some(arc) = cache_arc {
+            if let Ok(mutex) = Arc::try_unwrap(arc) {
+                self.cache = Some(mutex.into_inner().unwrap());
+            } else {
+                // This should not happen as all threads have joined and dropped their clones
+                return Err(anyhow::anyhow!("Failed to unwrap cache Arc"));
+            }
+        }
+
+        // Build packet from results
         let mut budget = BudgetUsage::new(self.max_bytes, self.max_lines);
         let mut packet_content = String::new();
         let mut included_files = Vec::new();
 
-        // Split candidates into upstream and others
-        let mut upstream_candidates = Vec::new();
-        let mut other_candidates = Vec::new();
+        // Separate Upstream and Other results to apply budget logic
+        // process_results corresponds 1:1 to candidates
+        let mut upstream_results = Vec::new();
+        let mut other_results = Vec::new();
 
-        for candidate in candidates {
+        for (candidate, result) in candidates.iter().zip(process_results.into_iter()) {
             if candidate.priority == Priority::Upstream {
-                upstream_candidates.push(candidate);
+                upstream_results.push((candidate, result));
             } else {
-                other_candidates.push(candidate);
+                other_results.push((candidate, result));
             }
         }
 
-        let has_cache = self.cache.is_some();
+        // First pass: Add all upstream files
+        for (_candidate, result) in upstream_results {
+            // Propagate errors from processing
+            match result {
+                Ok(Some((file, file_content, content_size, line_count))) => {
+                     // Add file content to packet
+                    let redacted_path = self.redactor.redact_string(file.path.as_str());
+                    packet_content.push_str(&format!("=== {} ===\n", redacted_path));
+                    packet_content.push_str(&file_content);
+                    packet_content.push_str("\n\n");
 
-        // Get max_file_size limit for DoS protection
-        let max_file_size = self.selector.get_max_file_size();
+                    // Update budget
+                    budget.add_content(content_size, line_count);
 
-        // First pass: Add all upstream files (never evicted)
-        for candidate in upstream_candidates {
-            if let Some((file, file_content, content_size, line_count)) =
-                self.process_candidate(&candidate, max_file_size, phase, logger)?
-            {
-                // Add file content to packet
-                // Secure file path display: redact potentially sensitive info in filenames
-                let redacted_path = self.redactor.redact_string(file.path.as_str());
-                packet_content.push_str(&format!("=== {} ===\n", redacted_path));
-                packet_content.push_str(&file_content);
-                packet_content.push_str("\n\n");
-
-                // Update budget
-                budget.add_content(content_size, line_count);
-
-                // Create file evidence
-                let evidence = FileEvidence {
-                    path: file.path.to_string(),
-                    range: None, // Full file for now
-                    blake3_pre_redaction: file.blake3_pre_redaction,
-                    priority: file.priority,
-                };
-                included_files.push(evidence);
+                    // Create file evidence
+                    let evidence = FileEvidence {
+                        path: file.path.to_string(),
+                        range: None, // Full file for now
+                        blake3_pre_redaction: file.blake3_pre_redaction,
+                        priority: file.priority,
+                    };
+                    included_files.push(evidence);
+                }
+                Ok(None) => { /* Skipped file */ }
+                Err(e) => return Err(e),
             }
         }
 
         // Check if upstream files alone exceed budget
         if budget.is_exceeded() {
-            // Write packet preview before failing
             self.write_packet_preview(&packet_content, phase, context_dir)?;
-
-            // Write packet manifest on overflow (FR-PKT-006)
             self.write_packet_manifest(&included_files, &budget, phase, context_dir)?;
 
             return Err(XCheckerError::PacketOverflow {
@@ -313,47 +372,35 @@ impl PacketBuilder {
         }
 
         // Second pass: Add other files until budget is reached
-        for candidate in other_candidates {
-            // Optimization: skip files larger than remaining budget when no cache is active.
-            // With cache, a cache hit returns only "CACHED INSIGHTS: ..." which is smaller than
-            // the file on disk, so we can't skip based on file size alone.
-            if !has_cache {
-                let remaining_bytes = budget.max_bytes.saturating_sub(budget.bytes_used);
-                if let Ok(metadata) = fs::metadata(&candidate.path)
-                    && metadata.len() as usize > remaining_bytes
-                {
-                    continue;
+        for (_candidate, result) in other_results {
+             match result {
+                Ok(Some((file, file_content, content_size, line_count))) => {
+                    // Check if this file would exceed budget
+                    if budget.would_exceed(content_size, line_count) {
+                        // Skip this file to stay within budget
+                        continue;
+                    }
+
+                     // Add file content to packet
+                    let redacted_path = self.redactor.redact_string(file.path.as_str());
+                    packet_content.push_str(&format!("=== {} ===\n", redacted_path));
+                    packet_content.push_str(&file_content);
+                    packet_content.push_str("\n\n");
+
+                    // Update budget
+                    budget.add_content(content_size, line_count);
+
+                    // Create file evidence
+                    let evidence = FileEvidence {
+                        path: file.path.to_string(),
+                        range: None, // Full file for now
+                        blake3_pre_redaction: file.blake3_pre_redaction,
+                        priority: file.priority,
+                    };
+                    included_files.push(evidence);
                 }
-            }
-
-            // Read and process the file
-            if let Some((file, file_content, content_size, line_count)) =
-                self.process_candidate(&candidate, max_file_size, phase, logger)?
-            {
-                // Check if this file would exceed budget
-                if budget.would_exceed(content_size, line_count) {
-                    // Skip this file to stay within budget
-                    continue;
-                }
-
-                // Add file content to packet
-                // Secure file path display: redact potentially sensitive info in filenames
-                let redacted_path = self.redactor.redact_string(file.path.as_str());
-                packet_content.push_str(&format!("=== {} ===\n", redacted_path));
-                packet_content.push_str(&file_content);
-                packet_content.push_str("\n\n");
-
-                // Update budget
-                budget.add_content(content_size, line_count);
-
-                // Create file evidence
-                let evidence = FileEvidence {
-                    path: file.path.to_string(),
-                    range: None, // Full file for now
-                    blake3_pre_redaction: file.blake3_pre_redaction,
-                    priority: file.priority,
-                };
-                included_files.push(evidence);
+                Ok(None) => { /* Skipped file */ }
+                Err(e) => return Err(e),
             }
         }
 
@@ -380,75 +427,6 @@ impl PacketBuilder {
         hasher.finalize().to_hex().to_string()
     }
 
-    /// Process a file with cache integration (R3.4, R3.5)
-    /// Returns either cached insights or processes the file and caches the result
-    fn process_file_with_cache(
-        &mut self,
-        file: &SelectedFile,
-        phase: &str,
-        logger: Option<&Logger>,
-    ) -> Result<String> {
-        // Use pre-calculated hash to avoid re-hashing (~6-8% performance gain)
-        // Verified: ~199ms -> ~183ms for 100 file packet assembly
-        let content_hash = &file.blake3_pre_redaction;
-
-        // Try to get cached insights first (R3.4)
-        if let Some(cache) = &mut self.cache
-            && let Some(cached_insights) =
-                cache.get_insights(&file.path, content_hash, phase, logger)?
-        {
-            // Cache hit - return formatted insights
-            let insights_content = format!(
-                "CACHED INSIGHTS:\n{}",
-                cached_insights
-                    .iter()
-                    .map(|insight| format!("• {insight}"))
-                    .collect::<Vec<_>>()
-                    .join("\n")
-            );
-            return Ok(insights_content);
-        }
-
-        // Cache miss - process file normally
-        // Apply redaction to content
-        let redaction_result = self
-            .redactor
-            .redact_content(&file.content, file.path.as_ref())?;
-        let redacted_content = redaction_result.content;
-
-        // Generate insights if cache is available (R3.5)
-        if let Some(cache) = &mut self.cache {
-            let insights = cache.generate_insights(&file.content, &file.path, phase, file.priority);
-
-            // Store insights in cache for future use
-            cache.store_insights(
-                &file.path,
-                &file.content,
-                content_hash,
-                phase,
-                file.priority,
-                insights.clone(),
-                logger,
-            )?;
-
-            // Return insights instead of raw content for better token efficiency
-            let insights_content = format!(
-                "INSIGHTS:\n{}\n\nORIGINAL CONTENT:\n{}",
-                insights
-                    .iter()
-                    .map(|insight| format!("• {insight}"))
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-                redacted_content
-            );
-
-            Ok(insights_content)
-        } else {
-            // No cache - return redacted content only
-            Ok(redacted_content)
-        }
-    }
-
     /// Log cache statistics if verbose logging is enabled and cache is available
     #[allow(dead_code)] // Diagnostic logging utility
     pub fn log_cache_stats(&self, logger: &Logger) {
@@ -458,103 +436,165 @@ impl PacketBuilder {
     }
 }
 
+/// Helper function to process a single candidate file in parallel.
+/// This encapsulates reading, hashing, redaction, and cache interaction.
+fn process_candidate_file(
+    candidate: &CandidateFile,
+    max_file_size: u64,
+    phase: &str,
+    redactor: &SecretRedactor,
+    cache: Option<&Arc<Mutex<InsightCache>>>,
+) -> Result<Option<(SelectedFile, String, usize, usize)>> {
+    // DoS protection: check file size before reading
+    let metadata = fs::metadata(&candidate.path)
+        .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
+
+    if !metadata.is_file() {
+        return Ok(None);
+    }
+
+    if metadata.len() > max_file_size {
+        // For upstream files (critical context), fail hard if they exceed the limit
+        if candidate.priority == Priority::Upstream {
+            return Err(anyhow::anyhow!(
+                "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                 Critical context files must fit within the configured limit.",
+                candidate.path,
+                max_file_size,
+                metadata.len()
+            ));
+        }
+
+        tracing::warn!(
+            "Skipping large file: {} ({} bytes > limit {})",
+            candidate.path,
+            metadata.len(),
+            max_file_size
+        );
+        return Ok(None);
+    }
+
+    // Read content
+    let content = fs::read_to_string(&candidate.path)
+        .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+    // Scan for secrets immediately after reading
+    if redactor.has_secrets(&content, candidate.path.as_ref())? {
+        let matches = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+        return Err(XCheckerError::SecretDetected {
+            pattern: matches
+                .first()
+                .map(|m| m.pattern_id.clone())
+                .unwrap_or_else(|| "unknown".to_string()),
+            location: matches
+                .first()
+                .map(|m| m.file_path.clone())
+                .unwrap_or_else(|| "unknown".to_string()),
+        }
+        .into());
+    }
+
+    // Calculate pre-redaction hash
+    let mut hasher = Hasher::new();
+    hasher.update(content.as_bytes());
+    let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
+
+    let line_count_raw = content.lines().count();
+    let byte_count_raw = content.len();
+
+    let selected_file = SelectedFile {
+        path: candidate.path.clone(),
+        content: content.clone(), // Clone needed for SelectedFile
+        priority: candidate.priority,
+        blake3_pre_redaction: blake3_pre_redaction.clone(),
+        line_count: line_count_raw,
+        byte_count: byte_count_raw,
+    };
+
+    // Cache Logic Inlined
+    let file_content = if let Some(cache_mutex) = cache {
+        // Try to get cached insights
+        let cached_insights = {
+            let mut guard = cache_mutex.lock().expect("Cache mutex poisoned");
+            // Pass None for logger to avoid Sync issues in threads
+            guard.get_insights(&selected_file.path, &blake3_pre_redaction, phase, None)?
+        };
+
+        if let Some(insights) = cached_insights {
+             format!(
+                "CACHED INSIGHTS:\n{}",
+                insights
+                    .iter()
+                    .map(|insight| format!("• {insight}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        } else {
+            // Cache miss
+            let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
+            let redacted_content = redaction_result.content;
+
+            // Generate insights
+            // Use a temporary cache instance or lock again?
+            // generate_insights is a method on InsightCache, but it is pure logic if we look at it?
+            // Wait, generate_insights is `&self`.
+            // So we need to lock to call it?
+
+            // InsightCache methods:
+            // pub fn generate_insights(&self, ...)
+
+            // We need a reference to cache to call generate_insights.
+            // But we dropped the lock.
+
+            let insights = {
+                 let guard = cache_mutex.lock().expect("Cache mutex poisoned");
+                 guard.generate_insights(&content, &candidate.path, phase, candidate.priority)
+            };
+
+            // Store insights
+            {
+                 let mut guard = cache_mutex.lock().expect("Cache mutex poisoned");
+                 guard.store_insights(
+                    &candidate.path,
+                    &content,
+                    &blake3_pre_redaction,
+                    phase,
+                    candidate.priority,
+                    insights.clone(),
+                    None,
+                )?;
+            }
+
+            format!(
+                "INSIGHTS:\n{}\n\nORIGINAL CONTENT:\n{}",
+                insights
+                    .iter()
+                    .map(|insight| format!("• {insight}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                redacted_content
+            )
+        }
+    } else {
+        // No cache
+        let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
+        redaction_result.content
+    };
+
+    let content_size = file_content.len() + candidate.path.as_str().len() + 10;
+    let line_count = file_content.lines().count() + 3;
+
+    Ok(Some((
+        selected_file,
+        file_content,
+        content_size,
+        line_count,
+    )))
+}
+
 impl Default for PacketBuilder {
     fn default() -> Self {
         Self::new().expect("Failed to create default PacketBuilder")
-    }
-}
-
-impl PacketBuilder {
-    /// Process a single candidate file
-    fn process_candidate(
-        &mut self,
-        candidate: &CandidateFile,
-        max_file_size: u64,
-        phase: &str,
-        logger: Option<&Logger>,
-    ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
-        // DoS protection: check file size before reading to prevent memory exhaustion
-        let metadata = fs::metadata(&candidate.path)
-            .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
-
-        if !metadata.is_file() {
-            // Skip special files (pipes, devices, etc.) that might block reading
-            return Ok(None);
-        }
-
-        if metadata.len() > max_file_size {
-            // For upstream files (critical context), fail hard if they exceed the limit
-            if candidate.priority == Priority::Upstream {
-                return Err(anyhow::anyhow!(
-                    "Upstream file {} exceeds size limit of {} bytes (size: {}). \
-                     Critical context files must fit within the configured limit.",
-                    candidate.path,
-                    max_file_size,
-                    metadata.len()
-                ));
-            }
-
-            tracing::warn!(
-                "Skipping large file: {} ({} bytes > limit {})",
-                candidate.path,
-                metadata.len(),
-                max_file_size
-            );
-            return Ok(None);
-        }
-
-        // Read content (lazy load)
-        let content = fs::read_to_string(&candidate.path)
-            .with_context(|| format!("Failed to read file: {}", candidate.path))?;
-
-        // Scan for secrets immediately after reading
-        if self
-            .redactor
-            .has_secrets(&content, candidate.path.as_ref())?
-        {
-            let matches = self
-                .redactor
-                .scan_for_secrets(&content, candidate.path.as_ref())?;
-            return Err(XCheckerError::SecretDetected {
-                pattern: matches
-                    .first()
-                    .map(|m| m.pattern_id.clone())
-                    .unwrap_or_else(|| "unknown".to_string()),
-                location: matches
-                    .first()
-                    .map(|m| m.file_path.clone())
-                    .unwrap_or_else(|| "unknown".to_string()),
-            }
-            .into());
-        }
-
-        // Calculate pre-redaction hash
-        let mut hasher = Hasher::new();
-        hasher.update(content.as_bytes());
-        let blake3_pre_redaction = hasher.finalize().to_hex().to_string();
-
-        let line_count_raw = content.lines().count();
-        let byte_count_raw = content.len();
-
-        let selected_file = SelectedFile {
-            path: candidate.path.clone(),
-            content,
-            priority: candidate.priority,
-            blake3_pre_redaction,
-            line_count: line_count_raw,
-            byte_count: byte_count_raw,
-        };
-
-        let file_content = self.process_file_with_cache(&selected_file, phase, logger)?;
-        let content_size = file_content.len() + candidate.path.as_str().len() + 10;
-        let line_count = file_content.lines().count() + 3;
-
-        Ok(Some((
-            selected_file,
-            file_content,
-            content_size,
-            line_count,
-        )))
     }
 }
 
