@@ -275,8 +275,7 @@ pub fn run_tui(workspace_path: &Path) -> Result<()> {
     // Setup terminal
     enable_raw_mode().context("Failed to enable raw mode")?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)
-        .context("Failed to enter alternate screen")?;
+    execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
 
@@ -288,11 +287,8 @@ pub fn run_tui(workspace_path: &Path) -> Result<()> {
 
     // Restore terminal
     disable_raw_mode().context("Failed to disable raw mode")?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen
-    )
-    .context("Failed to leave alternate screen")?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)
+        .context("Failed to leave alternate screen")?;
     terminal.show_cursor().context("Failed to show cursor")?;
 
     result

@@ -295,7 +295,9 @@ impl PacketBuilder {
                     all_results.extend(chunk_results);
                 } else {
                     // One thread panicked
-                    return Err(anyhow::anyhow!("Worker thread panicked during packet assembly"));
+                    return Err(anyhow::anyhow!(
+                        "Worker thread panicked during packet assembly"
+                    ));
                 }
             }
             Ok(all_results)
@@ -334,7 +336,7 @@ impl PacketBuilder {
             // Propagate errors from processing
             match result {
                 Ok(Some((file, file_content, content_size, line_count))) => {
-                     // Add file content to packet
+                    // Add file content to packet
                     let redacted_path = self.redactor.redact_string(file.path.as_str());
                     packet_content.push_str(&format!("=== {} ===\n", redacted_path));
                     packet_content.push_str(&file_content);
@@ -373,7 +375,7 @@ impl PacketBuilder {
 
         // Second pass: Add other files until budget is reached
         for (_candidate, result) in other_results {
-             match result {
+            match result {
                 Ok(Some((file, file_content, content_size, line_count))) => {
                     // Check if this file would exceed budget
                     if budget.would_exceed(content_size, line_count) {
@@ -381,7 +383,7 @@ impl PacketBuilder {
                         continue;
                     }
 
-                     // Add file content to packet
+                    // Add file content to packet
                     let redacted_path = self.redactor.redact_string(file.path.as_str());
                     packet_content.push_str(&format!("=== {} ===\n", redacted_path));
                     packet_content.push_str(&file_content);
@@ -521,7 +523,7 @@ fn process_candidate_file(
         };
 
         if let Some(insights) = cached_insights {
-             format!(
+            format!(
                 "CACHED INSIGHTS:\n{}",
                 insights
                     .iter()
@@ -547,14 +549,14 @@ fn process_candidate_file(
             // But we dropped the lock.
 
             let insights = {
-                 let guard = cache_mutex.lock().expect("Cache mutex poisoned");
-                 guard.generate_insights(&content, &candidate.path, phase, candidate.priority)
+                let guard = cache_mutex.lock().expect("Cache mutex poisoned");
+                guard.generate_insights(&content, &candidate.path, phase, candidate.priority)
             };
 
             // Store insights
             {
-                 let mut guard = cache_mutex.lock().expect("Cache mutex poisoned");
-                 guard.store_insights(
+                let mut guard = cache_mutex.lock().expect("Cache mutex poisoned");
+                guard.store_insights(
                     &candidate.path,
                     &content,
                     &blake3_pre_redaction,
