@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 /// Result of gate evaluation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GateResult {
+    /// Schema version for the result
+    pub schema_version: String,
+
+    /// ID of the spec being evaluated
+    pub spec_id: String,
+
     /// Whether spec passed all gate checks
     pub passed: bool,
 

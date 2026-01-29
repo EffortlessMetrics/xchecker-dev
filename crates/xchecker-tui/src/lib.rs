@@ -10,7 +10,7 @@
 
 use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
+    event::{self, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -228,6 +228,22 @@ impl TuiApp {
         self.list_state.select(Some(self.selected_index));
     }
 
+    /// Select the first spec
+    fn select_first(&mut self) {
+        if !self.spec_statuses.is_empty() {
+            self.selected_index = 0;
+            self.list_state.select(Some(self.selected_index));
+        }
+    }
+
+    /// Select the last spec
+    fn select_last(&mut self) {
+        if !self.spec_statuses.is_empty() {
+            self.selected_index = self.spec_statuses.len() - 1;
+            self.list_state.select(Some(self.selected_index));
+        }
+    }
+
     /// Move selection down
     fn select_next(&mut self) {
         if self.spec_statuses.is_empty() {
@@ -259,7 +275,7 @@ pub fn run_tui(workspace_path: &Path) -> Result<()> {
     // Setup terminal
     enable_raw_mode().context("Failed to enable raw mode")?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+    execute!(stdout, EnterAlternateScreen)
         .context("Failed to enter alternate screen")?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
@@ -274,8 +290,7 @@ pub fn run_tui(workspace_path: &Path) -> Result<()> {
     disable_raw_mode().context("Failed to disable raw mode")?;
     execute!(
         terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
+        LeaveAlternateScreen
     )
     .context("Failed to leave alternate screen")?;
     terminal.show_cursor().context("Failed to show cursor")?;
@@ -304,6 +319,16 @@ where
                 KeyCode::Down | KeyCode::Char('j') => {
                     if !app.show_details {
                         app.select_next();
+                    }
+                }
+                KeyCode::Home => {
+                    if !app.show_details {
+                        app.select_first();
+                    }
+                }
+                KeyCode::End => {
+                    if !app.show_details {
+                        app.select_last();
                     }
                 }
                 KeyCode::Enter => app.toggle_details(),
@@ -832,5 +857,29 @@ mod tests {
 
         // Selected spec should be None
         assert!(app.selected_spec().is_none());
+    }
+
+    #[test]
+    fn test_tui_app_home_end_navigation() {
+        let (_temp_dir, workspace_path) = create_test_workspace();
+
+        let mut app = TuiApp::new(&workspace_path).unwrap();
+
+        // Initial selection (first)
+        assert_eq!(app.selected_index, 0);
+
+        // Move to end
+        app.select_last();
+        assert_eq!(app.selected_index, 1);
+
+        // Move to start
+        app.select_first();
+        assert_eq!(app.selected_index, 0);
+
+        // Move next then move to start
+        app.select_next();
+        assert_eq!(app.selected_index, 1);
+        app.select_first();
+        assert_eq!(app.selected_index, 0);
     }
 }

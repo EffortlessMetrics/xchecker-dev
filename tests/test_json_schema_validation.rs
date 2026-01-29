@@ -212,6 +212,8 @@ fn test_gate_json_output_matches_schema() {
 
     // Create a test gate result
     let result = GateResult {
+        schema_version: "gate-json.v1".to_string(),
+        spec_id: "test-spec".to_string(),
         passed: true,
         conditions: vec![GateCondition {
             name: "min_phase".to_string(),
