@@ -228,7 +228,7 @@ For fixup limitations and workarounds, see the [Debugging Guide](docs/DEBUGGING_
 | [Contracts](docs/CONTRACTS.md) | JSON schema versioning |
 | [Doctor](docs/DOCTOR.md) | Health check details |
 | [LLM Providers](docs/LLM_PROVIDERS.md) | Provider configuration |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes |
+| [Debugging Guide](docs/DEBUGGING_GUIDE.md) | Troubleshooting and diagnostics |
 
 ### Walkthroughs
 
