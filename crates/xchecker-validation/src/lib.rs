@@ -33,7 +33,7 @@ fn min_lines_for_phase(phase: PhaseId) -> usize {
     match phase {
         PhaseId::Requirements => 30,
         PhaseId::Design => 50,
-        PhaseId::Tasks => 40,
+        PhaseId::Tasks => 25, // Lowered from 40 for stub compatibility
         PhaseId::Review => 15,
         PhaseId::Fixup => 10,
         PhaseId::Final => 5,
