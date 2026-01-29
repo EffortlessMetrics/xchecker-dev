@@ -36,7 +36,7 @@ impl GateCommand {
         // Check if spec exists
         if !base_path_utf8.as_path().exists() {
             return Ok(GateResult {
-                schema_version: "gate-result.v1".to_string(),
+                schema_version: "gate-json.v1".to_string(),
                 spec_id: self.spec_id.clone(),
                 passed: false,
                 summary: format!("Spec '{}' does not exist", self.spec_id),
@@ -72,7 +72,7 @@ impl GateCommand {
         };
 
         Ok(GateResult {
-            schema_version: "gate-result.v1".to_string(),
+            schema_version: "gate-json.v1".to_string(),
             spec_id: self.spec_id.clone(),
             passed,
             summary,

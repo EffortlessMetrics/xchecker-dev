@@ -23,7 +23,7 @@ mod tests {
     #[test]
     fn test_emit_gate_json() {
         let result = GateResult {
-            schema_version: "gate-result.v1".to_string(),
+            schema_version: "gate-json.v1".to_string(),
             spec_id: "test-spec".to_string(),
             passed: true,
             summary: "Spec passed all checks".to_string(),
