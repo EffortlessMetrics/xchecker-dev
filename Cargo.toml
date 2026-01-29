@@ -25,9 +25,51 @@ members = [
     "crates/xchecker-extraction",
     "crates/xchecker-fixup-model",
     "crates/xchecker-cli",
+    "crates/xchecker-phases",
+    "crates/xchecker-hooks",
+    "crates/xchecker-workspace",
 ]
 
+[workspace.package]
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.89"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/EffortlessMetrics/xchecker"
+homepage = "https://github.com/EffortlessMetrics/xchecker"
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["cli", "spec", "requirements", "workflow", "automation"]
+
 [workspace.dependencies]
+# Internal crates (27 total)
+xchecker-benchmark = { path = "crates/xchecker-benchmark", version = "1.0.0" }
+xchecker-cli = { path = "crates/xchecker-cli", version = "1.0.0" }
+xchecker-config = { path = "crates/xchecker-config", version = "1.0.0" }
+xchecker-doctor = { path = "crates/xchecker-doctor", version = "1.0.0" }
+xchecker-engine = { path = "crates/xchecker-engine", version = "1.0.0" }
+xchecker-error-redaction = { path = "crates/xchecker-error-redaction", version = "1.0.0" }
+xchecker-error-reporter = { path = "crates/xchecker-error-reporter", version = "1.0.0" }
+xchecker-extraction = { path = "crates/xchecker-extraction", version = "1.0.0" }
+xchecker-fixup-model = { path = "crates/xchecker-fixup-model", version = "1.0.0" }
+xchecker-gate = { path = "crates/xchecker-gate", version = "1.0.0" }
+xchecker-hooks = { path = "crates/xchecker-hooks", version = "1.0.0" }
+xchecker-llm = { path = "crates/xchecker-llm", version = "1.0.0" }
+xchecker-lock = { path = "crates/xchecker-lock", version = "1.0.0" }
+xchecker-packet = { path = "crates/xchecker-packet", version = "1.0.0" }
+xchecker-phase-api = { path = "crates/xchecker-phase-api", version = "1.0.0" }
+xchecker-phases = { path = "crates/xchecker-phases", version = "1.0.0" }
+xchecker-prompt-template = { path = "crates/xchecker-prompt-template", version = "1.0.0" }
+xchecker-receipt = { path = "crates/xchecker-receipt", version = "1.0.0" }
+xchecker-redaction = { path = "crates/xchecker-redaction", version = "1.0.0" }
+xchecker-runner = { path = "crates/xchecker-runner", version = "1.0.0" }
+xchecker-selectors = { path = "crates/xchecker-selectors", version = "1.0.0" }
+xchecker-status = { path = "crates/xchecker-status", version = "1.0.0" }
+xchecker-templates = { path = "crates/xchecker-templates", version = "1.0.0" }
+xchecker-tui = { path = "crates/xchecker-tui", version = "1.0.0" }
+xchecker-utils = { path = "crates/xchecker-utils", version = "1.0.0" }
+xchecker-validation = { path = "crates/xchecker-validation", version = "1.0.0" }
+xchecker-workspace = { path = "crates/xchecker-workspace", version = "1.0.0" }
+
 # Security-Critical Dependencies (pinned with = for exact versions)
 reqwest = { version = "=0.13.1", features = ["json", "rustls"], default-features = false }
 tokio = { version = "=1.49.0", features = ["full"] }
@@ -45,6 +87,7 @@ tempfile = "3.24.0"
 
 # Other Dependencies (coarse minima)
 async-trait = "0.1.89"
+dirs = "5.0.0"
 camino = "1.2.2"
 toml = "0.9.8"
 globset = "0.4.18"
@@ -139,17 +182,17 @@ required-features = ["dev-tools"]
 
 [dependencies]
 # Internal crates
-xchecker-utils = { path = "crates/xchecker-utils" }
-xchecker-config = { path = "crates/xchecker-config" }
-xchecker-llm = { path = "crates/xchecker-llm" }
-xchecker-engine = { path = "crates/xchecker-engine" }
-xchecker-gate = { path = "crates/xchecker-gate" }
-xchecker-templates = { path = "crates/xchecker-templates" }
-xchecker-error-reporter = { path = "crates/xchecker-error-reporter" }
-xchecker-tui = { path = "crates/xchecker-tui" }
-xchecker-redaction = { path = "crates/xchecker-redaction" }
-xchecker-status = { path = "crates/xchecker-status" }
-xchecker-doctor = { path = "crates/xchecker-doctor" }
+xchecker-utils = { workspace = true }
+xchecker-config = { workspace = true }
+xchecker-llm = { workspace = true }
+xchecker-engine = { workspace = true }
+xchecker-gate = { workspace = true }
+xchecker-templates = { workspace = true }
+xchecker-error-reporter = { workspace = true }
+xchecker-tui = { workspace = true }
+xchecker-redaction = { workspace = true }
+xchecker-status = { workspace = true }
+xchecker-doctor = { workspace = true }
 
 reqwest = { workspace = true }
 tokio = { workspace = true }
@@ -194,7 +237,7 @@ workspace = true
 
 [dev-dependencies]
 # Dev Dependencies (coarse minima)
-xchecker-utils = { path = "crates/xchecker-utils", features = ["test-utils"] }
+xchecker-utils = { workspace = true, features = ["test-utils"] }
 strum = { workspace = true }  # For test access to VariantNames trait
 proptest = { workspace = true }
 serial_test = "3.3.1"

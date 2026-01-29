@@ -1,15 +1,20 @@
 [package]
 name = "xchecker-hooks"
-version = "1.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Pre/post-phase hook execution for xchecker"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
-xchecker-utils = { path = "../xchecker-utils" }
-xchecker-config = { path = "../xchecker-config" }
-xchecker-runner = { path = "../xchecker-runner" }
-xchecker-redaction = { path = "../xchecker-redaction" }
+xchecker-utils = { workspace = true }
+xchecker-config = { workspace = true }
+xchecker-runner = { workspace = true }
+xchecker-redaction = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

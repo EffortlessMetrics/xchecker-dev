@@ -1,10 +1,14 @@
 [package]
 name = "xchecker-lock"
-version = "1.0.0"
-edition = "2024"
-rust-version = "1.89"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "File locking for concurrent xchecker executions"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [features]
 test-utils = []

@@ -1,13 +1,18 @@
 [package]
 name = "xchecker-receipt"
-version = "1.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "JSON receipt generation with cryptographic hashes"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
-xchecker-utils = { path = "../xchecker-utils" }
-xchecker-redaction = { path = "../xchecker-redaction", version = "1.0.0" }
+xchecker-utils = { workspace = true }
+xchecker-redaction = { workspace = true }
 anyhow = { workspace = true }
 camino = { workspace = true }
 chrono = { workspace = true }
@@ -15,5 +20,5 @@ serde_json = { workspace = true }
 serde_json_canonicalizer = { workspace = true }
 
 [dev-dependencies]
-xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
+xchecker-utils = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true }

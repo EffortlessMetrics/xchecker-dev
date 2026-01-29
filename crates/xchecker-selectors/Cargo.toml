@@ -1,10 +1,19 @@
 [package]
 name = "xchecker-selectors"
-version = "1.0.0"
-edition = "2021"
-license = "MIT OR Apache-2.0"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "File selector patterns and glob matching for xchecker"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
-globset = "0.4"
+globset = { workspace = true }
 serde = { workspace = true }
-xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
+xchecker-utils = { workspace = true }
+
+[dev-dependencies]
+xchecker-utils = { workspace = true, features = ["test-utils"] }

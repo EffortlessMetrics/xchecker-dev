@@ -1,20 +1,25 @@
 [package]
 name = "xchecker-phases"
-version = "1.0.0"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Phase implementations for xchecker pipeline"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+categories.workspace = true
+keywords.workspace = true
 
 [dependencies]
-xchecker-phase-api = { path = "../xchecker-phase-api" }
-xchecker-packet = { path = "../xchecker-packet" }
-xchecker-extraction = { path = "../xchecker-extraction" }
-xchecker-fixup-model = { path = "../xchecker-fixup-model" }
-xchecker-redaction = { path = "../xchecker-redaction" }
-xchecker-validation = { path = "../xchecker-validation" }
-xchecker-status = { path = "../xchecker-status" }
-xchecker-utils = { path = "../xchecker-utils" }
-xchecker-config = { path = "../xchecker-config" }
+xchecker-phase-api = { workspace = true }
+xchecker-packet = { workspace = true }
+xchecker-extraction = { workspace = true }
+xchecker-fixup-model = { workspace = true }
+xchecker-redaction = { workspace = true }
+xchecker-validation = { workspace = true }
+xchecker-status = { workspace = true }
+xchecker-utils = { workspace = true }
+xchecker-config = { workspace = true }
 anyhow = { workspace = true }
 blake3 = { workspace = true }
 camino = { workspace = true }
@@ -23,4 +28,4 @@ regex = { workspace = true }
 tempfile = { workspace = true }
 
 [dev-dependencies]
-xchecker-utils = { path = "../xchecker-utils", features = ["test-utils"] }
+xchecker-utils = { workspace = true, features = ["test-utils"] }
