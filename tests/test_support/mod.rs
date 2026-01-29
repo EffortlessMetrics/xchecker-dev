@@ -35,17 +35,35 @@ impl Drop for CwdGuard {
 }
 
 /// Guard that restores an environment variable on drop.
+///
 /// Use this in tests that modify env vars to prevent pollution between tests.
+/// Tests using this guard MUST be annotated with `#[serial]` from `serial_test`
+/// to ensure no concurrent access to the process environment.
+///
+/// # Safety Rationale
+///
+/// In Rust 2024, `std::env::set_var` and `std::env::remove_var` are `unsafe`
+/// because the process environment is shared global state that can be accessed
+/// from multiple threads. This guard encapsulates the unsafe operations and
+/// ensures the original value is restored on drop (including during panics).
+///
+/// The caller is responsible for ensuring tests run serially via `#[serial]`.
+///
+/// # Note
+///
+/// For tests that can access the main crate, prefer `xchecker::test_support::EnvVarGuard`
+/// which is the canonical implementation. This local version exists for integration tests
+/// that include this module via `#[path = "test_support/mod.rs"]`.
 pub(crate) struct EnvVarGuard {
     key: String,
-    original: Option<String>,
+    original: Option<std::ffi::OsString>,
 }
 
 impl EnvVarGuard {
     /// Set an environment variable and return a guard that restores the original value on drop.
     pub fn set(key: &str, value: &str) -> Self {
-        let original = std::env::var(key).ok();
-        // SAFETY: Tests serialize access via --test-threads=1 and restore the prior value on drop.
+        let original = std::env::var_os(key);
+        // SAFETY: Caller ensures test serialization via #[serial]. Value restored on drop.
         unsafe {
             std::env::set_var(key, value);
         }
@@ -58,8 +76,8 @@ impl EnvVarGuard {
 
     /// Clear an environment variable and return a guard that restores the original value on drop.
     pub fn cleared(key: &str) -> Self {
-        let original = std::env::var(key).ok();
-        // SAFETY: Tests serialize access via --test-threads=1 and restore the prior value on drop.
+        let original = std::env::var_os(key);
+        // SAFETY: Caller ensures test serialization via #[serial]. Value restored on drop.
         unsafe {
             std::env::remove_var(key);
         }
@@ -73,7 +91,7 @@ impl EnvVarGuard {
 
 impl Drop for EnvVarGuard {
     fn drop(&mut self) {
-        // SAFETY: Restoring env var to prior state; tests run single-threaded.
+        // SAFETY: Restoring env var to prior state; caller ensured serialization.
         match &self.original {
             Some(value) => unsafe { std::env::set_var(&self.key, value) },
             None => unsafe { std::env::remove_var(&self.key) },

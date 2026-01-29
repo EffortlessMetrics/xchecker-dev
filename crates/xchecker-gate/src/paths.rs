@@ -24,13 +24,12 @@ pub fn spec_root(spec_id: &str) -> PathBuf {
 mod tests {
     use super::*;
     use serial_test::serial;
+    use xchecker_utils::test_support::EnvVarGuard;
 
     #[test]
     #[serial]
     fn test_spec_root_default() {
-        // Clear XCHECKER_HOME for test
-        // SAFETY: Test runs with #[serial] to prevent concurrent env access
-        unsafe { std::env::remove_var("XCHECKER_HOME") };
+        let _guard = EnvVarGuard::cleared("XCHECKER_HOME");
 
         let path = spec_root("test-spec");
         assert!(path.ends_with(".xchecker/specs/test-spec"));
@@ -39,15 +38,10 @@ mod tests {
     #[test]
     #[serial]
     fn test_spec_root_with_env() {
-        // SAFETY: Test runs with #[serial] to prevent concurrent env access
-        unsafe { std::env::set_var("XCHECKER_HOME", "/custom/home") };
+        let _guard = EnvVarGuard::set("XCHECKER_HOME", "/custom/home");
 
         let path = spec_root("test-spec");
         assert!(path.starts_with("/custom/home"));
         assert!(path.ends_with("specs/test-spec"));
-
-        // Clean up
-        // SAFETY: Test runs with #[serial] to prevent concurrent env access
-        unsafe { std::env::remove_var("XCHECKER_HOME") };
     }
 }

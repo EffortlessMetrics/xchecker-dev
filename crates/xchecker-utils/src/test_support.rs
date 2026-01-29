@@ -1,3 +1,70 @@
+use std::ffi::OsString;
+
+/// Guard that restores an environment variable on drop.
+///
+/// Use this in tests that modify env vars to prevent pollution between tests.
+/// Tests using this guard MUST be annotated with `#[serial]` from `serial_test`
+/// to ensure no concurrent access to the process environment.
+///
+/// # Safety Rationale
+///
+/// In Rust 2024, `std::env::set_var` and `std::env::remove_var` are `unsafe`
+/// because the process environment is shared global state that can be accessed
+/// from multiple threads. This guard encapsulates the unsafe operations and
+/// ensures the original value is restored on drop (including during panics).
+///
+/// The caller is responsible for ensuring tests run serially via `#[serial]`.
+pub struct EnvVarGuard {
+    key: String,
+    original: Option<OsString>,
+}
+
+impl EnvVarGuard {
+    /// Set an environment variable and return a guard that restores the original value on drop.
+    ///
+    /// # Panics
+    ///
+    /// This function does not panic, but tests using it must be `#[serial]` to be sound.
+    pub fn set(key: &str, value: &str) -> Self {
+        let original = std::env::var_os(key);
+        // SAFETY: Caller ensures test serialization via #[serial]. Value restored on drop.
+        unsafe {
+            std::env::set_var(key, value);
+        }
+        Self {
+            key: key.to_string(),
+            original,
+        }
+    }
+
+    /// Clear an environment variable and return a guard that restores the original value on drop.
+    ///
+    /// # Panics
+    ///
+    /// This function does not panic, but tests using it must be `#[serial]` to be sound.
+    pub fn cleared(key: &str) -> Self {
+        let original = std::env::var_os(key);
+        // SAFETY: Caller ensures test serialization via #[serial]. Value restored on drop.
+        unsafe {
+            std::env::remove_var(key);
+        }
+        Self {
+            key: key.to_string(),
+            original,
+        }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        // SAFETY: Restoring env var to prior state; caller ensured serialization.
+        match &self.original {
+            Some(value) => unsafe { std::env::set_var(&self.key, value) },
+            None => unsafe { std::env::remove_var(&self.key) },
+        }
+    }
+}
+
 const ALNUM: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 const ALNUM_UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const BASE64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
