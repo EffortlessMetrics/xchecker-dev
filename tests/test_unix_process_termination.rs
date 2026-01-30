@@ -159,6 +159,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Give shell time to initialize and set up the trap
+    sleep(Duration::from_millis(500)).await;
+
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
 
