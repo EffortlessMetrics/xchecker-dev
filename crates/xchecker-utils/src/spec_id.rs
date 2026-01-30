@@ -63,6 +63,13 @@ pub fn sanitize_spec_id(id: &str) -> Result<String, SpecIdError> {
         sanitized = sanitized.replace("..", "__");
     }
 
+    // Step 2.6: Reject "." and ".." to prevent current/parent directory references
+    // While ".." is handled by 2.5, ".." as the exact string would become "__"
+    // which is rejected by Step 4. However, "." is not handled.
+    if sanitized == "." || sanitized == ".." {
+        return Err(SpecIdError::OnlyInvalidCharacters);
+    }
+
     // Step 3: Check if empty after sanitization
     if sanitized.is_empty() {
         return Err(SpecIdError::Empty);
@@ -249,7 +256,12 @@ mod tests {
         assert_eq!(sanitize_spec_id("a").unwrap(), "a");
         assert_eq!(sanitize_spec_id("1").unwrap(), "1");
         assert_eq!(sanitize_spec_id("-").unwrap(), "-");
-        assert_eq!(sanitize_spec_id(".").unwrap(), ".");
+
+        // "." is rejected as it refers to current directory
+        assert!(matches!(
+            sanitize_spec_id("."),
+            Err(SpecIdError::OnlyInvalidCharacters)
+        ));
 
         // Dots and dashes are meaningful
         // Note: consecutive dots are replaced with underscores to prevent path traversal
