@@ -18,7 +18,7 @@
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::time::sleep;
-use xchecker::runner::{CommandSpec, Runner};
+use xchecker::runner::{CommandSpec, Runner, RunnerMode, WslOptions};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -122,7 +122,6 @@ async fn test_process_group_creation() -> Result<()> {
 
 /// Test that SIGTERM is sent first, followed by SIGKILL after grace period
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent signal handling"]
 async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
@@ -176,13 +175,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should now be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    match child.try_wait() {
+        Ok(Some(_)) => {} // Process has exited
+        Ok(None) => panic!("Process should be terminated after SIGKILL"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -190,7 +187,6 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
 /// Test that graceful termination works with SIGTERM
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent signal handling"]
 async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
@@ -229,13 +225,11 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGTERM"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    match child.try_wait() {
+        Ok(Some(_)) => {} // Process has exited
+        Ok(None) => panic!("Process should be terminated after SIGTERM"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -247,7 +241,6 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
 /// Test that killpg terminates all processes in the group
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent process group handling"]
 async fn test_process_group_termination() -> Result<()> {
     use tempfile::TempDir;
 
@@ -298,13 +291,11 @@ async fn test_process_group_termination() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Verify parent is terminated
-    assert!(
-        !is_process_running(parent_pid),
-        "Parent process should be terminated"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    match child.try_wait() {
+        Ok(Some(_)) => {} // Process has exited
+        Ok(None) => panic!("Parent process should be terminated"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -316,7 +307,6 @@ async fn test_process_group_termination() -> Result<()> {
 
 /// Test that Runner timeout terminates process groups correctly
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent timeout handling"]
 async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     use tempfile::TempDir;
 
@@ -326,8 +316,14 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     // Create a script that runs for a long time
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
-    // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Create a runner with a short timeout, configured to run bash (since 'claude' isn't in PATH)
+    let runner = Runner::new(
+        RunnerMode::Native,
+        WslOptions {
+            distro: None,
+            claude_path: Some("bash".to_string()),
+        },
+    );
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -365,7 +361,6 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
 
 /// Test that timeout with grace period works correctly
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent grace period handling"]
 async fn test_timeout_grace_period() -> Result<()> {
     use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
@@ -417,13 +412,11 @@ async fn test_timeout_grace_period() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    match child.try_wait() {
+        Ok(Some(_)) => {} // Process has exited
+        Ok(None) => panic!("Process should be terminated after SIGKILL"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
