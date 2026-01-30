@@ -7,6 +7,7 @@
 
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::io::IsTerminal;
 use std::time::{Duration, Instant};
 use sysinfo::{Pid, System};
 use tracing::{Level, debug, error, info, span, warn};
@@ -17,6 +18,15 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
 };
 use xchecker_redaction::SecretRedactor;
+
+/// Check if colored output should be used.
+///
+/// Returns true only if:
+/// - stdout is a terminal (TTY)
+/// - NO_COLOR environment variable is not set
+fn use_color() -> bool {
+    std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none()
+}
 
 /// Initialize tracing subscriber for structured logging (FR-OBS-001)
 ///
@@ -954,21 +964,44 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     use crate::types::CheckStatus;
     use crossterm::style::{Attribute, Color, Stylize};
 
+    let use_colors = use_color();
+
+    // Helper to conditionally style text
+    let style = |text: &str, color: Color, bold: bool| -> String {
+        if use_colors {
+            let mut styled = text.with(color);
+            if bold {
+                styled = styled.attribute(Attribute::Bold);
+            }
+            format!("{}", styled)
+        } else {
+            text.to_string()
+        }
+    };
+
+    // Header
     println!(
         "{}",
-        "🩺 xchecker Environment Health Check"
-            .with(Color::Cyan)
-            .attribute(Attribute::Bold)
+        style("🩺 xchecker Environment Health Check", Color::Cyan, true)
     );
     println!(
         "{}",
-        "─────────────────────────────────────"
-            .with(Color::Cyan)
-            .attribute(Attribute::Bold)
+        style("─────────────────────────────────────", Color::Cyan, true)
     );
     println!();
 
+    let mut pass_count = 0;
+    let mut warn_count = 0;
+    let mut fail_count = 0;
+
     for check in &report.checks {
+        // Count statuses
+        match check.status {
+            CheckStatus::Pass => pass_count += 1,
+            CheckStatus::Warn => warn_count += 1,
+            CheckStatus::Fail => fail_count += 1,
+        }
+
         let (status_symbol, color) = match check.status {
             CheckStatus::Pass => ("✓", Color::Green),
             CheckStatus::Warn => ("⚠", Color::Yellow),
@@ -979,31 +1012,28 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
         let formatted_name = to_title_case(&check.name);
 
         // Build the status line
-        // Pass: "✓ Claude Path"
-        // Warn: "⚠ Claude Path [WARN]"
-        // Fail: "✗ Claude Path [FAIL]"
         match check.status {
             CheckStatus::Pass => {
                 println!(
                     "{} {}",
-                    status_symbol.with(color).attribute(Attribute::Bold),
-                    formatted_name.attribute(Attribute::Bold)
+                    style(status_symbol, color, true),
+                    style(&formatted_name, Color::Reset, true)
                 );
             }
             CheckStatus::Warn => {
                 println!(
                     "{} {} {}",
-                    status_symbol.with(color).attribute(Attribute::Bold),
-                    formatted_name.attribute(Attribute::Bold),
-                    "[WARN]".with(color).attribute(Attribute::Bold)
+                    style(status_symbol, color, true),
+                    style(&formatted_name, Color::Reset, true),
+                    style("[WARN]", color, true)
                 );
             }
             CheckStatus::Fail => {
                 println!(
                     "{} {} {}",
-                    status_symbol.with(color).attribute(Attribute::Bold),
-                    formatted_name.attribute(Attribute::Bold),
-                    "[FAIL]".with(color).attribute(Attribute::Bold)
+                    style(status_symbol, color, true),
+                    style(&formatted_name, Color::Reset, true),
+                    style("[FAIL]", color, true)
                 );
             }
         }
@@ -1013,10 +1043,25 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     }
 
     // Add separator
-    println!(
-        "{}",
-        "─────────────────────────────────────".with(Color::DarkGrey)
-    );
+    println!("{}", style("─────────────────────────────────────", Color::DarkGrey, false));
+
+    // Calculate summary string
+    let mut summary_parts = Vec::new();
+    if fail_count > 0 {
+        summary_parts.push(format!("{fail_count} failed"));
+    }
+    if warn_count > 0 {
+        summary_parts.push(format!("{warn_count} warning"));
+    }
+    if pass_count > 0 && fail_count == 0 && warn_count == 0 {
+        summary_parts.push(format!("{pass_count} passed"));
+    }
+
+    let summary_detail = if !summary_parts.is_empty() && (fail_count > 0 || warn_count > 0) {
+        format!(" ({})", summary_parts.join(", "))
+    } else {
+        String::new()
+    };
 
     let (overall_text, overall_color) = if report.ok {
         ("✓ HEALTHY: All systems operational", Color::Green)
@@ -1025,19 +1070,28 @@ pub fn log_doctor_report(report: &crate::types::DoctorOutput) {
     };
 
     println!(
-        "{}",
-        overall_text.with(overall_color).attribute(Attribute::Bold)
+        "{}{}",
+        style(overall_text, overall_color, true),
+        style(&summary_detail, overall_color, true)
     );
 
     if !report.ok {
         println!();
         println!(
             "{}",
-            "Tip: Run 'xchecker doctor --verbose' for detailed diagnostics.".with(Color::Yellow)
+            style(
+                "Tip: Run 'xchecker doctor --verbose' for detailed diagnostics.",
+                Color::Yellow,
+                false
+            )
         );
         println!(
             "{}",
-            "     See docs/DOCTOR.md for troubleshooting steps.".with(Color::Yellow)
+            style(
+                "     See docs/DOCTOR.md for troubleshooting steps.",
+                Color::Yellow,
+                false
+            )
         );
     }
 }
