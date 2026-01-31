@@ -176,10 +176,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should now be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
+    match child.try_wait() {
+        Ok(Some(_)) => { /* terminated */ }
+        Ok(None) => panic!("Process should be terminated after SIGKILL"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     // Clean up
     let _ = child.wait().await;
@@ -229,10 +230,11 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGTERM"
-    );
+    match child.try_wait() {
+        Ok(Some(_)) => { /* terminated */ }
+        Ok(None) => panic!("Process should be terminated after SIGTERM"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     // Clean up
     let _ = child.wait().await;
@@ -298,10 +300,11 @@ async fn test_process_group_termination() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Verify parent is terminated
-    assert!(
-        !is_process_running(parent_pid),
-        "Parent process should be terminated"
-    );
+    match child.try_wait() {
+        Ok(Some(_)) => { /* terminated */ }
+        Ok(None) => panic!("Parent process should be terminated"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     // Clean up
     let _ = child.wait().await;
@@ -417,10 +420,11 @@ async fn test_timeout_grace_period() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
+    match child.try_wait() {
+        Ok(Some(_)) => { /* terminated */ }
+        Ok(None) => panic!("Process should be terminated after SIGKILL"),
+        Err(e) => panic!("Failed to wait on child: {}", e),
+    }
 
     // Clean up
     let _ = child.wait().await;
