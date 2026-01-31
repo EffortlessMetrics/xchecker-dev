@@ -172,6 +172,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "Anthropic API keys",
     },
     SecretPatternDef {
+        id: "openrouter_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-or-v1-[A-Za-z0-9]{32,}",
+        description: "OpenRouter API keys",
+    },
+    SecretPatternDef {
         id: "openai_api_key",
         category: "LLM Provider Tokens",
         regex: r"sk-(?:proj|org)-[A-Za-z0-9_-]{20,}",
@@ -317,6 +323,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         category: "Platform-Specific Tokens",
         regex: r"SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}",
         description: "SendGrid API keys",
+    },
+    SecretPatternDef {
+        id: "resend_api_key",
+        category: "Platform-Specific Tokens",
+        regex: r"re_[A-Za-z0-9]{24,}",
+        description: "Resend API keys",
     },
     SecretPatternDef {
         id: "npm_token",

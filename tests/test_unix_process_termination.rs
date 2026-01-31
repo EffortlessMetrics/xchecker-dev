@@ -128,9 +128,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
+    // We use sequential sleeps. If the current sleep is killed by SIGTERM
+    // (propagated to the group), the shell proceeds to the next one.
+    // This avoids tight loops and ensures the shell stays alive.
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; sleep 5; sleep 5; sleep 5")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -157,6 +160,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Wait for the shell to initialize and register the trap
+    sleep(Duration::from_millis(500)).await;
+
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
 
@@ -164,10 +170,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
-    assert!(
-        is_process_running(pid),
-        "Process should still be running after SIGTERM"
-    );
+    // We check via try_wait() to ensure it hasn't exited
+    if let Some(status) = child.try_wait()? {
+        panic!("Process exited unexpectedly with status: {}", status);
+    }
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
@@ -176,13 +182,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should now be terminated
+    // We MUST use try_wait() to reap the zombie process
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -229,13 +233,11 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
+    // We MUST use try_wait() to reap the zombie process
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGTERM"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -298,13 +300,11 @@ async fn test_process_group_termination() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Verify parent is terminated
+    // We MUST use try_wait() to reap the zombie process
     assert!(
-        !is_process_running(parent_pid),
+        child.try_wait()?.is_some(),
         "Parent process should be terminated"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -326,8 +326,10 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     // Create a script that runs for a long time
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
-    // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Create a runner with a short timeout and configured to run bash
+    let mut runner = Runner::native();
+    // Override the binary to use bash instead of looking for 'claude'
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -417,13 +419,11 @@ async fn test_timeout_grace_period() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated
+    // We MUST use try_wait() to reap the zombie process
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
