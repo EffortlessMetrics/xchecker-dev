@@ -533,8 +533,9 @@ fn process_candidate_file(
             )
         } else {
             // Cache miss
-            let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-            let redacted_content = redaction_result.content;
+            // Optimization: We already checked for secrets with has_secrets(), so we know content is safe.
+            // This avoids re-scanning the content with all regex patterns.
+            let redacted_content = content.clone();
 
             // Generate insights
             // Use a temporary cache instance or lock again?
@@ -579,8 +580,9 @@ fn process_candidate_file(
         }
     } else {
         // No cache
-        let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-        redaction_result.content
+        // Optimization: We already checked for secrets with has_secrets(), so we know content is safe.
+        // This avoids re-scanning the content with all regex patterns.
+        content.clone()
     };
 
     let content_size = file_content.len() + candidate.path.as_str().len() + 10;
