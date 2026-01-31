@@ -57,6 +57,25 @@ fn styled_warning() -> String {
     }
 }
 
+/// Return a styled cross mark (✗) if colors are enabled, otherwise plain.
+fn styled_cross() -> String {
+    if use_color() {
+        format!("{}", "✗".with(Color::Red).bold())
+    } else {
+        "✗".to_string()
+    }
+}
+
+/// Return styled error text (red) if colors are enabled, otherwise plain.
+#[allow(dead_code)]
+fn styled_error(text: &str) -> String {
+    if use_color() {
+        format!("{}", text.with(Color::Red).bold())
+    } else {
+        text.to_string()
+    }
+}
+
 /// Return styled success text if colors are enabled, otherwise plain.
 fn styled_success(text: &str) -> String {
     if use_color() {
@@ -1185,7 +1204,10 @@ async fn execute_spec_command(
     logger.end_timing("total_execution");
 
     if result.success {
-        println!("✓ Requirements phase completed successfully");
+        println!(
+            "{} Requirements phase completed successfully",
+            styled_check()
+        );
 
         logger.verbose(&format!("Phase: {}", result.phase.as_str()));
         logger.verbose(&format!("Exit code: {}", result.exit_code));
@@ -1206,7 +1228,7 @@ async fn execute_spec_command(
         logger.print_performance_summary();
 
         // Show next steps
-        println!("\nNext steps:");
+        println!("\n{}", styled_info("Next steps:"));
         println!("  - Review the generated requirements in .xchecker/specs/{spec_id}/artifacts/");
         println!("  - Check status with: xchecker status {spec_id}");
         println!("  - Continue to Design phase: xchecker resume {spec_id} --phase design");
@@ -2161,7 +2183,11 @@ async fn execute_resume_command(
     logger.end_timing("total_execution");
 
     if result.success {
-        println!("✓ {} phase completed successfully", phase_id.as_str());
+        println!(
+            "{} {} phase completed successfully",
+            styled_check(),
+            phase_id.as_str()
+        );
 
         logger.verbose(&format!("Phase: {}", result.phase.as_str()));
         logger.verbose(&format!("Exit code: {}", result.exit_code));
@@ -2182,7 +2208,7 @@ async fn execute_resume_command(
         logger.print_performance_summary();
 
         // Show next steps based on completed phase
-        println!("\nNext steps:");
+        println!("\n{}", styled_info("Next steps:"));
         match phase_id {
             PhaseId::Requirements => {
                 println!(
@@ -2654,7 +2680,10 @@ fn execute_test_command(components: bool, smoke: bool, verbose: bool) -> Result<
         integration_tests::run_smoke_tests().with_context(|| "Smoke tests failed")?;
     }
 
-    println!("✓ All integration tests passed successfully");
+    println!(
+        "{} All integration tests passed successfully",
+        styled_check()
+    );
     Ok(())
 }
 
@@ -2764,12 +2793,12 @@ fn execute_benchmark_command(
     // Exit with appropriate code based on results
     if results.ok {
         if !json {
-            println!("\n✓ All performance targets met!");
+            println!("\n{} All performance targets met!", styled_check());
         }
         Ok(())
     } else {
         if !json {
-            println!("\n✗ Some performance targets not met.");
+            println!("\n{} Some performance targets not met.", styled_cross());
         }
         std::process::exit(1);
     }
@@ -2897,15 +2926,19 @@ fn execute_gate_command(
     } else {
         // Human-friendly output
         if result.passed {
-            println!("✓ {}", result.summary);
+            println!("{} {}", styled_check(), result.summary);
         } else {
-            println!("✗ {}", result.summary);
+            println!("{} {}", styled_cross(), result.summary);
         }
 
         println!();
         println!("Conditions evaluated:");
         for condition in &result.conditions {
-            let status = if condition.passed { "✓" } else { "✗" };
+            let status = if condition.passed {
+                styled_check()
+            } else {
+                styled_cross()
+            };
             println!("  {} {}: {}", status, condition.name, condition.description);
             if let Some(actual) = &condition.actual {
                 println!("      Actual: {}", actual);
@@ -3029,7 +3062,7 @@ fn execute_init_command(spec_id: &str, create_lock: bool, config: &Config) -> Re
     );
     println!("  Directory: {}", spec_dir.display());
 
-    println!("\nNext steps:");
+    println!("\n{}", styled_info("Next steps:"));
     println!("  1. Create your problem statement:");
     println!("     echo \"Your problem description\" | xchecker spec {spec_id}");
     println!("  2. Or resume from existing source:");
@@ -5140,9 +5173,9 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
 
             let workspace_path = workspace::init_workspace(&cwd, &name)?;
 
-            println!("✓ Initialized workspace: {}", name);
+            println!("{} Initialized workspace: {}", styled_check(), name);
             println!("  Created: {}", workspace_path.display());
-            println!("\nNext steps:");
+            println!("\n{}", styled_info("Next steps:"));
             println!("  - Add specs with: xchecker project add-spec <spec-id>");
             println!("  - List specs with: xchecker project list");
 
@@ -5175,7 +5208,7 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
             // Save workspace
             ws.save(&workspace_path)?;
 
-            println!("✓ Added spec '{}' to workspace", sanitized_id);
+            println!("{} Added spec '{}' to workspace", styled_check(), sanitized_id);
             if !tag.is_empty() {
                 println!("  Tags: {}", tag.join(", "));
             }
@@ -5677,8 +5710,10 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             let template_info = xchecker_engine::templates::get_template(&template).unwrap();
 
             println!(
-                "✓ Initialized spec '{}' from template '{}'",
-                sanitized_id, template
+                "{} Initialized spec '{}' from template '{}'",
+                styled_check(),
+                sanitized_id,
+                template
             );
             println!();
             println!("Template: {}", template_info.name);
@@ -5691,7 +5726,7 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             );
             println!("  - .xchecker/specs/{}/README.md", sanitized_id);
             println!();
-            println!("Next steps:");
+            println!("{}", styled_info("Next steps:"));
             println!("  1. Review the problem statement:");
             println!(
                 "     cat .xchecker/specs/{}/context/problem-statement.md",
