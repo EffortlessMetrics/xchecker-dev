@@ -481,14 +481,16 @@ fn process_candidate_file(
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading
-    if redactor.has_secrets(&content, candidate.path.as_ref())? {
-        let matches = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+    // Optimization: Call scan_for_secrets once instead of has_secrets + scan_for_secrets or has_secrets + redact_content
+    let secret_matches = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+
+    if !secret_matches.is_empty() {
         return Err(XCheckerError::SecretDetected {
-            pattern: matches
+            pattern: secret_matches
                 .first()
                 .map(|m| m.pattern_id.clone())
                 .unwrap_or_else(|| "unknown".to_string()),
-            location: matches
+            location: secret_matches
                 .first()
                 .map(|m| m.file_path.clone())
                 .unwrap_or_else(|| "unknown".to_string()),
@@ -533,8 +535,9 @@ fn process_candidate_file(
             )
         } else {
             // Cache miss
-            let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-            let redacted_content = redaction_result.content;
+            // Optimization: We already verified no secrets exist with scan_for_secrets above,
+            // so we can skip the redundant redaction scan and allocation.
+            let redacted_content = content.clone();
 
             // Generate insights
             // Use a temporary cache instance or lock again?
@@ -579,8 +582,9 @@ fn process_candidate_file(
         }
     } else {
         // No cache
-        let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-        redaction_result.content
+        // Optimization: We already verified no secrets exist with scan_for_secrets above,
+        // so we can skip the redundant redaction scan and allocation.
+        content
     };
 
     let content_size = file_content.len() + candidate.path.as_str().len() + 10;
