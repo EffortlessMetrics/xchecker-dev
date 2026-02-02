@@ -48,6 +48,15 @@ fn styled_check() -> String {
     }
 }
 
+/// Return a styled cross mark (✗) if colors are enabled, otherwise plain.
+fn styled_cross() -> String {
+    if use_color() {
+        format!("{}", "✗".with(Color::Red).bold())
+    } else {
+        "✗".to_string()
+    }
+}
+
 /// Return a styled warning mark (⚠) if colors are enabled, otherwise plain.
 fn styled_warning() -> String {
     if use_color() {
@@ -780,7 +789,7 @@ pub fn run() -> Result<(), ExitCode> {
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
         Err(e) => {
-            eprintln!("✗ Failed to create async runtime: {e}");
+            eprintln!("{} Failed to create async runtime: {e}", styled_cross());
             return Err(ExitCode::INTERNAL);
         }
     };
@@ -984,7 +993,7 @@ pub fn run() -> Result<(), ExitCode> {
         } else {
             // Fallback for other error types with enhanced context
             let redacted_error = redactor.redact_string(&error.to_string());
-            eprintln!("✗ Unexpected error: {redacted_error}");
+            eprintln!("{} Unexpected error: {redacted_error}", styled_cross());
 
             // Provide enhanced context and suggestions for common anyhow errors
             if let Some(suggestions) = enhance_error_context(&error) {
@@ -1185,7 +1194,7 @@ async fn execute_spec_command(
     logger.end_timing("total_execution");
 
     if result.success {
-        println!("✓ Requirements phase completed successfully");
+        println!("{} Requirements phase completed successfully", styled_check());
 
         logger.verbose(&format!("Phase: {}", result.phase.as_str()));
         logger.verbose(&format!("Exit code: {}", result.exit_code));
@@ -2021,7 +2030,7 @@ fn check_and_display_fixup_targets(spec_id: &str) -> Result<()> {
                 match fixup_parser.preview_changes(&diffs) {
                     Ok(preview) => {
                         if !preview.all_valid {
-                            println!("    ⚠ Warning: Some diffs failed validation");
+                            println!("    {} Warning: Some diffs failed validation", styled_warning());
                         }
 
                         if !preview.warnings.is_empty() {
@@ -2038,7 +2047,7 @@ fn check_and_display_fixup_targets(spec_id: &str) -> Result<()> {
                             total_added += summary.lines_added;
                             total_removed += summary.lines_removed;
                             if !summary.validation_passed {
-                                println!("      ✗ {file}: validation failed");
+                                println!("      {} {file}: validation failed", styled_cross());
                             }
                         }
 
@@ -2049,7 +2058,7 @@ fn check_and_display_fixup_targets(spec_id: &str) -> Result<()> {
                         }
                     }
                     Err(e) => {
-                        println!("    ⚠ Warning: Failed to preview changes: {e}");
+                        println!("    {} Warning: Failed to preview changes: {e}", styled_warning());
                     }
                 }
 
@@ -2161,7 +2170,11 @@ async fn execute_resume_command(
     logger.end_timing("total_execution");
 
     if result.success {
-        println!("✓ {} phase completed successfully", phase_id.as_str());
+        println!(
+            "{} {} phase completed successfully",
+            styled_check(),
+            phase_id.as_str()
+        );
 
         logger.verbose(&format!("Phase: {}", result.phase.as_str()));
         logger.verbose(&format!("Exit code: {}", result.exit_code));
@@ -2335,7 +2348,10 @@ fn execute_clean_command(spec_id: &str, hard: bool, force: bool, _config: &Confi
 
     // Confirmation prompt (R8.1)
     if !hard {
-        println!("\nThis will permanently delete all artifacts and receipts for spec '{spec_id}'.");
+        println!(
+            "\n{} This will permanently delete all artifacts and receipts for spec '{spec_id}'.",
+            styled_warning()
+        );
         print!("Are you sure? (y/N): ");
         // Flush stdout, logging a warning if it fails (non-fatal)
         if let Err(e) = std::io::stdout().flush() {
@@ -2654,7 +2670,7 @@ fn execute_test_command(components: bool, smoke: bool, verbose: bool) -> Result<
         integration_tests::run_smoke_tests().with_context(|| "Smoke tests failed")?;
     }
 
-    println!("✓ All integration tests passed successfully");
+    println!("{} All integration tests passed successfully", styled_check());
     Ok(())
 }
 
@@ -2764,12 +2780,12 @@ fn execute_benchmark_command(
     // Exit with appropriate code based on results
     if results.ok {
         if !json {
-            println!("\n✓ All performance targets met!");
+            println!("\n{} All performance targets met!", styled_check());
         }
         Ok(())
     } else {
         if !json {
-            println!("\n✗ Some performance targets not met.");
+            println!("\n{} Some performance targets not met.", styled_cross());
         }
         std::process::exit(1);
     }
@@ -2897,15 +2913,19 @@ fn execute_gate_command(
     } else {
         // Human-friendly output
         if result.passed {
-            println!("✓ {}", result.summary);
+            println!("{} {}", styled_check(), result.summary);
         } else {
-            println!("✗ {}", result.summary);
+            println!("{} {}", styled_cross(), result.summary);
         }
 
         println!();
         println!("Conditions evaluated:");
         for condition in &result.conditions {
-            let status = if condition.passed { "✓" } else { "✗" };
+            let status = if condition.passed {
+                styled_check()
+            } else {
+                styled_cross()
+            };
             println!("  {} {}: {}", status, condition.name, condition.description);
             if let Some(actual) = &condition.actual {
                 println!("      Actual: {}", actual);
@@ -3081,7 +3101,7 @@ fn check_lockfile_drift(
         Ok(Some(lock)) => lock,
         Ok(None) => return Ok(None), // No lockfile, no drift
         Err(e) => {
-            eprintln!("⚠ Warning: Failed to load lockfile: {e}");
+            eprintln!("{} Warning: Failed to load lockfile: {e}", styled_warning());
             return Ok(None);
         }
     };
@@ -3096,7 +3116,10 @@ fn check_lockfile_drift(
     // Detect drift
     if let Some(drift) = lock.detect_drift(&context) {
         // Print drift warning
-        eprintln!("\n⚠ Lockfile drift detected for spec '{spec_id}':");
+        eprintln!(
+            "\n{} Lockfile drift detected for spec '{spec_id}':",
+            styled_warning()
+        );
 
         if let Some(ref model_drift) = drift.model_full_name {
             eprintln!("  Model: {} → {}", model_drift.locked, model_drift.current);
@@ -3114,7 +3137,10 @@ fn check_lockfile_drift(
         }
 
         if strict_lock {
-            eprintln!("\n✗ Strict lock mode enabled: failing due to drift");
+            eprintln!(
+                "\n{} Strict lock mode enabled: failing due to drift",
+                styled_cross()
+            );
             eprintln!("  To proceed, either:");
             eprintln!(
                 "    - Update the lockfile: rm .xchecker/specs/{spec_id}/lock.json && xchecker init {spec_id} --create-lock"
@@ -5140,7 +5166,7 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
 
             let workspace_path = workspace::init_workspace(&cwd, &name)?;
 
-            println!("✓ Initialized workspace: {}", name);
+            println!("{} Initialized workspace: {}", styled_check(), name);
             println!("  Created: {}", workspace_path.display());
             println!("\nNext steps:");
             println!("  - Add specs with: xchecker project add-spec <spec-id>");
@@ -5175,7 +5201,7 @@ fn execute_project_command(cmd: ProjectCommands) -> Result<()> {
             // Save workspace
             ws.save(&workspace_path)?;
 
-            println!("✓ Added spec '{}' to workspace", sanitized_id);
+            println!("{} Added spec '{}' to workspace", styled_check(), sanitized_id);
             if !tag.is_empty() {
                 println!("  Tags: {}", tag.join(", "));
             }
@@ -5575,7 +5601,11 @@ fn execute_project_history_command(spec_id: &str, json: bool) -> Result<()> {
         } else {
             println!("Timeline ({} entries):", timeline.len());
             for entry in &timeline {
-                let status_icon = if entry.success { "✓" } else { "✗" };
+                let status_icon = if entry.success {
+                    styled_check()
+                } else {
+                    styled_cross()
+                };
                 let tokens_str = match (entry.tokens_input, entry.tokens_output) {
                     (Some(ti), Some(to)) => format!(" [{} in, {} out]", ti, to),
                     (Some(ti), None) => format!(" [{} in]", ti),
@@ -5677,8 +5707,10 @@ fn execute_template_command(cmd: TemplateCommands) -> Result<()> {
             let template_info = xchecker_engine::templates::get_template(&template).unwrap();
 
             println!(
-                "✓ Initialized spec '{}' from template '{}'",
-                sanitized_id, template
+                "{} Initialized spec '{}' from template '{}'",
+                styled_check(),
+                sanitized_id,
+                template
             );
             println!();
             println!("Template: {}", template_info.name);
