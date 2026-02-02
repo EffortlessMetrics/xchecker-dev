@@ -533,8 +533,10 @@ fn process_candidate_file(
             )
         } else {
             // Cache miss
-            let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-            let redacted_content = redaction_result.content;
+            // Optimized: We already called redactor.has_secrets() above and it returned false (otherwise we'd have returned error).
+            // Therefore, we know there are no secrets to redact, so we can use the original content directly.
+            // This avoids a redundant RegexSet scan and string allocation.
+            let redacted_content = content.clone();
 
             // Generate insights
             // Use a temporary cache instance or lock again?
@@ -579,8 +581,10 @@ fn process_candidate_file(
         }
     } else {
         // No cache
-        let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-        redaction_result.content
+        // Optimized: We already called redactor.has_secrets() above and it returned false (otherwise we'd have returned error).
+        // Therefore, we know there are no secrets to redact, so we can use the original content directly.
+        // This avoids a redundant RegexSet scan and string allocation.
+        content.clone()
     };
 
     let content_size = file_content.len() + candidate.path.as_str().len() + 10;
