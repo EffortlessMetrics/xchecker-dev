@@ -481,17 +481,12 @@ fn process_candidate_file(
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading
-    if redactor.has_secrets(&content, candidate.path.as_ref())? {
-        let matches = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+    // Optimization: Perform single scan to avoid double-scanning (once for check, once for details/redaction)
+    let secrets = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+    if let Some(first_match) = secrets.first() {
         return Err(XCheckerError::SecretDetected {
-            pattern: matches
-                .first()
-                .map(|m| m.pattern_id.clone())
-                .unwrap_or_else(|| "unknown".to_string()),
-            location: matches
-                .first()
-                .map(|m| m.file_path.clone())
-                .unwrap_or_else(|| "unknown".to_string()),
+            pattern: first_match.pattern_id.clone(),
+            location: first_match.file_path.clone(),
         }
         .into());
     }
@@ -579,8 +574,10 @@ fn process_candidate_file(
         }
     } else {
         // No cache
-        let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-        redaction_result.content
+        // Optimization: We already scanned for secrets above and returned early if any were found.
+        // Therefore, we can skip the expensive redact_content call (which re-scans regexes)
+        // and use the original content directly.
+        content.clone()
     };
 
     let content_size = file_content.len() + candidate.path.as_str().len() + 10;
