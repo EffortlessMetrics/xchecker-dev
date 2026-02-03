@@ -463,7 +463,7 @@ fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
         ];
 
         let empty = Paragraph::new(empty_text)
-            .block(Block::default().borders(Borders::ALL).title(" Specs "))
+            .block(Block::default().borders(Borders::ALL).title(" Specs (0) "))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true });
         f.render_widget(empty, area);
@@ -525,7 +525,11 @@ fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Specs "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" Specs ({}) ", app.spec_statuses.len())),
+        )
         .highlight_style(
             Style::default()
                 .bg(Color::DarkGray)
@@ -679,8 +683,10 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
     let help_text = if app.show_details {
         "Esc: Back  q: Quit"
+    } else if app.spec_statuses.is_empty() {
+        "q: Quit"
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        "↑/k: Up  ↓/j: Down  Home/End: Top/Bot  Enter: Details  q: Quit"
     };
 
     let footer = Paragraph::new(help_text)

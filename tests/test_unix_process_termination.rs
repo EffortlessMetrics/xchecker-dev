@@ -15,6 +15,7 @@
 
 #![cfg(unix)]
 
+use serial_test::serial;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -25,16 +26,6 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/// Check if a process is still running
-fn is_process_running(pid: u32) -> bool {
-    use nix::sys::signal::kill;
-    use nix::unistd::Pid;
-
-    let pid = Pid::from_raw(pid as i32);
-    // Signal 0 (None) doesn't send a signal but checks if the process exists
-    kill(pid, None).is_ok()
-}
 
 /// Create a test script that spawns child processes
 fn create_test_script(script_path: &str, duration_secs: u64) -> Result<()> {
@@ -68,6 +59,39 @@ wait
     Ok(())
 }
 
+struct PathGuard {
+    original_path: Option<std::ffi::OsString>,
+}
+
+impl PathGuard {
+    fn prepend(path: &std::path::Path) -> Self {
+        let original_path = std::env::var_os("PATH");
+        let mut new_path = path.as_os_str().to_os_string();
+        if let Some(ref p) = original_path {
+            new_path.push(":");
+            new_path.push(p);
+        }
+        unsafe {
+            std::env::set_var("PATH", new_path);
+        }
+        Self { original_path }
+    }
+}
+
+impl Drop for PathGuard {
+    fn drop(&mut self) {
+        if let Some(ref p) = self.original_path {
+            unsafe {
+                std::env::set_var("PATH", p);
+            }
+        } else {
+            unsafe {
+                std::env::remove_var("PATH");
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Unit Tests: Process Group Creation
 // ============================================================================
@@ -97,7 +121,7 @@ async fn test_process_group_creation() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
 
     // Check that the process is running
-    assert!(is_process_running(pid), "Process should be running");
+    assert!(child.try_wait()?.is_none(), "Process should be running");
 
     // Get the process group ID
     let pgid = unsafe { libc::getpgid(pid as i32) };
@@ -128,9 +152,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
+    // We use a loop with sleep because if sleep dies (it doesn't ignore SIGTERM),
+    // the script would exit. The loop ensures the shell stays alive.
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -153,7 +179,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Verify process is running
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should be running initially"
     );
 
@@ -164,10 +190,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
-    assert!(
-        is_process_running(pid),
-        "Process should still be running after SIGTERM"
-    );
+    if let Some(status) = child.try_wait()? {
+        println!("Process exited unexpectedly with status: {:?}", status);
+        // Fail the assertion
+        assert!(false, "Process should still be running after SIGTERM");
+    }
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
@@ -177,7 +204,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Process should now be terminated
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
@@ -218,7 +245,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
     // Verify process is running
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should be running initially"
     );
 
@@ -230,7 +257,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGTERM"
     );
 
@@ -284,7 +311,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is running
     assert!(
-        is_process_running(parent_pid),
+        child.try_wait()?.is_none(),
         "Parent process should be running"
     );
 
@@ -299,7 +326,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is terminated
     assert!(
-        !is_process_running(parent_pid),
+        child.try_wait()?.is_some(),
         "Parent process should be terminated"
     );
 
@@ -316,11 +343,28 @@ async fn test_process_group_termination() -> Result<()> {
 
 /// Test that Runner timeout terminates process groups correctly
 #[tokio::test]
+#[serial]
 #[ignore = "flaky in CI - timing-dependent timeout handling"]
 async fn test_runner_timeout_terminates_process_group() -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
     use tempfile::TempDir;
 
     let temp_dir = TempDir::new()?;
+
+    // Create a fake 'claude' binary that executes arguments (like the script)
+    // Runner::native() will try to spawn 'claude', we intercept this.
+    let claude_path = temp_dir.path().join("claude");
+    let claude_script = "#!/bin/sh\nexec \"$@\"\n";
+    std::fs::write(&claude_path, claude_script)?;
+
+    let metadata = std::fs::metadata(&claude_path)?;
+    let mut permissions = metadata.permissions();
+    permissions.set_mode(0o755);
+    std::fs::set_permissions(&claude_path, permissions)?;
+
+    // Prepend temp_dir to PATH so Runner finds our fake claude
+    let _path_guard = PathGuard::prepend(temp_dir.path());
+
     let script_path = temp_dir.path().join("long_running.sh");
 
     // Create a script that runs for a long time
@@ -332,6 +376,8 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
 
+    // Runner will call `claude script_path` -> fake claude -> executes script
+    // Note: create_test_script uses `sleep 60` internally.
     let result = runner
         .execute_claude(
             &[script_path.to_str().unwrap().to_string()],
@@ -352,11 +398,15 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
             println!("✓ Runner timeout correctly triggered");
         }
         Ok(response) => {
-            // If it didn't timeout, the command completed quickly
+            // If it didn't timeout, the command completed quickly (unexpected for 60s script)
             println!(
                 "✓ Command completed before timeout (exit code: {})",
                 response.exit_code
             );
+            // This case might happen if 'claude' mocking fails and command fails immediately
+            if response.exit_code != 0 {
+                 println!("Warning: Command failed potentially due to mocking issue");
+            }
         }
     }
 
@@ -392,7 +442,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     let pgid = Pid::from_raw(pid as i32);
 
     // Verify process is running
-    assert!(is_process_running(pid), "Process should be running");
+    assert!(child.try_wait()?.is_none(), "Process should be running");
 
     // Simulate the timeout sequence from Runner
     // 1. Send SIGTERM
@@ -418,7 +468,7 @@ async fn test_timeout_grace_period() -> Result<()> {
 
     // Process should be terminated
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
@@ -463,8 +513,8 @@ async fn test_terminate_already_dead_process() -> Result<()> {
     // Wait for process to exit
     let _ = child.wait().await;
 
-    // Verify process is not running
-    assert!(!is_process_running(pid), "Process should have exited");
+    // Verify process is not running (it exited)
+    assert!(child.try_wait()?.is_some(), "Process should have exited");
 
     // Try to terminate (should not panic or error)
     let result = killpg(pgid, Signal::SIGTERM);
