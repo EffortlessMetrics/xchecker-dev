@@ -176,13 +176,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should now be terminated
+    // We must reap the zombie process before checking if it's running
+    let _ = child.wait().await;
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -229,13 +228,12 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
+    // We must reap the zombie process before checking if it's running
+    let _ = child.wait().await;
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGTERM"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -298,13 +296,12 @@ async fn test_process_group_termination() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Verify parent is terminated
+    // We must reap the zombie process before checking if it's running
+    let _ = child.wait().await;
     assert!(
         !is_process_running(parent_pid),
         "Parent process should be terminated"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -417,13 +414,12 @@ async fn test_timeout_grace_period() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated
+    // We must reap the zombie process before checking if it's running
+    let _ = child.wait().await;
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
