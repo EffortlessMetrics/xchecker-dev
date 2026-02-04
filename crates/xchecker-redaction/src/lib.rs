@@ -663,28 +663,37 @@ impl SecretRedactor {
                 .then_with(|| b.column_range.0.cmp(&a.column_range.0))
         });
 
+        // Optimization: Compute line start offsets once
+        // This avoids the O(N^2) behavior of iterating lines for each match
+        // and also fixes a bug where multiple secrets on the same line were not correctly redacted
+        // because we were replacing the whole line (overwriting previous redactions).
+        let mut line_starts = Vec::with_capacity(content.len() / 40); // Rough estimate
+        line_starts.push(0);
+        for (idx, byte) in content.bytes().enumerate() {
+            if byte == b'\n' {
+                line_starts.push(idx + 1);
+            }
+        }
+
         let mut redacted_content = content.to_string();
-        let lines: Vec<&str> = content.lines().collect();
 
         // Replace secrets with redaction markers
         for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
-                let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
+            // Get line start offset
+            let line_idx = secret_match.line_number - 1;
 
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
+            // Check if line index is valid
+            if let Some(&line_start_offset) = line_starts.get(line_idx) {
+                let start = line_start_offset + secret_match.column_range.0;
+                let end = line_start_offset + secret_match.column_range.1;
 
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
+                // Ensure range is within bounds (sanity check)
+                if start <= redacted_content.len()
+                    && end <= redacted_content.len()
+                    && start <= end
+                {
+                    let replacement = format!("[REDACTED:{}]", secret_match.pattern_id);
+                    redacted_content.replace_range(start..end, &replacement);
                 }
             }
         }
@@ -1495,5 +1504,27 @@ mod tests {
         assert!(pattern_ids.contains(&"pypi_token".to_string()));
         assert!(pattern_ids.contains(&"nuget_key".to_string()));
         assert!(pattern_ids.contains(&"docker_auth".to_string()));
+    }
+
+    #[test]
+    fn test_multiple_secrets_same_line() {
+        let redactor = SecretRedactor::new().unwrap();
+
+        let github_token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+        let aws_key = "AKIAIOSFODNN7EXAMPLE";
+
+        // Both secrets on the SAME line
+        let content = format!("github_token = {}, aws_key = {}", github_token, aws_key);
+
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+
+        // Both should be detected
+        assert_eq!(result.matches.len(), 2);
+
+        // Both should be redacted
+        assert!(result.content.contains("[REDACTED:github_pat]"));
+        assert!(result.content.contains("[REDACTED:aws_access_key]"));
+        assert!(!result.content.contains(github_token));
+        assert!(!result.content.contains(aws_key));
     }
 }
