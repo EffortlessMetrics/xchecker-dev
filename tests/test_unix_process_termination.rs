@@ -17,7 +17,7 @@
 
 use std::process::Stdio;
 use std::time::Duration;
-use tokio::time::sleep;
+use tokio::time::{sleep, timeout};
 use xchecker::runner::{CommandSpec, Runner};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -172,17 +172,15 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should now be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination (checking for exit instead of is_process_running to avoid zombie issues)
+    match timeout(Duration::from_millis(500), child.wait()).await {
+        Ok(_) => {
+            // Process terminated successfully
+        }
+        Err(_) => {
+            panic!("Process did not terminate within 500ms after SIGKILL");
+        }
+    }
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -225,17 +223,15 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should be terminated (sleep responds to SIGTERM)
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGTERM"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for graceful termination (checking for exit instead of is_process_running to avoid zombie issues)
+    match timeout(Duration::from_millis(500), child.wait()).await {
+        Ok(_) => {
+            // Process terminated successfully
+        }
+        Err(_) => {
+            panic!("Process did not terminate within 500ms after SIGTERM");
+        }
+    }
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -294,17 +290,15 @@ async fn test_process_group_termination() -> Result<()> {
     let pgid = Pid::from_raw(parent_pid as i32);
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Verify parent is terminated
-    assert!(
-        !is_process_running(parent_pid),
-        "Parent process should be terminated"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination (checking for exit instead of is_process_running to avoid zombie issues)
+    match timeout(Duration::from_millis(500), child.wait()).await {
+        Ok(_) => {
+            // Parent process terminated successfully
+        }
+        Err(_) => {
+            panic!("Parent process did not terminate within 500ms after SIGKILL");
+        }
+    }
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -327,7 +321,13 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Use "bash" as the command to ensure it runs even if claude is not installed
+    use xchecker::runner::{RunnerMode, WslOptions};
+    let wsl_options = WslOptions {
+        distro: None,
+        claude_path: Some("bash".to_string()),
+    };
+    let runner = Runner::new(RunnerMode::Native, wsl_options);
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -413,17 +413,15 @@ async fn test_timeout_grace_period() -> Result<()> {
     // 3. Send SIGKILL
     let _ = killpg(pgid, Signal::SIGKILL);
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination (checking for exit instead of is_process_running to avoid zombie issues)
+    match timeout(Duration::from_millis(500), child.wait()).await {
+        Ok(_) => {
+            // Process terminated successfully
+        }
+        Err(_) => {
+            panic!("Process did not terminate within 500ms after SIGKILL");
+        }
+    }
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
