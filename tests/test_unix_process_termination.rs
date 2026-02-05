@@ -148,7 +148,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // We use a loop because if we just use `sleep`, the `sleep` process (child)
     // will receive SIGTERM and exit, causing the shell to exit as well.
     // The loop ensures the shell stays alive even if children die.
-    let mut cmd = CommandSpec::new("sh")
+    // We use 'bash' explicitly as 'sh' (often dash) can be less predictable with
+    // signal traps in non-interactive mode.
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
         .arg("trap '' TERM; while true; do sleep 1; done")
         .to_tokio_command();
@@ -176,6 +178,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         is_process_running(pid),
         "Process should be running initially"
     );
+
+    // Wait a bit to ensure the trap is registered in the shell
+    // If we send SIGTERM too early (before `trap` runs), the shell will die.
+    sleep(Duration::from_millis(500)).await;
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
