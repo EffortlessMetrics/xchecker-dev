@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2026-01-24 - [TUI Footer Legibility]
+**Learning:** TUI help footers are often ignored if monotone; differentiating "Keys" (Cyan/Bold) from "Descriptions" (Dim/Gray) drastically improves scanability.
+**Action:** Always apply distinct styles to interaction triggers vs. explanatory text in terminal UIs.
