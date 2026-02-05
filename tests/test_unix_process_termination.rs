@@ -128,12 +128,15 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
-        .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+    // We use perl because shell trap handling can be flaky with process groups
+    // Perl handles signals reliably in a single process
+    // We print READY to ensure initialization is complete before signalling
+    let mut cmd = CommandSpec::new("perl")
+        .arg("-e")
+        .arg("$| = 1; $SIG{TERM} = 'IGNORE'; print \"READY\\n\"; while(1) { sleep 1; }")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null());
 
     {
@@ -151,9 +154,25 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Wait for READY signal to ensure process is fully initialized
+    // and signal handlers are set up
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let mut reader = BufReader::new(stdout);
+    let mut line = String::new();
+    // Use timeout for readiness check
+    match tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await {
+        Ok(Ok(n)) if n > 0 => {
+            assert!(line.contains("READY"), "Expected READY marker, got: {}", line);
+        },
+        Ok(Ok(_)) => panic!("Process closed stdout without printing READY"),
+        Ok(Err(e)) => panic!("Failed to read stdout: {}", e),
+        Err(_) => panic!("Timed out waiting for READY marker"),
+    }
+
     // Verify process is running
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should be running initially"
     );
 
@@ -164,25 +183,20 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
-    assert!(
-        is_process_running(pid),
-        "Process should still be running after SIGTERM"
-    );
+    // We use try_wait() to check if it has exited
+    if let Some(status) = child.try_wait()? {
+        panic!("Process should still be running after SIGTERM (it ignored it). Exit status: {:?}", status);
+    }
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should now be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination with timeout
+    match tokio::time::timeout(Duration::from_secs(1), child.wait()).await {
+        Ok(Ok(_)) => println!("✓ Process terminated after SIGKILL"),
+        Ok(Err(e)) => panic!("Wait failed: {}", e),
+        Err(_) => panic!("Process did not exit after SIGKILL within timeout"),
+    }
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -225,17 +239,12 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should be terminated (sleep responds to SIGTERM)
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGTERM"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for graceful termination with timeout
+    match tokio::time::timeout(Duration::from_secs(2), child.wait()).await {
+        Ok(Ok(_)) => println!("✓ Process terminated gracefully after SIGTERM"),
+        Ok(Err(e)) => panic!("Wait failed: {}", e),
+        Err(_) => panic!("Process did not exit after SIGTERM within timeout"),
+    }
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -294,17 +303,12 @@ async fn test_process_group_termination() -> Result<()> {
     let pgid = Pid::from_raw(parent_pid as i32);
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Verify parent is terminated
-    assert!(
-        !is_process_running(parent_pid),
-        "Parent process should be terminated"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination with timeout
+    match tokio::time::timeout(Duration::from_secs(2), child.wait()).await {
+        Ok(Ok(_)) => println!("✓ Parent process terminated after process group kill"),
+        Ok(Err(e)) => panic!("Wait failed: {}", e),
+        Err(_) => panic!("Parent process did not exit within timeout"),
+    }
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -327,11 +331,14 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    // We override claude_path to use bash since claude might not be installed
+    let mut runner = Runner::native();
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
 
+    // We pass the script as an argument to bash
     let result = runner
         .execute_claude(
             &[script_path.to_str().unwrap().to_string()],
@@ -413,17 +420,12 @@ async fn test_timeout_grace_period() -> Result<()> {
     // 3. Send SIGKILL
     let _ = killpg(pgid, Signal::SIGKILL);
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for termination with timeout
+    match tokio::time::timeout(Duration::from_secs(2), child.wait()).await {
+        Ok(Ok(_)) => println!("✓ Process terminated after SIGKILL"),
+        Ok(Err(e)) => panic!("Wait failed: {}", e),
+        Err(_) => panic!("Process did not exit after SIGKILL within timeout"),
+    }
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())

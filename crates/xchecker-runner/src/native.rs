@@ -96,6 +96,12 @@ impl ProcessRunner for NativeRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            command.process_group(0);
+        }
+
         // Spawn the process
         let child = command
             .spawn()
@@ -165,9 +171,10 @@ impl NativeRunner {
     fn terminate_process(pid: u32) {
         #[cfg(unix)]
         {
-            // Send SIGKILL to the process
+            // Send SIGKILL to the process group (negative PID)
+            // This ensures we kill the process and all its children
             unsafe {
-                libc::kill(pid as i32, libc::SIGKILL);
+                libc::kill(-(pid as i32), libc::SIGKILL);
             }
         }
 
