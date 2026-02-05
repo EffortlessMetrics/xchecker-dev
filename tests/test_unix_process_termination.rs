@@ -27,13 +27,30 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 // ============================================================================
 
 /// Check if a process is still running
+///
+/// NOTE: This function attempts to reap zombies to ensure correct state reporting.
+/// This interacts with Tokio's process handling, so ensure `child.wait().await` is called
+/// after assertions to clean up any remaining resources.
 fn is_process_running(pid: u32) -> bool {
-    use nix::sys::signal::kill;
+    use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
     use nix::unistd::Pid;
+    use nix::sys::signal::kill;
 
     let pid = Pid::from_raw(pid as i32);
-    // Signal 0 (None) doesn't send a signal but checks if the process exists
-    kill(pid, None).is_ok()
+
+    // First check if it exists at all using kill(0)
+    // If it doesn't exist, it's definitely not running
+    if kill(pid, None).is_err() {
+        return false;
+    }
+
+    // It exists, but it might be a zombie.
+    // Try to reap it non-blocking to check its true state.
+    match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
+        Ok(WaitStatus::StillAlive) => true, // Running
+        Ok(_) => false, // Exited/Signaled (and now reaped)
+        Err(_) => false, // Error usually means not existing or not child
+    }
 }
 
 /// Create a test script that spawns child processes
@@ -128,9 +145,14 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
+    // We use a loop because if we just use `sleep`, the `sleep` process (child)
+    // will receive SIGTERM and exit, causing the shell to exit as well.
+    // The loop ensures the shell stays alive even if children die.
+    // We use 'bash' explicitly as 'sh' (often dash) can be less predictable with
+    // signal traps in non-interactive mode.
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -156,6 +178,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         is_process_running(pid),
         "Process should be running initially"
     );
+
+    // Wait a bit to ensure the trap is registered in the shell
+    // If we send SIGTERM too early (before `trap` runs), the shell will die.
+    sleep(Duration::from_millis(500)).await;
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
@@ -327,7 +353,15 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+
+    // Configure to use 'bash' as the executable to avoid dependency on 'claude'
+    // in CI environments where it might not be installed.
+    // We use a simple script wrapper to simulate a long-running process if needed,
+    // but here the script_path is already passed as an argument.
+    // However, Runner::execute_claude passes args to the executable.
+    // If executable is 'bash', it will run `bash script_path`.
+    runner.wsl_options.claude_path = Some("bash".into());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
