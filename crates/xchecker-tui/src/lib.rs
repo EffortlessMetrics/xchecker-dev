@@ -257,6 +257,32 @@ impl TuiApp {
         self.list_state.select(Some(self.selected_index));
     }
 
+    /// Move selection up by a page (10 items)
+    fn select_page_up(&mut self) {
+        if self.spec_statuses.is_empty() {
+            return;
+        }
+        if self.selected_index >= 10 {
+            self.selected_index -= 10;
+        } else {
+            self.selected_index = 0;
+        }
+        self.list_state.select(Some(self.selected_index));
+    }
+
+    /// Move selection down by a page (10 items)
+    fn select_page_down(&mut self) {
+        if self.spec_statuses.is_empty() {
+            return;
+        }
+        if self.selected_index + 10 < self.spec_statuses.len() {
+            self.selected_index += 10;
+        } else {
+            self.selected_index = self.spec_statuses.len() - 1;
+        }
+        self.list_state.select(Some(self.selected_index));
+    }
+
     /// Toggle details view
     fn toggle_details(&mut self) {
         if !self.spec_statuses.is_empty() {
@@ -325,6 +351,16 @@ where
                 KeyCode::End => {
                     if !app.show_details {
                         app.select_last();
+                    }
+                }
+                KeyCode::PageUp => {
+                    if !app.show_details {
+                        app.select_page_up();
+                    }
+                }
+                KeyCode::PageDown => {
+                    if !app.show_details {
+                        app.select_page_down();
                     }
                 }
                 KeyCode::Enter => app.toggle_details(),
@@ -680,7 +716,7 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
     let help_text = if app.show_details {
         "Esc: Back  q: Quit"
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        "↑/↓/PgUp/Dn: Nav  Enter: Details  q: Quit"
     };
 
     let footer = Paragraph::new(help_text)
@@ -876,6 +912,54 @@ mod tests {
         app.select_next();
         assert_eq!(app.selected_index, 1);
         app.select_first();
+        assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn test_tui_app_paging() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_path = temp_dir.path().join("workspace.yaml");
+
+        let mut workspace = Workspace::new("paging-project");
+        // Create 25 specs
+        for i in 0..25 {
+            workspace
+                .add_spec(&format!("spec-{}", i), vec![], false)
+                .unwrap();
+        }
+        workspace.save(&workspace_path).unwrap();
+
+        let mut app = TuiApp::new(&workspace_path).unwrap();
+
+        // Initial selection
+        assert_eq!(app.selected_index, 0);
+
+        // Page down (0 -> 10)
+        app.select_page_down();
+        assert_eq!(app.selected_index, 10);
+
+        // Page down (10 -> 20)
+        app.select_page_down();
+        assert_eq!(app.selected_index, 20);
+
+        // Page down (20 -> 24 (last))
+        app.select_page_down();
+        assert_eq!(app.selected_index, 24);
+
+        // Page down at end (stays at last)
+        app.select_page_down();
+        assert_eq!(app.selected_index, 24);
+
+        // Page up (24 -> 14)
+        app.select_page_up();
+        assert_eq!(app.selected_index, 14);
+
+        // Page up (14 -> 4)
+        app.select_page_up();
+        assert_eq!(app.selected_index, 4);
+
+        // Page up (4 -> 0)
+        app.select_page_up();
         assert_eq!(app.selected_index, 0);
     }
 }
