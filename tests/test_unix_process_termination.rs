@@ -157,6 +157,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Give the shell time to initialize and set up the trap
+    sleep(Duration::from_millis(500)).await;
+
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
 
@@ -164,8 +167,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
+    // We can use is_process_running here because we expect it to be running (alive or zombie)
+    // and if it's running it's definitely alive.
+    // Actually, if it's a zombie, is_process_running returns true, which is what we want (it hasn't been reaped).
+    // But better to verify it hasn't exited using try_wait.
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should still be running after SIGTERM"
     );
 
@@ -176,8 +183,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should now be terminated
+    // We must use try_wait() because kill(pid, 0) returns true for zombie processes
+    // (processes that have exited but haven't been waited on)
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
@@ -229,8 +238,9 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
+    // We must use try_wait() because kill(pid, 0) returns true for zombie processes
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGTERM"
     );
 
@@ -298,8 +308,9 @@ async fn test_process_group_termination() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Verify parent is terminated
+    // We must use try_wait() because kill(pid, 0) returns true for zombie processes
     assert!(
-        !is_process_running(parent_pid),
+        child.try_wait()?.is_some(),
         "Parent process should be terminated"
     );
 
@@ -327,7 +338,10 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    // We need to configure the runner to use 'bash' instead of 'claude'
+    // because 'claude' might not be available in the test environment.
+    let mut runner = Runner::native();
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -417,8 +431,9 @@ async fn test_timeout_grace_period() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should be terminated
+    // We must use try_wait() because kill(pid, 0) returns true for zombie processes
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
