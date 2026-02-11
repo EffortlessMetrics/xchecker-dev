@@ -257,6 +257,32 @@ impl TuiApp {
         self.list_state.select(Some(self.selected_index));
     }
 
+    /// Move selection up by a page (10 items)
+    fn select_page_up(&mut self) {
+        if self.spec_statuses.is_empty() {
+            return;
+        }
+        if self.selected_index > 10 {
+            self.selected_index -= 10;
+        } else {
+            self.selected_index = 0;
+        }
+        self.list_state.select(Some(self.selected_index));
+    }
+
+    /// Move selection down by a page (10 items)
+    fn select_page_down(&mut self) {
+        if self.spec_statuses.is_empty() {
+            return;
+        }
+        if self.selected_index + 10 < self.spec_statuses.len() {
+            self.selected_index += 10;
+        } else {
+            self.selected_index = self.spec_statuses.len() - 1;
+        }
+        self.list_state.select(Some(self.selected_index));
+    }
+
     /// Toggle details view
     fn toggle_details(&mut self) {
         if !self.spec_statuses.is_empty() {
@@ -325,6 +351,16 @@ where
                 KeyCode::End => {
                     if !app.show_details {
                         app.select_last();
+                    }
+                }
+                KeyCode::PageUp => {
+                    if !app.show_details {
+                        app.select_page_up();
+                    }
+                }
+                KeyCode::PageDown => {
+                    if !app.show_details {
+                        app.select_page_down();
                     }
                 }
                 KeyCode::Enter => app.toggle_details(),
@@ -677,14 +713,28 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 
 /// Render the footer with help text
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
-    let help_text = if app.show_details {
-        "Esc: Back  q: Quit"
+    let keys_style = Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD);
+    let desc_style = Style::default().fg(Color::DarkGray);
+
+    let spans = if app.show_details {
+        vec![
+            Span::styled("Esc", keys_style),
+            Span::styled(": Back  ", desc_style),
+            Span::styled("q", keys_style),
+            Span::styled(": Quit", desc_style),
+        ]
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        vec![
+            Span::styled("↑/↓/PgUp/Dn", keys_style),
+            Span::styled(": Nav  ", desc_style),
+            Span::styled("Enter", keys_style),
+            Span::styled(": Details  ", desc_style),
+            Span::styled("q", keys_style),
+            Span::styled(": Quit", desc_style),
+        ]
     };
 
-    let footer = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
+    let footer = Paragraph::new(Line::from(spans))
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
 }
@@ -876,6 +926,50 @@ mod tests {
         app.select_next();
         assert_eq!(app.selected_index, 1);
         app.select_first();
+        assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn test_tui_app_paging() {
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_path = temp_dir.path().join("workspace.yaml");
+        let mut workspace = Workspace::new("paging-project");
+
+        // Add 25 specs
+        for i in 0..25 {
+            workspace
+                .add_spec(&format!("spec-{:02}", i), vec![], false)
+                .unwrap();
+        }
+        workspace.save(&workspace_path).unwrap();
+
+        let mut app = TuiApp::new(&workspace_path).unwrap();
+
+        // Initial selection: 0
+        assert_eq!(app.selected_index, 0);
+
+        // Page down -> 10
+        app.select_page_down();
+        assert_eq!(app.selected_index, 10);
+
+        // Page down -> 20
+        app.select_page_down();
+        assert_eq!(app.selected_index, 20);
+
+        // Page down -> 24 (last item)
+        app.select_page_down();
+        assert_eq!(app.selected_index, 24);
+
+        // Page up -> 14
+        app.select_page_up();
+        assert_eq!(app.selected_index, 14);
+
+        // Page up -> 4
+        app.select_page_up();
+        assert_eq!(app.selected_index, 4);
+
+        // Page up -> 0
+        app.select_page_up();
         assert_eq!(app.selected_index, 0);
     }
 }
