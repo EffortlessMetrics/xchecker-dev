@@ -128,12 +128,15 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
+    // We use a loop to ensure the parent shell survives if the child 'sleep' is killed
+    // Use 'bash' to ensure consistent trap behavior
+    // Print 'READY' to synchronize and ensure trap is installed before sending signals
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; echo READY; while true; do sleep 1; done") // Ignore SIGTERM, loop sleep
         .to_tokio_command();
     cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped())
         .stderr(Stdio::null());
 
     {
@@ -151,6 +154,18 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Read READY signal to ensure trap is installed
+    {
+        use tokio::io::AsyncBufReadExt;
+        use tokio::io::BufReader;
+
+        let stdout = child.stdout.take().expect("Failed to open stdout");
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        reader.read_line(&mut line).await?;
+        assert!(line.contains("READY"), "Expected READY signal from child process");
+    }
+
     // Verify process is running
     assert!(
         is_process_running(pid),
@@ -164,10 +179,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
-    assert!(
-        is_process_running(pid),
-        "Process should still be running after SIGTERM"
-    );
+    if let Some(status) = child.try_wait()? {
+        panic!("Process exited unexpectedly after SIGTERM with status: {:?}", status);
+    }
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
@@ -177,7 +191,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Process should now be terminated
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
@@ -230,7 +244,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGTERM"
     );
 
@@ -284,7 +298,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is running
     assert!(
-        is_process_running(parent_pid),
+        child.try_wait()?.is_none(),
         "Parent process should be running"
     );
 
@@ -299,7 +313,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is terminated
     assert!(
-        !is_process_running(parent_pid),
+        child.try_wait()?.is_some(),
         "Parent process should be terminated"
     );
 
@@ -327,7 +341,11 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+
+    // Use 'bash' as the 'claude' binary so we can run the test without claude installed
+    // The runner will execute `bash <script_path>` which is exactly what we want
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -418,7 +436,7 @@ async fn test_timeout_grace_period() -> Result<()> {
 
     // Process should be terminated
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
