@@ -172,17 +172,17 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Process should now be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Process should now be terminated (wait for it to exit)
+    let wait_result = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
+    match wait_result {
+        Ok(Ok(status)) => {
+            // Process terminated
+            // Note: status.success() might be false if killed by signal, which is expected
+            println!("✓ Process terminated with status: {}", status);
+        }
+        Ok(Err(e)) => panic!("Failed to wait for process: {}", e),
+        Err(_) => panic!("Process did not terminate within timeout after SIGKILL"),
+    }
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -225,17 +225,16 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
-
     // Process should be terminated (sleep responds to SIGTERM)
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGTERM"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Wait for it to exit
+    let wait_result = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
+    match wait_result {
+        Ok(Ok(status)) => {
+            println!("✓ Process terminated with status: {}", status);
+        }
+        Ok(Err(e)) => panic!("Failed to wait for process: {}", e),
+        Err(_) => panic!("Process did not terminate within timeout after SIGTERM"),
+    }
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -294,17 +293,15 @@ async fn test_process_group_termination() -> Result<()> {
     let pgid = Pid::from_raw(parent_pid as i32);
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
-    // Verify parent is terminated
-    assert!(
-        !is_process_running(parent_pid),
-        "Parent process should be terminated"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    // Verify parent is terminated by waiting for it
+    let wait_result = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
+    match wait_result {
+        Ok(Ok(status)) => {
+            println!("✓ Parent process terminated with status: {}", status);
+        }
+        Ok(Err(e)) => panic!("Failed to wait for parent process: {}", e),
+        Err(_) => panic!("Parent process did not terminate within timeout after group SIGKILL"),
+    }
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -327,10 +324,36 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    // let runner = Runner::native();
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
+
+    // NativeRunner uses "claude" by default, which is not available in test env
+    // So we need to use a runner that invokes "bash" directly or override the command
+    // But Runner::execute_claude assumes "claude" binary.
+    // However, Runner has options to override the binary path if it were exposing them.
+    // The test tries to run `claude script_path`.
+
+    // Instead of using Runner::execute_claude which depends on `claude` binary,
+    // we should use CommandSpec directly with NativeRunner for this test,
+    // OR mock the claude binary path if possible.
+
+    // Since this is testing Runner's timeout logic (which wraps NativeRunner),
+    // and NativeRunner doesn't have `execute_claude` (it has `run`),
+    // we are testing `Runner::execute_claude` integration.
+
+    // FIX: Use `Runner::from_config` or manually set fields if accessible (they are public in crates/xchecker-runner)
+    // But `Runner` fields `mode`, `wsl_options` are public.
+    let mut runner = Runner::native();
+    // Override claude_path to "bash" to execute the script directly
+    // This tricks the runner into executing "bash <script_path>" instead of "claude <script_path>"
+    // assuming the arguments align.
+
+    // Actually, `Runner::native()` sets up `WslOptions::default()`.
+    // `Runner` struct definition:
+    // pub struct Runner { pub mode: RunnerMode, pub wsl_options: WslOptions, ... }
+    runner.wsl_options.claude_path = Some("bash".into());
 
     let result = runner
         .execute_claude(
@@ -413,17 +436,15 @@ async fn test_timeout_grace_period() -> Result<()> {
     // 3. Send SIGKILL
     let _ = killpg(pgid, Signal::SIGKILL);
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
-
     // Process should be terminated
-    assert!(
-        !is_process_running(pid),
-        "Process should be terminated after SIGKILL"
-    );
-
-    // Clean up
-    let _ = child.wait().await;
+    let wait_result = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
+    match wait_result {
+        Ok(Ok(status)) => {
+            println!("✓ Process terminated with status: {}", status);
+        }
+        Ok(Err(e)) => panic!("Failed to wait for process: {}", e),
+        Err(_) => panic!("Process did not terminate within timeout after SIGKILL"),
+    }
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())

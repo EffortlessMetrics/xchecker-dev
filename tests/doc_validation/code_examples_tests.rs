@@ -1052,6 +1052,16 @@ fn resolve_jq_input(
     if input_segment.starts_with("xchecker") {
         let result = runner.run_command(input_segment)?;
         if result.exit_code != 0 {
+            // Special handling for xchecker doctor: it may exit with non-zero code if checks fail,
+            // but we still want to parse the JSON output if it's valid JSON.
+            // This is common in CI where doctor might fail due to missing dependencies.
+            if input_segment.contains("doctor") && input_segment.contains("--json") {
+                let stdout = result.stdout.trim();
+                if let Ok(json) = serde_json::from_str::<Value>(stdout) {
+                    return Ok(json);
+                }
+            }
+
             anyhow::bail!(
                 "xchecker command failed (exit {}): {}",
                 result.exit_code,
