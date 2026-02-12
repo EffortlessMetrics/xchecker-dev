@@ -172,6 +172,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "Anthropic API keys",
     },
     SecretPatternDef {
+        id: "openrouter_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-or-v1-[a-f0-9]{64}",
+        description: "OpenRouter API keys",
+    },
+    SecretPatternDef {
         id: "openai_api_key",
         category: "LLM Provider Tokens",
         regex: r"sk-(?:proj|org)-[A-Za-z0-9_-]{20,}",
@@ -1435,6 +1441,25 @@ mod tests {
     }
 
     #[test]
+    fn test_openrouter_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        // A valid-looking OpenRouter key (sk-or-v1- followed by 64 hex chars)
+        let key = "sk-or-v1-1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let content = format!("OPENROUTER_API_KEY={}", key);
+
+        // Check if it's detected
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+
+        assert!(!matches.is_empty(), "OpenRouter key was not detected!");
+        assert_eq!(matches[0].pattern_id, "openrouter_api_key", "Wrong pattern ID matched");
+
+        // Verify redaction
+        let redacted = redactor.redact_string(&content);
+        assert!(redacted.contains("***"));
+        assert!(!redacted.contains(key));
+    }
+
+    #[test]
     fn test_all_default_patterns_exist() {
         let redactor = SecretRedactor::new().unwrap();
         let pattern_ids = redactor.get_pattern_ids();
@@ -1462,6 +1487,7 @@ mod tests {
 
         // LLM Provider Tokens
         assert!(pattern_ids.contains(&"anthropic_api_key".to_string()));
+        assert!(pattern_ids.contains(&"openrouter_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
         assert!(pattern_ids.contains(&"huggingface_token".to_string()));
