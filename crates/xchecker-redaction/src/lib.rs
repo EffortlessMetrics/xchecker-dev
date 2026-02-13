@@ -655,42 +655,64 @@ impl SecretRedactor {
             });
         }
 
-        // Sort matches by position (reverse order to maintain indices during replacement)
+        // Sort matches by line number then column start (forward order)
         let mut sorted_matches = matches.clone();
         sorted_matches.sort_by(|a, b| {
-            b.line_number
-                .cmp(&a.line_number)
-                .then_with(|| b.column_range.0.cmp(&a.column_range.0))
+            a.line_number
+                .cmp(&b.line_number)
+                .then_with(|| a.column_range.0.cmp(&b.column_range.0))
         });
 
-        let mut redacted_content = content.to_string();
-        let lines: Vec<&str> = content.lines().collect();
+        let mut result = String::with_capacity(content.len());
+        let mut matches_iter = sorted_matches.into_iter().peekable();
 
-        // Replace secrets with redaction markers
-        for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
-                let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
+        // Iterate lines and apply redactions efficiently
+        for (line_idx, line) in content.lines().enumerate() {
+            let line_num = line_idx + 1;
+            let mut current_col = 0;
 
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
+            // Apply any matches for this line
+            while let Some(m) = matches_iter.peek() {
+                if m.line_number > line_num {
+                    break;
+                }
+                if m.line_number < line_num {
+                    // Should be handled by sort, but skip past matches just in case
+                    matches_iter.next();
+                    continue;
+                }
 
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
+                // Match is in this line
+                let m = matches_iter.next().unwrap();
+                let (start, end) = m.column_range;
+
+                // Ensure strict ordering and avoid overlapping ranges (simplification)
+                if start >= current_col {
+                    // Append safe content before secret
+                    result.push_str(&line[current_col..start]);
+                    // Append redaction marker
+                    result.push_str(&format!("[REDACTED:{}]", m.pattern_id));
+                    current_col = end;
                 }
             }
+
+            // Append remaining safe content of the line
+            if current_col < line.len() {
+                result.push_str(&line[current_col..]);
+            }
+
+            // Always append newline (normalizing to \n)
+            // This also fixes issues with CRLF offsets in the previous implementation
+            result.push('\n');
+        }
+
+        // Remove trailing newline if original content didn't have one (approximate preservation)
+        if !content.ends_with('\n') && !content.ends_with('\r') {
+            result.pop();
         }
 
         Ok(RedactionResult {
-            content: redacted_content,
+            content: result,
             matches,
             has_secrets: true,
         })
