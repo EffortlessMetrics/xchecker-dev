@@ -677,14 +677,31 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 
 /// Render the footer with help text
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
-    let help_text = if app.show_details {
-        "Esc: Back  q: Quit"
-    } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
-    };
+    let mut spans = Vec::new();
+    let key_style = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::BOLD);
+    let desc_style = Style::default().fg(Color::DarkGray);
 
-    let footer = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
+    if app.show_details {
+        spans.push(Span::styled("Esc", key_style));
+        spans.push(Span::styled(": Back  ", desc_style));
+        spans.push(Span::styled("q", key_style));
+        spans.push(Span::styled(": Quit", desc_style));
+    } else {
+        if !app.spec_statuses.is_empty() {
+            spans.push(Span::styled("↑/k", key_style));
+            spans.push(Span::styled(": Up  ", desc_style));
+            spans.push(Span::styled("↓/j", key_style));
+            spans.push(Span::styled(": Down  ", desc_style));
+            spans.push(Span::styled("Enter", key_style));
+            spans.push(Span::styled(": Details  ", desc_style));
+        }
+        spans.push(Span::styled("q", key_style));
+        spans.push(Span::styled(": Quit", desc_style));
+    }
+
+    let footer = Paragraph::new(Line::from(spans))
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
 }
