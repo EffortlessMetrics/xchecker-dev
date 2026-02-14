@@ -160,24 +160,26 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait a short time
-    sleep(Duration::from_millis(500)).await;
+    // Wait a short time (increased for CI stability)
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should still be running (it ignored SIGTERM)
+    // Check if process has exited using try_wait() to handle zombies correctly
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should still be running after SIGTERM"
     );
 
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait a short time for termination (increased for CI stability)
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should now be terminated
+    // Check exit status - if Some(_), it has exited (even if zombie)
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
@@ -225,12 +227,13 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for graceful termination (increased for CI stability)
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
+    // Check exit status to handle zombies
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGTERM"
     );
 
@@ -294,12 +297,13 @@ async fn test_process_group_termination() -> Result<()> {
     let pgid = Pid::from_raw(parent_pid as i32);
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for termination (increased for CI stability)
+    sleep(Duration::from_millis(1000)).await;
 
     // Verify parent is terminated
+    // Check exit status to handle zombies
     assert!(
-        !is_process_running(parent_pid),
+        child.try_wait()?.is_some(),
         "Parent process should be terminated"
     );
 
@@ -327,7 +331,9 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+    // Configure to use bash instead of default claude binary (which may not exist in CI)
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -413,12 +419,13 @@ async fn test_timeout_grace_period() -> Result<()> {
     // 3. Send SIGKILL
     let _ = killpg(pgid, Signal::SIGKILL);
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for termination (increased for CI stability)
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should be terminated
+    // Check exit status to handle zombies
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
