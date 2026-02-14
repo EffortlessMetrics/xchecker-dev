@@ -655,38 +655,62 @@ impl SecretRedactor {
             });
         }
 
-        // Sort matches by position (reverse order to maintain indices during replacement)
-        let mut sorted_matches = matches.clone();
-        sorted_matches.sort_by(|a, b| {
-            b.line_number
-                .cmp(&a.line_number)
-                .then_with(|| b.column_range.0.cmp(&a.column_range.0))
-        });
+        // Group matches by line number for O(N) processing
+        let mut matches_by_line: HashMap<usize, Vec<&SecretMatch>> = HashMap::new();
+        for m in &matches {
+            matches_by_line.entry(m.line_number).or_default().push(m);
+        }
 
-        let mut redacted_content = content.to_string();
-        let lines: Vec<&str> = content.lines().collect();
+        // Pre-allocate result buffer (approx size of content + overhead for markers)
+        let mut redacted_content = String::with_capacity(content.len() + matches.len() * 20);
 
-        // Replace secrets with redaction markers
-        for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
-                let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
+        for (idx, line) in content.lines().enumerate() {
+            let line_num = idx + 1;
 
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
+            if let Some(line_matches) = matches_by_line.get(&line_num) {
+                // Sort by start index, then length descending (end descending) to handle overlaps
+                let mut sorted = line_matches.clone();
+                sorted.sort_by(|a, b| {
+                    a.column_range
+                        .0
+                        .cmp(&b.column_range.0)
+                        .then_with(|| b.column_range.1.cmp(&a.column_range.1))
+                });
 
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
+                let mut last_index = 0;
+                for m in sorted {
+                    let (start, end) = m.column_range;
+
+                    // Handle overlaps
+                    let effective_start = std::cmp::max(start, last_index);
+
+                    if end <= effective_start {
+                        // Fully contained in previous redaction
+                        continue;
+                    }
+
+                    // Append safe content before match
+                    if effective_start > last_index {
+                        redacted_content.push_str(&line[last_index..effective_start]);
+                    }
+
+                    // Append marker
+                    use std::fmt::Write;
+                    let _ = write!(redacted_content, "[REDACTED:{}]", m.pattern_id);
+
+                    last_index = end;
                 }
+
+                // Append remaining line content
+                if last_index < line.len() {
+                    redacted_content.push_str(&line[last_index..]);
+                }
+            } else {
+                redacted_content.push_str(line);
             }
+
+            // Normalize line ending to LF
+            redacted_content.push('\n');
         }
 
         Ok(RedactionResult {
