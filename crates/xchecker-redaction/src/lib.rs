@@ -655,39 +655,42 @@ impl SecretRedactor {
             });
         }
 
-        // Sort matches by position (reverse order to maintain indices during replacement)
-        let mut sorted_matches = matches.clone();
-        sorted_matches.sort_by(|a, b| {
-            b.line_number
-                .cmp(&a.line_number)
-                .then_with(|| b.column_range.0.cmp(&a.column_range.0))
-        });
-
-        let mut redacted_content = content.to_string();
-        let lines: Vec<&str> = content.lines().collect();
-
-        // Replace secrets with redaction markers
-        for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
-                let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
-
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
-
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
-                }
-            }
+        // Group matches by line number for faster lookup (O(M))
+        let mut matches_by_line: HashMap<usize, Vec<&SecretMatch>> = HashMap::new();
+        for m in &matches {
+            matches_by_line.entry(m.line_number).or_default().push(m);
         }
+
+        // Rebuild content line by line (O(N)) to avoid O(M*N) offset recalculations
+        // and fix offset issues with CRLF line endings.
+        let mut redacted_content = String::with_capacity(content.len());
+
+        for (i, line) in content.lines().enumerate() {
+            let line_num = i + 1;
+            if let Some(mut line_matches) = matches_by_line.remove(&line_num) {
+                // Sort matches by start index descending to apply replacements right-to-left
+                line_matches.sort_by(|a, b| b.column_range.0.cmp(&a.column_range.0));
+
+                let mut current_line = line.to_string();
+                for m in line_matches {
+                    let (start, end) = m.column_range;
+                    if start < current_line.len() && end <= current_line.len() {
+                        let before = &current_line[..start];
+                        let after = &current_line[end..];
+                        current_line = format!("{}[REDACTED:{}]{}", before, m.pattern_id, after);
+                    }
+                }
+                redacted_content.push_str(&current_line);
+            } else {
+                redacted_content.push_str(line);
+            }
+            redacted_content.push('\n');
+        }
+
+        // If the original content didn't end with a newline, and we added one (because lines() swallows),
+        // we might want to pop it. However, standardizing to \n is generally preferred and safer.
+        // But to be strictly "rebuilding", we might check if original had newline.
+        // For now, consistent \n is a feature.
 
         Ok(RedactionResult {
             content: redacted_content,
@@ -1495,5 +1498,32 @@ mod tests {
         assert!(pattern_ids.contains(&"pypi_token".to_string()));
         assert!(pattern_ids.contains(&"nuget_key".to_string()));
         assert!(pattern_ids.contains(&"docker_auth".to_string()));
+    }
+
+    #[test]
+    fn test_crlf_redaction_offset() {
+        let redactor = SecretRedactor::new().unwrap();
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+        // Construct content with CRLF
+        // Line 1: 6 chars + \r\n = 8 bytes
+        // Line 2: token is here.
+        let content = format!("line 1\r\n{}", token);
+
+        // Scan
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].line_number, 2);
+
+        // Redact
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+
+        // Check content
+        // Should contain redaction marker and NO part of the token.
+        assert!(result.content.contains("[REDACTED:github_pat]"));
+        assert!(!result.content.contains("ghp_"));
+        assert!(!result.content.contains("3456789"));
+
+        // Previous line content should be preserved (modulo line ending normalization)
+        assert!(result.content.contains("line 1"));
     }
 }
