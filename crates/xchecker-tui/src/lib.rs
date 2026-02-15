@@ -268,6 +268,38 @@ impl TuiApp {
     fn selected_spec(&self) -> Option<&SpecStatus> {
         self.spec_statuses.get(self.selected_index)
     }
+
+    /// Generate help text spans based on current state
+    fn help_spans(&self) -> Vec<Span<'_>> {
+        let key_style = Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD);
+        let desc_style = Style::default().fg(Color::DarkGray);
+        let separator = Span::raw("  ");
+
+        let mut spans = Vec::new();
+
+        if self.show_details {
+            spans.push(Span::styled("Esc", key_style));
+            spans.push(Span::styled(": Back", desc_style));
+            spans.push(separator.clone());
+        } else if !self.spec_statuses.is_empty() {
+            spans.push(Span::styled("↑/k", key_style));
+            spans.push(Span::styled(": Up", desc_style));
+            spans.push(separator.clone());
+            spans.push(Span::styled("↓/j", key_style));
+            spans.push(Span::styled(": Down", desc_style));
+            spans.push(separator.clone());
+            spans.push(Span::styled("Enter", key_style));
+            spans.push(Span::styled(": Details", desc_style));
+            spans.push(separator.clone());
+        }
+
+        spans.push(Span::styled("q", key_style));
+        spans.push(Span::styled(": Quit", desc_style));
+
+        spans
+    }
 }
 
 /// Run TUI application
@@ -677,14 +709,8 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 
 /// Render the footer with help text
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
-    let help_text = if app.show_details {
-        "Esc: Back  q: Quit"
-    } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
-    };
-
-    let footer = Paragraph::new(help_text)
-        .style(Style::default().fg(Color::DarkGray))
+    let spans = app.help_spans();
+    let footer = Paragraph::new(Line::from(spans))
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
 }
@@ -877,5 +903,41 @@ mod tests {
         assert_eq!(app.selected_index, 1);
         app.select_first();
         assert_eq!(app.selected_index, 0);
+    }
+
+    #[test]
+    fn test_help_spans() {
+        let (_temp_dir, workspace_path) = create_test_workspace();
+        let mut app = TuiApp::new(&workspace_path).unwrap();
+
+        // Default state (list view, has items)
+        let spans = app.help_spans();
+        let text: String = spans.iter().map(|s| s.content.to_string()).collect();
+        assert!(text.contains("Up"));
+        assert!(text.contains("Down"));
+        assert!(text.contains("Details"));
+        assert!(text.contains("Quit"));
+
+        // Details view
+        app.show_details = true;
+        let spans = app.help_spans();
+        let text: String = spans.iter().map(|s| s.content.to_string()).collect();
+        assert!(text.contains("Back"));
+        assert!(text.contains("Quit"));
+        assert!(!text.contains("Up"));
+
+        // Empty workspace
+        let temp_dir = TempDir::new().unwrap();
+        let workspace_path = temp_dir.path().join("workspace.yaml");
+        let workspace = Workspace::new("empty");
+        workspace.save(&workspace_path).unwrap();
+        let app = TuiApp::new(&workspace_path).unwrap();
+
+        let spans = app.help_spans();
+        let text: String = spans.iter().map(|s| s.content.to_string()).collect();
+        assert!(text.contains("Quit"));
+        assert!(!text.contains("Up"));
+        assert!(!text.contains("Down"));
+        assert!(!text.contains("Details"));
     }
 }
