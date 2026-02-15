@@ -96,6 +96,19 @@ impl ProcessRunner for NativeRunner {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        // Set process group on Unix for killpg support
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            unsafe {
+                command.pre_exec(|| {
+                    // Create a new process group
+                    libc::setpgid(0, 0);
+                    Ok(())
+                });
+            }
+        }
+
         // Spawn the process
         let child = command
             .spawn()
@@ -165,9 +178,10 @@ impl NativeRunner {
     fn terminate_process(pid: u32) {
         #[cfg(unix)]
         {
-            // Send SIGKILL to the process
+            // Send SIGKILL to the process group (negative PID)
+            // This ensures all child processes are terminated
             unsafe {
-                libc::kill(pid as i32, libc::SIGKILL);
+                libc::kill(-(pid as i32), libc::SIGKILL);
             }
         }
 
