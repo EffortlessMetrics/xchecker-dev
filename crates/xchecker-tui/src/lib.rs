@@ -677,13 +677,57 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 
 /// Render the footer with help text
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
-    let help_text = if app.show_details {
-        "Esc: Back  q: Quit"
+    let help_line = if app.show_details {
+        Line::from(vec![
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(": Back  "),
+            Span::styled(
+                "q",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(": Quit"),
+        ])
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        Line::from(vec![
+            Span::styled(
+                "↑/k",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(": Up  "),
+            Span::styled(
+                "↓/j",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(": Down  "),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(": Details  "),
+            Span::styled(
+                "q",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(": Quit"),
+        ])
     };
 
-    let footer = Paragraph::new(help_text)
+    let footer = Paragraph::new(help_line)
         .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
