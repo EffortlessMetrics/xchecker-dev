@@ -28,12 +28,20 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// Check if a process is still running
 fn is_process_running(pid: u32) -> bool {
-    use nix::sys::signal::kill;
+    use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
     use nix::unistd::Pid;
 
     let pid = Pid::from_raw(pid as i32);
-    // Signal 0 (None) doesn't send a signal but checks if the process exists
-    kill(pid, None).is_ok()
+
+    // Check if the process has exited using WNOHANG (non-blocking wait)
+    // If waitpid returns the PID, it means the process has exited and we've reaped it.
+    // If it returns StillAlive (0), the process is still running.
+    // If it returns an error (ECHILD), the process doesn't exist or is not our child.
+    match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
+        Ok(WaitStatus::StillAlive) => true,
+        // Exited (Exited, Signaled, Stopped, etc.) or Error (ECHILD)
+        _ => false,
+    }
 }
 
 /// Create a test script that spawns child processes
@@ -128,13 +136,20 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
+    // We use Python to ensure signal handling is robust and avoids shell complexities.
+    // We print "READY" and wait for it to ensure the signal handler is installed.
+    let mut cmd = CommandSpec::new("python3")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("import signal, time, sys
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+print('READY')
+sys.stdout.flush()
+while True:
+    time.sleep(0.1)")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
     {
         #[allow(unused_imports)]
@@ -156,6 +171,33 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         is_process_running(pid),
         "Process should be running initially"
     );
+
+    // Wait for process to be ready (signal handler installed)
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt};
+    use tokio::io::BufReader;
+
+    let stdout = child.stdout.take().expect("Failed to capture stdout");
+    let stderr = child.stderr.take().expect("Failed to capture stderr");
+    let mut reader = BufReader::new(stdout);
+    let mut err_reader = BufReader::new(stderr);
+    let mut line = String::new();
+
+    // Wait for READY with timeout
+    match tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await {
+        Ok(Ok(0)) => {
+             println!("Process exited before writing READY");
+             let mut err_msg = String::new();
+             let _ = err_reader.read_to_string(&mut err_msg).await;
+             println!("Stderr: {}", err_msg);
+        },
+        Ok(Ok(_)) => {
+            if !line.trim().eq("READY") {
+                println!("Unexpected output: {}", line);
+            }
+        },
+        Ok(Err(e)) => panic!("Failed to read stdout: {}", e),
+        Err(_) => panic!("Timeout waiting for process to be ready"),
+    }
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
@@ -199,7 +241,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped());
 
     {
         #[allow(unused_imports)]
@@ -327,11 +369,18 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Use "bash" as the binary since "claude" is not available in test environment
+    use xchecker::runner::{WslOptions, RunnerMode};
+    let wsl_options = WslOptions {
+        claude_path: Some("bash".to_string()),
+        ..Default::default()
+    };
+    let runner = Runner::new(RunnerMode::Native, wsl_options);
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
 
+    // Pass the script path as an argument to bash
     let result = runner
         .execute_claude(
             &[script_path.to_str().unwrap().to_string()],
