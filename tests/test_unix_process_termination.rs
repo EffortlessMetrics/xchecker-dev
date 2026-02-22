@@ -33,7 +33,24 @@ fn is_process_running(pid: u32) -> bool {
 
     let pid = Pid::from_raw(pid as i32);
     // Signal 0 (None) doesn't send a signal but checks if the process exists
+    // Waitpid with WNOHANG is better to check for zombies, but kill(0) is simpler for basic existence
     kill(pid, None).is_ok()
+}
+
+/// Wait for a process to terminate with a timeout
+async fn wait_for_process_termination(child: &mut tokio::process::Child, timeout_ms: u64) -> bool {
+    let start = std::time::Instant::now();
+    let timeout = Duration::from_millis(timeout_ms);
+
+    while start.elapsed() < timeout {
+        // try_wait() returns Ok(Some(status)) if exited, Ok(None) if running
+        if let Ok(Some(_)) = child.try_wait() {
+            return true;
+        }
+        sleep(Duration::from_millis(50)).await;
+    }
+
+    child.try_wait().map(|opt| opt.is_some()).unwrap_or(false)
 }
 
 /// Create a test script that spawns child processes
@@ -172,12 +189,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Send SIGKILL (cannot be ignored)
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for termination (allow up to 2 seconds)
+    let terminated = wait_for_process_termination(&mut child, 2000).await;
 
     // Process should now be terminated
     assert!(
-        !is_process_running(pid),
+        terminated,
         "Process should be terminated after SIGKILL"
     );
 
@@ -225,12 +242,12 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
-    // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for graceful termination (allow up to 2 seconds)
+    let terminated = wait_for_process_termination(&mut child, 2000).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
-        !is_process_running(pid),
+        terminated,
         "Process should be terminated after SIGTERM"
     );
 
@@ -294,12 +311,12 @@ async fn test_process_group_termination() -> Result<()> {
     let pgid = Pid::from_raw(parent_pid as i32);
     killpg(pgid, Signal::SIGKILL)?;
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for termination (allow up to 2 seconds for process group cleanup)
+    let terminated = wait_for_process_termination(&mut child, 2000).await;
 
     // Verify parent is terminated
     assert!(
-        !is_process_running(parent_pid),
+        terminated,
         "Parent process should be terminated"
     );
 
@@ -327,7 +344,10 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Use bash instead of claude since we're testing process termination logic
+    // and claude might not be installed in the CI environment
+    let mut runner = Runner::native();
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -413,12 +433,12 @@ async fn test_timeout_grace_period() -> Result<()> {
     // 3. Send SIGKILL
     let _ = killpg(pgid, Signal::SIGKILL);
 
-    // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    // Wait for termination (allow up to 2 seconds)
+    let terminated = wait_for_process_termination(&mut child, 2000).await;
 
     // Process should be terminated
     assert!(
-        !is_process_running(pid),
+        terminated,
         "Process should be terminated after SIGKILL"
     );
 
