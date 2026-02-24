@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2026-01-24 - [TUI Key Hints Scanability]
+**Learning:** In terminal UIs, plain text key hints (e.g., "q: Quit") blend into the footer, making them hard to find for new users.
+**Action:** Style keys (Cyan/Bold) distinctly from descriptions (DarkGray) to create a visual rhythm that guides the eye and improves learnability.
