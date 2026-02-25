@@ -481,17 +481,11 @@ fn process_candidate_file(
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading
-    if redactor.has_secrets(&content, candidate.path.as_ref())? {
-        let matches = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+    let matches = redactor.scan_for_secrets(&content, candidate.path.as_ref())?;
+    if !matches.is_empty() {
         return Err(XCheckerError::SecretDetected {
-            pattern: matches
-                .first()
-                .map(|m| m.pattern_id.clone())
-                .unwrap_or_else(|| "unknown".to_string()),
-            location: matches
-                .first()
-                .map(|m| m.file_path.clone())
-                .unwrap_or_else(|| "unknown".to_string()),
+            pattern: matches[0].pattern_id.clone(),
+            location: matches[0].file_path.clone(),
         }
         .into());
     }
@@ -533,8 +527,9 @@ fn process_candidate_file(
             )
         } else {
             // Cache miss
-            let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-            let redacted_content = redaction_result.content;
+            // Since we already verified no secrets exist, we can use content directly
+            // without re-scanning via redact_content.
+            let redacted_content = content.clone();
 
             // Generate insights
             // Use a temporary cache instance or lock again?
@@ -579,8 +574,8 @@ fn process_candidate_file(
         }
     } else {
         // No cache
-        let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
-        redaction_result.content
+        // Since we already verified no secrets exist, we can use content directly.
+        content.clone()
     };
 
     let content_size = file_content.len() + candidate.path.as_str().len() + 10;
