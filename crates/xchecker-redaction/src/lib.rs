@@ -163,7 +163,7 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
     SecretPatternDef {
         id: "anthropic_api_key",
@@ -188,6 +188,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         category: "LLM Provider Tokens",
         regex: r"hf_[A-Za-z0-9]{34}",
         description: "Hugging Face access tokens",
+    },
+    SecretPatternDef {
+        id: "openrouter_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-or-v1-[a-fA-F0-9]{64}",
+        description: "OpenRouter API keys",
     },
     // =========================================================================
     // Database Connection URLs (5 patterns)
@@ -1135,6 +1141,24 @@ mod tests {
     }
 
     #[test]
+    fn test_openrouter_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        // OpenRouter keys: sk-or-v1- + 64 hex chars
+        let hex_part = "a".repeat(64);
+        let token = format!("sk-or-v1-{}", hex_part);
+        let content = format!("export OPENROUTER_API_KEY={}", token);
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pattern_id, "openrouter_api_key");
+
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+        assert!(result.has_secrets);
+        assert!(result.content.contains("[REDACTED:openrouter_api_key]"));
+        assert!(!result.content.contains(&token));
+    }
+
+    #[test]
     fn test_line_number_accuracy() {
         let redactor = SecretRedactor::new().unwrap();
         let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
@@ -1465,6 +1489,7 @@ mod tests {
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
         assert!(pattern_ids.contains(&"huggingface_token".to_string()));
+        assert!(pattern_ids.contains(&"openrouter_api_key".to_string()));
 
         // Database URLs
         assert!(pattern_ids.contains(&"postgres_url".to_string()));
