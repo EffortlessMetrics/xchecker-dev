@@ -128,9 +128,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
+    // We use a loop to prevent shell 'exec' optimization and ensure the shell
+    // process remains alive even if the sleep command is killed or terminates.
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 0.1; done")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -153,9 +155,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Verify process is running
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should be running initially"
     );
+
+    // Give process time to register signal handler
+    sleep(Duration::from_millis(500)).await;
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
@@ -165,7 +170,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Process should still be running (it ignored SIGTERM)
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should still be running after SIGTERM"
     );
 
@@ -177,7 +182,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Process should now be terminated
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
@@ -218,7 +223,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
     // Verify process is running
     assert!(
-        is_process_running(pid),
+        child.try_wait()?.is_none(),
         "Process should be running initially"
     );
 
@@ -230,7 +235,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGTERM"
     );
 
@@ -284,7 +289,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is running
     assert!(
-        is_process_running(parent_pid),
+        child.try_wait()?.is_none(),
         "Parent process should be running"
     );
 
@@ -299,7 +304,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is terminated
     assert!(
-        !is_process_running(parent_pid),
+        child.try_wait()?.is_some(),
         "Parent process should be terminated"
     );
 
@@ -327,7 +332,10 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+
+    // Override claude_path to use bash directly, as 'claude' is not available in CI
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -392,7 +400,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     let pgid = Pid::from_raw(pid as i32);
 
     // Verify process is running
-    assert!(is_process_running(pid), "Process should be running");
+    assert!(child.try_wait()?.is_none(), "Process should be running");
 
     // Simulate the timeout sequence from Runner
     // 1. Send SIGTERM
@@ -418,7 +426,7 @@ async fn test_timeout_grace_period() -> Result<()> {
 
     // Process should be terminated
     assert!(
-        !is_process_running(pid),
+        child.try_wait()?.is_some(),
         "Process should be terminated after SIGKILL"
     );
 
