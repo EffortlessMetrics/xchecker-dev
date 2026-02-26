@@ -561,15 +561,22 @@ impl SecretRedactor {
             return text.to_string();
         }
 
-        let mut redacted = text.to_string();
+        // Use Cow to avoid unnecessary allocations.
+        // We start with a Borrowed version of the text.
+        // Only if a replacement actually occurs (Owned is returned) do we update `redacted`.
+        // This avoids copying the string when patterns match the original text but not the current state
+        // (e.g. overlapping matches) or when subsequent patterns don't match.
+        let mut redacted = std::borrow::Cow::Borrowed(text);
 
         for index in matches.iter() {
             if let Some((_, regex)) = self.patterns_linear.get(index) {
-                redacted = regex.replace_all(&redacted, "***").to_string();
+                if let std::borrow::Cow::Owned(s) = regex.replace_all(&redacted, "***") {
+                    redacted = std::borrow::Cow::Owned(s);
+                }
             }
         }
 
-        redacted
+        redacted.into_owned()
     }
 
     /// Redact secrets from a vector of strings
