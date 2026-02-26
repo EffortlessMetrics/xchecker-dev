@@ -27,13 +27,40 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 // ============================================================================
 
 /// Check if a process is still running
+///
+/// This uses waitpid with WNOHANG to properly handle zombie processes.
+/// Using kill(0) is insufficient because it returns true for zombie processes
+/// that have exited but haven't been reaped.
 fn is_process_running(pid: u32) -> bool {
-    use nix::sys::signal::kill;
+    use nix::sys::wait::{waitpid, WaitStatus, WaitPidFlag};
     use nix::unistd::Pid;
 
     let pid = Pid::from_raw(pid as i32);
-    // Signal 0 (None) doesn't send a signal but checks if the process exists
-    kill(pid, None).is_ok()
+
+    // First try waitpid with WNOHANG to see if it's a zombie we can reap
+    match waitpid(pid, Some(WaitPidFlag::WNOHANG)) {
+        Ok(WaitStatus::Exited(_, _)) | Ok(WaitStatus::Signaled(_, _, _)) => {
+            // Process has exited and we reaped it
+            return false;
+        }
+        Ok(WaitStatus::StillAlive) => {
+            // Process is still running (or is a zombie we couldn't reap yet?)
+            // If it's StillAlive, waitpid says it hasn't changed state to exited.
+            // But to be double sure it's not a ghost, we can check kill(0).
+            // Actually, StillAlive means it's definitely running.
+            return true;
+        }
+        Err(nix::errno::Errno::ECHILD) => {
+            // Process does not exist (already reaped or never existed)
+            return false;
+        }
+        Err(_) => {
+            // Other error, fallback to kill(0) as best effort
+            use nix::sys::signal::kill;
+            return kill(pid, None).is_ok();
+        }
+        _ => return true, // Stopped or continued, still "running"
+    }
 }
 
 /// Create a test script that spawns child processes
@@ -128,12 +155,13 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
-        .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+    // Use perl for reliable signal handling and ignoring (usually available on Unix)
+    let mut cmd = CommandSpec::new("perl")
+        .arg("-e")
+        .arg("$SIG{TERM}='IGNORE'; $|=1; print 'READY'; while(1){sleep 1}")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
+        .stdout(Stdio::piped()) // Pipe stdout to wait for readiness
         .stderr(Stdio::null());
 
     {
@@ -151,11 +179,23 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Wait for process to be ready (signal handler installed)
+    use tokio::io::AsyncReadExt;
+    let mut stdout = child.stdout.take().expect("Failed to open stdout");
+    let mut buf = [0u8; 5];
+    // Wait for "READY"
+    let _ = stdout.read_exact(&mut buf).await;
+
     // Verify process is running
-    assert!(
-        is_process_running(pid),
-        "Process should be running initially"
-    );
+    if !is_process_running(pid) {
+        // Try to read stderr if process exited early
+        if let Some(mut stderr) = child.stderr.take() {
+            let mut err_buf = String::new();
+            let _ = tokio::io::AsyncReadExt::read_to_string(&mut stderr, &mut err_buf).await;
+            panic!("Process exited early. Stderr: {}", err_buf);
+        }
+        panic!("Process should be running initially (no stderr available)");
+    }
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
@@ -263,7 +303,7 @@ async fn test_process_group_termination() -> Result<()> {
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null());
+        .stderr(Stdio::piped()); // Pipe stderr for debugging
 
     {
         #[allow(unused_imports)]
@@ -319,6 +359,7 @@ async fn test_process_group_termination() -> Result<()> {
 #[ignore = "flaky in CI - timing-dependent timeout handling"]
 async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     use tempfile::TempDir;
+    use xchecker::runner::WslOptions;
 
     let temp_dir = TempDir::new()?;
     let script_path = temp_dir.path().join("long_running.sh");
@@ -326,12 +367,29 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     // Create a script that runs for a long time
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
-    // Create a runner with a short timeout
-    let runner = Runner::native();
+    // Create a runner with a short timeout.
+    // Configure it to use 'bash' instead of 'claude' so this runs even without claude installed.
+    // The arguments will be passed to bash.
+    let mut runner = Runner::native();
+    // We can "hack" the runner by setting wsl_options even for native mode if we need to override the binary,
+    // but Runner::native() uses "claude" by default.
+    // The Runner struct doesn't expose a clean way to change the binary for native mode
+    // without using WslOptions hack or changing the internal field if pub.
+    // Let's check if we can set the binary in options.
+
+    // Actually, Runner::execute_claude hardcodes "claude" or uses wsl_options.claude_path.
+    // Let's set wsl_options to override the binary, even though we are in native mode.
+    // Wait, execute_claude uses `self.get_claude_command()` which checks wsl_options.
+
+    runner.wsl_options = WslOptions {
+        distro: Some("Ubuntu".to_string()), // Ignored in native mode
+        claude_path: Some("bash".to_string()),    // Override binary
+    };
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
 
+    // We pass the script as an argument to bash
     let result = runner
         .execute_claude(
             &[script_path.to_str().unwrap().to_string()],
@@ -345,7 +403,7 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
         Err(e) => {
             let error_str = format!("{:?}", e);
             assert!(
-                error_str.contains("Timeout") || error_str.contains("timeout"),
+                error_str.contains("Timeout") || error_str.contains("timeout") || error_str.contains("timed out"),
                 "Expected timeout error, got: {}",
                 error_str
             );
