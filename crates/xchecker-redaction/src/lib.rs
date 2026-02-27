@@ -565,7 +565,7 @@ impl SecretRedactor {
 
         for index in matches.iter() {
             if let Some((_, regex)) = self.patterns_linear.get(index) {
-                redacted = regex.replace_all(&redacted, "***").to_string();
+                redacted = regex.replace_all(&redacted, "***").into_owned();
             }
         }
 
