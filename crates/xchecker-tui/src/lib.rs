@@ -456,9 +456,25 @@ fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
                 Style::default().fg(Color::Yellow),
             )),
             Line::from(""),
+            Line::from(Span::raw("Get started by creating your first spec:")),
+            Line::from(""),
             Line::from(vec![
-                Span::raw("Create one with: "),
+                Span::raw("1. From scratch: "),
                 Span::styled("xchecker spec <name>", Style::default().fg(Color::Cyan)),
+            ]),
+            Line::from(vec![
+                Span::raw("2. From template: "),
+                Span::styled(
+                    "xchecker template init <tmpl> <name>",
+                    Style::default().fg(Color::Cyan),
+                ),
+            ]),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Tip: ", Style::default().fg(Color::Green)),
+                Span::raw("Run "),
+                Span::styled("xchecker template list", Style::default().fg(Color::Cyan)),
+                Span::raw(" to see available templates"),
             ]),
         ];
 
