@@ -37,9 +37,19 @@ struct TimeoutTestEnv {
 /// Helper to set up test environment with isolated home
 fn setup_test_environment(test_name: &str) -> TimeoutTestEnv {
     let temp_dir = TempDir::new().unwrap();
+
+    // Explicitly set XCHECKER_HOME to the temp dir to ensure absolute path resolution works correctly
+    // regardless of CWD changes. This fixes "Sandbox root does not exist" errors in CI.
+    // SAFETY: This is a test environment, and we are setting a test-specific environment variable.
+    unsafe {
+        std::env::set_var("XCHECKER_HOME", temp_dir.path());
+    }
+
     let cwd_guard = test_support::CwdGuard::new(temp_dir.path()).unwrap();
 
     // Create base .xchecker/specs directory structure (PhaseOrchestrator expects this to exist)
+    // Note: The orchestrator uses XCHECKER_HOME which we just set to temp_dir.path()
+    // So we need to create the structure relative to that.
     std::fs::create_dir_all(temp_dir.path().join(".xchecker/specs")).unwrap();
 
     // Create spec directory structure
