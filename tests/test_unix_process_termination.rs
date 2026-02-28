@@ -120,7 +120,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep in loop to avoid exec optimization
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -140,6 +140,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait a short time to allow the shell to register the trap handler
+    sleep(Duration::from_millis(500)).await;
 
     // Verify process is running
     assert!(
@@ -319,7 +322,9 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+    // Use bash instead of claude so it runs the script without needing claude installed
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
