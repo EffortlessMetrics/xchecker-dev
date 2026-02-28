@@ -655,38 +655,45 @@ impl SecretRedactor {
             });
         }
 
-        // Sort matches by position (reverse order to maintain indices during replacement)
-        let mut sorted_matches = matches.clone();
-        sorted_matches.sort_by(|a, b| {
-            b.line_number
-                .cmp(&a.line_number)
-                .then_with(|| b.column_range.0.cmp(&a.column_range.0))
-        });
+        // Group matches by line number for O(N) single-pass reconstruction
+        let mut matches_by_line: HashMap<usize, Vec<&SecretMatch>> = HashMap::new();
+        for m in &matches {
+            matches_by_line.entry(m.line_number).or_default().push(m);
+        }
 
-        let mut redacted_content = content.to_string();
-        let lines: Vec<&str> = content.lines().collect();
+        let mut lines = Vec::new();
 
-        // Replace secrets with redaction markers
-        for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
-                let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
+        for (i, line) in content.lines().enumerate() {
+            let line_number = i + 1;
+            if let Some(mut line_matches) = matches_by_line.remove(&line_number) {
+                // Sort matches by start column
+                line_matches.sort_by_key(|m| m.column_range.0);
 
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
+                let mut redacted_line = String::with_capacity(line.len());
+                let mut last_idx = 0;
 
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
+                for m in line_matches {
+                    let (start, end) = m.column_range;
+                    // Prevent overlaps
+                    if start >= last_idx && start <= line.len() && end <= line.len() {
+                        redacted_line.push_str(&line[last_idx..start]);
+                        redacted_line.push_str(&format!("[REDACTED:{}]", m.pattern_id));
+                        last_idx = end;
+                    }
                 }
+                if last_idx < line.len() {
+                    redacted_line.push_str(&line[last_idx..]);
+                }
+                lines.push(redacted_line);
+            } else {
+                lines.push(line.to_string());
             }
+        }
+
+        // Check if there is a trailing newline in the original content
+        let mut redacted_content = lines.join("\n");
+        if content.ends_with('\n') {
+            redacted_content.push('\n');
         }
 
         Ok(RedactionResult {
@@ -1495,5 +1502,41 @@ mod tests {
         assert!(pattern_ids.contains(&"pypi_token".to_string()));
         assert!(pattern_ids.contains(&"nuget_key".to_string()));
         assert!(pattern_ids.contains(&"docker_auth".to_string()));
+    }
+
+    #[test]
+    fn test_crlf_redaction_offset() {
+        let redactor = SecretRedactor::new().unwrap();
+        let token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+        // CRLF string
+        let content = format!("line 1\r\ntoken = {}\r\nline 3\r\n", token);
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+
+        assert!(result.has_secrets);
+        assert!(result.content.contains("[REDACTED:github_pat]"));
+        assert!(!result.content.contains(token));
+
+        // Ensure \r\n was normalized to \n as per specs when secrets are present
+        let expected_content = "line 1\ntoken = [REDACTED:github_pat]\nline 3\n";
+        assert_eq!(result.content, expected_content);
+    }
+
+    #[test]
+    fn test_multiple_secrets_same_line() {
+        let redactor = SecretRedactor::new().unwrap();
+        let github_token = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
+        let aws_key = "AKIAIOSFODNN7EXAMPLE";
+
+        // Single line with multiple secrets
+        let content = format!("tokens: {}, {}", github_token, aws_key);
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+
+        assert_eq!(matches.len(), 2);
+
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+        assert!(result.has_secrets);
+
+        let expected_content = "tokens: [REDACTED:github_pat], [REDACTED:aws_access_key]";
+        assert_eq!(result.content, expected_content);
     }
 }
