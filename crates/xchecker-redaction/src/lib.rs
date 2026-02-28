@@ -675,12 +675,11 @@ impl SecretRedactor {
                 for m in line_matches {
                     let (start, end) = m.column_range;
                     // Prevent overlaps
-                    if start >= last_idx
-                        && start <= line.len() && end <= line.len() {
-                            redacted_line.push_str(&line[last_idx..start]);
-                            redacted_line.push_str(&format!("[REDACTED:{}]", m.pattern_id));
-                            last_idx = end;
-                        }
+                    if start >= last_idx && start <= line.len() && end <= line.len() {
+                        redacted_line.push_str(&line[last_idx..start]);
+                        redacted_line.push_str(&format!("[REDACTED:{}]", m.pattern_id));
+                        last_idx = end;
+                    }
                 }
                 if last_idx < line.len() {
                     redacted_line.push_str(&line[last_idx..]);
