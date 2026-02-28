@@ -1,0 +1,21 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -328,7 +328,8 @@
+     create_test_script(script_path.to_str().unwrap(), 60)?;
+
+     // Create a runner with a short timeout
+-    let runner = Runner::native();
++    let mut runner = Runner::native();
++    runner.wsl_options.claude_path = Some(script_path.to_str().unwrap().to_string());
+
+     // Execute with a very short timeout (1 second)
+     let timeout_duration = Some(Duration::from_secs(1));
+
+     let result = runner
+         .execute_claude(
+-            &[script_path.to_str().unwrap().to_string()],
++            &[],
+             "",
+             timeout_duration,
+         )
+         .await;

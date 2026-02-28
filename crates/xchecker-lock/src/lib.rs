@@ -130,10 +130,17 @@ fn write_file_atomic(path: &Utf8PathBuf, content: &str) -> Result<(), io::Error>
     let temp_path = parent.join(format!(".{}.tmp", path.file_name().unwrap_or("file")));
 
     // Write content to temporary file
-    fs::write(&temp_path, content)?;
+    let mut file = fs::File::create(&temp_path)?;
+    file.write_all(content.as_bytes())?;
+    file.sync_all()?;
+    drop(file);
 
     // Atomically rename temporary file to target path
     fs::rename(&temp_path, path)?;
+
+    // Sync the parent directory to ensure the directory entry update is durably written to disk
+    let parent_dir = fs::File::open(parent)?;
+    parent_dir.sync_all()?;
 
     Ok(())
 }
