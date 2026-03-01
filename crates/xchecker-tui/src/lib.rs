@@ -542,6 +542,8 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
         Some(s) => s,
         None => {
             let empty = Paragraph::new("No spec selected")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center)
                 .block(Block::default().borders(Borders::ALL).title(" Details "));
             f.render_widget(empty, area);
             return;
