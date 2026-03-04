@@ -697,9 +697,11 @@ impl SecretRedactor {
     }
 
     /// Check if any secrets would be detected in the content (fail-fast check)
-    pub fn has_secrets(&self, content: &str, file_path: &str) -> Result<bool> {
-        let matches = self.scan_for_secrets(content, file_path)?;
-        Ok(!matches.is_empty())
+    pub fn has_secrets(&self, content: &str, _file_path: &str) -> Result<bool> {
+        // Optimization: Use RegexSet::is_match directly instead of scan_for_secrets
+        // which allocates Vec<SecretMatch> and processes strings line-by-line.
+        // The _file_path parameter is unused but maintained for public API compatibility.
+        Ok(self.regex_set.is_match(content))
     }
 
     /// Check if a pattern ID is in the ignored list
