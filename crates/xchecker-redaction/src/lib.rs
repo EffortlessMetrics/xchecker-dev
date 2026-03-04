@@ -163,13 +163,19 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
     SecretPatternDef {
         id: "anthropic_api_key",
         category: "LLM Provider Tokens",
         regex: r"sk-ant-api03-[A-Za-z0-9_-]{20,}",
         description: "Anthropic API keys",
+    },
+    SecretPatternDef {
+        id: "openrouter_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-or-v1-[0-9a-fA-F]{64}",
+        description: "OpenRouter API keys",
     },
     SecretPatternDef {
         id: "openai_api_key",
@@ -1462,6 +1468,7 @@ mod tests {
 
         // LLM Provider Tokens
         assert!(pattern_ids.contains(&"anthropic_api_key".to_string()));
+        assert!(pattern_ids.contains(&"openrouter_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
         assert!(pattern_ids.contains(&"huggingface_token".to_string()));
