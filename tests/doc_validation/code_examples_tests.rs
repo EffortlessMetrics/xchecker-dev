@@ -1051,7 +1051,9 @@ fn resolve_jq_input(
 
     if input_segment.starts_with("xchecker") {
         let result = runner.run_command(input_segment)?;
-        if result.exit_code != 0 {
+
+        // Let doctor --json exit code pass through, valid JSON is still generated
+        if result.exit_code != 0 && !input_segment.contains("doctor --json") {
             anyhow::bail!(
                 "xchecker command failed (exit {}): {}",
                 result.exit_code,
