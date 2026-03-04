@@ -327,7 +327,13 @@ where
                         app.select_last();
                     }
                 }
-                KeyCode::Enter => app.toggle_details(),
+                KeyCode::Enter => {
+                    if app.show_details {
+                        app.show_details = false;
+                    } else {
+                        app.toggle_details();
+                    }
+                }
                 KeyCode::Esc => {
                     if app.show_details {
                         app.show_details = false;
