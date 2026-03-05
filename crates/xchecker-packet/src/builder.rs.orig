@@ -576,7 +576,7 @@ fn process_candidate_file(
 
     let selected_file = SelectedFile {
         path: candidate.path.clone(),
-        content,
+        content: String::new(), // Populate dynamically or avoid cloning content since it's just used for testing later in build_packet, wait no it is needed later!
         priority: candidate.priority,
         blake3_pre_redaction,
         line_count: line_count_raw,

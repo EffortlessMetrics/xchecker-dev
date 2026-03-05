@@ -1,0 +1,32 @@
+cat << 'INNER_EOF' > patch3.diff
+--- crates/xchecker-packet/src/builder.rs
++++ crates/xchecker-packet/src/builder.rs
+@@ -506,7 +506,7 @@
+
+     let selected_file = SelectedFile {
+         path: candidate.path.clone(),
+-        content: content.clone(), // Clone needed for SelectedFile
++        content: String::new(), // Will be populated later to avoid clone
+         priority: candidate.priority,
+         blake3_pre_redaction: blake3_pre_redaction.clone(),
+         line_count: line_count_raw,
+@@ -578,13 +578,16 @@
+         let redaction_result = redactor.redact_content(&content, candidate.path.as_ref())?;
+         redaction_result.content
+     };
+
+     let content_size = file_content.len() + candidate.path.as_str().len() + 10;
+     let line_count = file_content.lines().count() + 3;
+
++    let mut final_selected_file = selected_file;
++    final_selected_file.content = content;
++
+     Ok(Some((
+-        selected_file,
++        final_selected_file,
+         file_content,
+         content_size,
+         line_count,
+INNER_EOF
+patch -p0 < patch3.diff
+cargo bench -p xchecker-packet

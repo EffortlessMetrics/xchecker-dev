@@ -24,3 +24,8 @@ tracing = { workspace = true }
 [dev-dependencies]
 xchecker-utils = { workspace = true, features = ["test-utils"] }
 tempfile = { workspace = true }
+criterion = "0.8.2"
+
+[[bench]]
+name = "builder_bench"
+harness = false

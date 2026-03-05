@@ -19,4 +19,13 @@ regex = { workspace = true }
 once_cell = { workspace = true }
 
 [dev-dependencies]
+criterion = "0.8.2"
 proptest = { workspace = true }
+
+[[bench]]
+name = "redact_bench"
+harness = false
+
+[[bench]]
+name = "redact_string_bench"
+harness = false
