@@ -45,6 +45,11 @@ impl HttpClient {
         Self::with_max_timeout(DEFAULT_MAX_HTTP_TIMEOUT)
     }
 
+    /// Get a reference to the inner reqwest::Client
+    pub(crate) fn inner_client(&self) -> &Client {
+        &self.client
+    }
+
     /// Create a new HTTP client with a custom maximum timeout
     ///
     /// # Errors

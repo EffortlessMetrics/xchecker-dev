@@ -220,7 +220,7 @@ impl LlmBackend for OpenRouterBackend {
         };
 
         // Build HTTP request
-        let request = reqwest::Client::new()
+        let request = self.client.inner_client()
             .post(&self.base_url)
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("HTTP-Referer", DEFAULT_REFERER)
