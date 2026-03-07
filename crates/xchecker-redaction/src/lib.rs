@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result};
 use regex::{Regex, RegexSet};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -561,15 +562,23 @@ impl SecretRedactor {
             return text.to_string();
         }
 
-        let mut redacted = text.to_string();
+        // Optimization: Use Cow to minimize allocations when replacing strings.
+        // We start with a Borrowed Cow. If a regex replaces something, it returns an Owned Cow.
+        // We only rebind redacted if replace_all allocates an Owned string, skipping copies otherwise.
+        let mut redacted: Cow<str> = Cow::Borrowed(text);
 
         for index in matches.iter() {
+            // Note: intentionally uncollapsible because let_chains are not stable yet.
+            // and we shouldn't use match guard for patterns with `&&` condition without let
             if let Some((_, regex)) = self.patterns_linear.get(index) {
-                redacted = regex.replace_all(&redacted, "***").to_string();
+                #[allow(clippy::collapsible_if)]
+                if let Cow::Owned(s) = regex.replace_all(&redacted, "***") {
+                    redacted = Cow::Owned(s);
+                }
             }
         }
 
-        redacted
+        redacted.into_owned()
     }
 
     /// Redact secrets from a vector of strings
