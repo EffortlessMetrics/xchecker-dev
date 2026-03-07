@@ -1,0 +1,4 @@
+## 2025-03-07 - Ensure Shared HTTP Clients for Security and Performance
+**Vulnerability:** External API calls to Anthropic and OpenRouter were dynamically creating a new `reqwest::Client` (via `reqwest::Client::new()`) for every request, bypassing the globally configured `HttpClient` wrapper.
+**Learning:** This bypassed the `HttpClient`'s critical configurations, notably its hardcoded timeout rules and safe TLS initialization (`use_rustls_tls`), meaning the LLM pipeline could hang indefinitely or use inconsistent security settings.
+**Prevention:** Always expose and use the pre-configured shared `reqwest::Client` inside a wrapper via a method like `inner_client()` rather than recreating clients inline at the call-site.
