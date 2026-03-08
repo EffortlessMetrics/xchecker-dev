@@ -542,7 +542,9 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
         Some(s) => s,
         None => {
             let empty = Paragraph::new("No spec selected")
-                .block(Block::default().borders(Borders::ALL).title(" Details "));
+                .block(Block::default().borders(Borders::ALL).title(" Details "))
+                .alignment(Alignment::Center)
+                .style(Style::default().fg(Color::DarkGray));
             f.render_widget(empty, area);
             return;
         }
@@ -685,6 +687,7 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
 
     let footer = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
 }
