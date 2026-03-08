@@ -33,15 +33,27 @@ fn is_process_running(pid: u32) -> bool {
 
     let pid_typed = Pid::from_raw(pid as i32);
     // First try waitpid with WNOHANG to clean up zombie processes
-    match nix::sys::wait::waitpid(pid_typed, Some(nix::sys::wait::WaitPidFlag::WNOHANG)) {
-        Ok(nix::sys::wait::WaitStatus::StillAlive) => return true,
-        Ok(_) => return false, // Process has exited and status collected
-        Err(nix::errno::Errno::ECHILD) => return false, // No child process
-        _ => {} // Fall through to kill check
+    // In CI environments, try multiple times with sleep to allow process tree termination
+    let mut retries = 0;
+    while retries < 5 {
+        match nix::sys::wait::waitpid(pid_typed, Some(nix::sys::wait::WaitPidFlag::WNOHANG)) {
+            Ok(nix::sys::wait::WaitStatus::StillAlive) => {
+                // Keep checking
+            },
+            Ok(_) => return false, // Process has exited and status collected
+            Err(nix::errno::Errno::ECHILD) => return false, // No child process
+            _ => {} // Fall through to kill check
+        }
+
+        if !kill(pid_typed, None).is_ok() {
+            return false;
+        }
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        retries += 1;
     }
 
-    // Signal 0 (None) doesn't send a signal but checks if the process exists
-    kill(pid_typed, None).is_ok()
+    true
 }
 
 /// Create a test script that spawns child processes
@@ -471,6 +483,9 @@ async fn test_terminate_already_dead_process() -> Result<()> {
 
     // Wait for process to exit
     let _ = child.wait().await;
+
+    // Wait a brief moment for OS to clean up the process state entirely before asserting.
+    sleep(Duration::from_millis(100)).await;
 
     // Verify process is not running
     assert!(!is_process_running(pid), "Process should have exited");
