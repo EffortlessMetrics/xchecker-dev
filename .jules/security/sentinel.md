@@ -145,3 +145,8 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-03-11 - TOCTOU and DoS via Memory Exhaustion in process_candidate_file
+**Vulnerability:** A Time-Of-Check to Time-Of-Use (TOCTOU) vulnerability where `fs::metadata` was checked before calling `fs::read_to_string` on line 480 in `crates/xchecker-packet/src/builder.rs`. If a file grew between the metadata check and the full read, it could exceed the maximum size limit leading to memory exhaustion and Denial-of-Service (DoS).
+**Learning:** `fs::read_to_string` is eager and does not bound the amount of data it reads by the previously fetched metadata. Thus, it can be exploited if an attacker concurrently modifies the file.
+**Prevention:** To prevent Time-Of-Check to Time-Of-Use (TOCTOU) and memory exhaustion DoS vulnerabilities when reading files, the codebase requires opening the file first with `fs::File::open`, checking `file.metadata().len()`, and using `std::io::Read::take(limit).read_to_string(&mut content)` instead of calling `fs::read_to_string()` directly.
