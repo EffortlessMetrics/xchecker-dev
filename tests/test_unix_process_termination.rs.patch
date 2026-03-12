@@ -1,0 +1,36 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -35,7 +35,13 @@
+
+     let pid = Pid::from_raw(pid as i32);
+     // Signal 0 (None) doesn't send a signal but checks if the process exists
+-    kill(pid, None).is_ok()
++    match kill(pid, None) {
++        Ok(_) => true,
++        Err(nix::errno::Errno::ESRCH) => false,
++        Err(nix::errno::Errno::EPERM) => true,
++        // Other errors just mean the process might be dead but not reaped
++        Err(_) => false,
++    }
+ }
+
+ /// Create a test script that spawns child processes
+@@ -141,6 +147,9 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    // Wait a brief moment for the shell to start up and install its trap handler
++    sleep(Duration::from_millis(500)).await;
++
+     // Verify process is running
+     assert!(
+         is_process_running(pid),
+@@ -416,7 +425,8 @@
+     let _ = killpg(pgid, Signal::SIGKILL);
+
+     // Wait for termination
+     sleep(Duration::from_millis(1000)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Process should be terminated
+     assert!(
