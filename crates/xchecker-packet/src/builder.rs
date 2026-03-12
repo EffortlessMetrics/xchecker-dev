@@ -476,9 +476,63 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
+    // Read content securely enforcing absolute limit to prevent TOCTOU / memory exhaustion
+    let file = fs::File::open(&candidate.path)
+        .with_context(|| format!("Failed to open file: {}", candidate.path))?;
+
+    // Check file size again on the opened file handle to prevent race conditions
+    let open_metadata = file.metadata()
+        .with_context(|| format!("Failed to get metadata for opened file: {}", candidate.path))?;
+
+    if open_metadata.len() > max_file_size {
+        if candidate.priority == Priority::Upstream {
+            return Err(anyhow::anyhow!(
+                "Upstream file {} exceeds size limit of {} bytes (size: {}). \
+                 Critical context files must fit within the configured limit.",
+                candidate.path,
+                max_file_size,
+                open_metadata.len()
+            ));
+        }
+
+        tracing::warn!(
+            "Skipping large file (after open): {} ({} bytes > limit {})",
+            candidate.path,
+            open_metadata.len(),
+            max_file_size
+        );
+        return Ok(None);
+    }
+
+    // Actually read the content up to the max_file_size limit + 1 byte (to detect overflow)
+    // using Read::take
+    let mut content = String::new();
+    use std::io::Read;
+
+    // Limit to max_file_size plus 1 byte to detect if file grew during read
+    // Note: since open_metadata.len() is already checked, this provides defense-in-depth against
+    // a file being appended to after file open, or if it is a special file like /dev/zero
+    // that reports 0 size but has infinite content.
+    let bytes_read = file.take(max_file_size + 1).read_to_string(&mut content)
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+    if bytes_read > max_file_size as usize {
+        if candidate.priority == Priority::Upstream {
+            return Err(anyhow::anyhow!(
+                "Upstream file {} grew beyond size limit of {} bytes while reading. \
+                 Critical context files must fit within the configured limit.",
+                candidate.path,
+                max_file_size
+            ));
+        }
+
+        tracing::warn!(
+            "Skipping growing file: {} (read > limit {})",
+            candidate.path,
+            max_file_size
+        );
+        return Ok(None);
+    }
 
     // Scan for secrets immediately after reading
     if redactor.has_secrets(&content, candidate.path.as_ref())? {
