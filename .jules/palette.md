@@ -1,0 +1,3 @@
+## 2024-03-12 - Differentiate Primary vs Secondary Empty States in TUIs
+**Learning:** In terminal user interfaces (TUIs), secondary empty states (like "No item selected" in a details panel) need clear visual distinction from primary empty states (like "No items found" in a main list). Without this, users might misinterpret non-actionable panels as requiring direct input, causing confusion.
+**Action:** Always style secondary/non-actionable empty states with muted colors (`Color::DarkGray`) and center alignment (`Alignment::Center`) to establish a clear visual hierarchy that recedes into the background compared to actionable elements. Apply similar center alignment and muted coloring to global footers to keep the focus on main content areas.
