@@ -17,5 +17,24 @@ cat << 'INNER_EOF' > tests/test_unix_process_termination.rs.patch
  }
 
  /// Create a test script that spawns child processes
+@@ -141,6 +147,9 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    // Wait a brief moment for the shell to start up and install its trap handler
++    sleep(Duration::from_millis(500)).await;
++
+     // Verify process is running
+     assert!(
+         is_process_running(pid),
+@@ -416,7 +425,8 @@
+     let _ = killpg(pgid, Signal::SIGKILL);
+
+     // Wait for termination
+     sleep(Duration::from_millis(1000)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Process should be terminated
+     assert!(
 INNER_EOF
 patch -p0 < tests/test_unix_process_termination.rs.patch

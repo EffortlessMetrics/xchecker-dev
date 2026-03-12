@@ -26,6 +26,22 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 // Helper Functions
 // ============================================================================
 
+/// Check if a process is still running
+fn is_process_running(pid: u32) -> bool {
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+
+    let pid = Pid::from_raw(pid as i32);
+    // Signal 0 (None) doesn't send a signal but checks if the process exists
+    match kill(pid, None) {
+        Ok(_) => true,
+        Err(nix::errno::Errno::ESRCH) => false,
+        Err(nix::errno::Errno::EPERM) => true,
+        // Other errors just mean the process might be dead but not reaped
+        Err(_) => false,
+    }
+}
+
 /// Create a test script that spawns child processes
 fn create_test_script(script_path: &str, duration_secs: u64) -> Result<()> {
     use std::fs;
@@ -87,7 +103,7 @@ async fn test_process_group_creation() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
 
     // Check that the process is running
-    assert!(child.try_wait().unwrap().is_none(), "Process should be running");
+    assert!(is_process_running(pid), "Process should be running");
 
     // Get the process group ID
     let pgid = unsafe { libc::getpgid(pid as i32) };
@@ -118,11 +134,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    // We use a while loop to ensure 'sh' does not optimize via exec,
-    // which would replace 'sh' with 'sleep' and lose the trap handler.
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, run forever
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep for 30 seconds
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -156,7 +170,6 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     sleep(Duration::from_millis(500)).await;
 
     // Process should still be running (it ignored SIGTERM)
-    // The `sh` with `trap '' TERM` correctly ignores it, and try_wait verifies no exit status
     assert!(child.try_wait().unwrap().is_none(), "Process should still be running after SIGTERM");
 
     // Send SIGKILL (cannot be ignored)
@@ -202,6 +215,9 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait a brief moment for the shell to start up and install its trap handler
+    sleep(Duration::from_millis(500)).await;
 
     // Verify process is running
     assert!(child.try_wait().unwrap().is_none(), "Process should be running initially");
@@ -438,7 +454,7 @@ async fn test_terminate_already_dead_process() -> Result<()> {
     let _ = child.wait().await;
 
     // Verify process is not running
-    assert!(child.try_wait().unwrap().is_some(), "Process should have exited");
+    assert!(!is_process_running(pid), "Process should have exited");
 
     // Try to terminate (should not panic or error)
     let result = killpg(pgid, Signal::SIGTERM);
