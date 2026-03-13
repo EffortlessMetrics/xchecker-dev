@@ -247,7 +247,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
 /// Test that killpg terminates all processes in the group
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent process group handling"]
+#[ignore = "flaky in CI - timing-dependent signal handling"]
 async fn test_process_group_termination() -> Result<()> {
     use tempfile::TempDir;
 
@@ -365,7 +365,7 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
 
 /// Test that timeout with grace period works correctly
 #[tokio::test]
-#[ignore = "flaky in CI - timing-dependent grace period handling"]
+#[ignore = "flaky in CI - timing-dependent signal handling"]
 async fn test_timeout_grace_period() -> Result<()> {
     use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
