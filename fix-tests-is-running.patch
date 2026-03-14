@@ -1,0 +1,25 @@
+--- a/tests/test_unix_process_termination.rs
++++ b/tests/test_unix_process_termination.rs
+@@ -19,10 +19,17 @@
+ /// Check if a process is still running
+ fn is_process_running(pid: u32) -> bool {
+-    use nix::sys::signal::kill;
+-    use nix::unistd::Pid;
+-
+-    let pid = Pid::from_raw(pid as i32);
+-    // Signal 0 (None) doesn't send a signal but checks if the process exists
+-    kill(pid, None).is_ok()
++    // Wait with waitpid with WNOHANG to accurately check and clean up zombie processes.
++    // Just using kill(0) leaves zombies around that report as still alive in some CI environments.
++    let mut status = 0;
++    let res = unsafe {
++        libc::waitpid(pid as i32, &mut status, libc::WNOHANG)
++    };
++
++    if res == pid as i32 {
++        return false; // Process actually terminated
++    } else if res == -1 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ECHILD) {
++        return false; // Process does not exist
++    }
++    true // Process still running or waitpid failed for another reason
+ }
