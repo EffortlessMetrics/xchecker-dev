@@ -685,6 +685,7 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
 
     let footer = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
+        .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
 }
