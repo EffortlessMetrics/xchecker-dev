@@ -1,0 +1,64 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -161,7 +161,7 @@
+
+     // Give the process a moment to start and register the signal handler
+     // Increase from 500ms to 1000ms for CI environments where process scheduling might be slower
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // 1. Send SIGTERM - the process should ignore it due to our trap
+     debug!("Sending SIGTERM to process {}", pid);
+@@ -173,7 +173,7 @@
+
+     // Give the process a moment to respond (or not)
+     // Increase from 500ms to 1000ms for CI environments
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // 2. Send SIGKILL - the process cannot ignore this and must die
+     debug!("Sending SIGKILL to process {}", pid);
+@@ -226,7 +226,7 @@
+
+     // Give the process a moment to start
+     // Increase from 500ms to 1000ms for CI environments
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Send SIGTERM
+     debug!("Sending SIGTERM to process {}", pid);
+@@ -280,7 +280,7 @@
+
+     // Give the processes a moment to start
+     // Increase from 500ms to 1000ms for CI environments
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Get process IDs
+     let pgid = child.id().expect("Failed to get process ID");
+@@ -295,7 +295,7 @@
+
+     // Give the processes a moment to terminate
+     // Increase from 500ms to 1000ms for CI environments
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Check that both processes are dead
+     let mut pids = sys.processes_by_name(std::ffi::OsStr::new("sleep"));
+@@ -326,6 +326,7 @@
+     // In CI environments, runner tests can fail because 'claude' doesn't exist
+     // We override the command path to use a standard binary that exists everywhere
+     runner.wsl_options.claude_path = Some("bash".to_string());
++    runner.wsl_options.native_claude_path = Some("bash".to_string());
+
+     // Create a command that spans a process group and sleeps for 30 seconds
+     // The entire process tree should be killed by the timeout
+@@ -414,7 +415,7 @@
+
+     // Wait for the grace period (5 seconds) + a little extra to ensure SIGKILL was sent
+     // Use 500ms extra for CI environments
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Now check that the process is definitely dead
+     // A None return from sys_kill(0) indicates the process doesn't exist
