@@ -125,7 +125,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep for 30 seconds
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -151,6 +151,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         is_process_running_via_child(&mut child),
         "Process should be running initially"
     );
+
+    // Wait a short time to allow the trap to register
+    sleep(Duration::from_millis(1000)).await;
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
