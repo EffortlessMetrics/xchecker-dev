@@ -1,0 +1,30 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -128,7 +128,7 @@
+     // Spawn a process that ignores SIGTERM (to test SIGKILL)
+     let mut cmd = CommandSpec::new("sh")
+         .arg("-c")
+-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
++        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep for 30 seconds
+         .to_tokio_command();
+     cmd.stdin(Stdio::null())
+         .stdout(Stdio::null())
+@@ -147,6 +147,9 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    // Rust-side delay to allow signal handler registration
++    sleep(Duration::from_millis(1000)).await;
++
+     // Verify process is running
+     assert!(
+         is_process_running_via_child(&mut child),
+@@ -157,7 +160,7 @@
+     killpg(pgid, Signal::SIGTERM)?;
+
+     // Wait a short time
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1000)).await;
+
+     // Process should still be running (it ignored SIGTERM)
+     assert!(

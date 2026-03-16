@@ -1,0 +1,110 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -27,11 +27,8 @@
+ // ============================================================================
+
+ /// Check if a process is still running
+-fn is_process_running(pid: u32) -> bool {
+-    use nix::sys::signal::kill;
+-    use nix::unistd::Pid;
+-
+-    let pid = Pid::from_raw(pid as i32);
+-    // Signal 0 (None) doesn't send a signal but checks if the process exists
+-    kill(pid, None).is_ok()
++fn is_process_running_via_child(child: &mut tokio::process::Child) -> bool {
++    // This correctly relies on try_wait() to avoid zombie process false positives,
++    // instead of kill(pid, 0) checks.
++    child.try_wait().unwrap().is_none()
+ }
+
+ /// Create a test script that spawns child processes
+@@ -153,7 +150,7 @@
+
+     // Verify process is running
+     assert!(
+-        is_process_running(pid),
++        is_process_running_via_child(&mut child),
+         "Process should be running initially"
+     );
+
+@@ -165,7 +162,7 @@
+
+     // Process should still be running (it ignored SIGTERM)
+     assert!(
+-        is_process_running(pid),
++        is_process_running_via_child(&mut child),
+         "Process should still be running after SIGTERM"
+     );
+
+@@ -177,7 +174,7 @@
+
+     // Process should now be terminated
+     assert!(
+-        !is_process_running(pid),
++        !is_process_running_via_child(&mut child),
+         "Process should be terminated after SIGKILL"
+     );
+
+@@ -218,7 +215,7 @@
+
+     // Verify process is running
+     assert!(
+-        is_process_running(pid),
++        is_process_running_via_child(&mut child),
+         "Process should be running initially"
+     );
+
+@@ -230,7 +227,7 @@
+
+     // Process should be terminated (sleep responds to SIGTERM)
+     assert!(
+-        !is_process_running(pid),
++        !is_process_running_via_child(&mut child),
+         "Process should be terminated after SIGTERM"
+     );
+
+@@ -284,7 +281,7 @@
+
+     // Verify process is running
+     assert!(
+-        is_process_running(parent_pid),
++        is_process_running_via_child(&mut parent_child),
+         "Parent process should be running initially"
+     );
+
+@@ -299,7 +296,7 @@
+
+     // Process should be terminated
+     assert!(
+-        !is_process_running(parent_pid),
++        !is_process_running_via_child(&mut parent_child),
+         "Parent process should be terminated"
+     );
+
+@@ -334,7 +331,8 @@
+     create_test_script(script_path.to_str().unwrap(), 60)?;
+
+     // Create a runner with a short timeout
+-    let runner = Runner::native();
++    let mut runner = Runner::native();
++    runner.wsl_options.claude_path = Some("bash".to_string());
+
+     // Execute with a very short timeout (1 second)
+     let timeout_duration = Some(Duration::from_secs(1));
+@@ -392,7 +390,7 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
+-    assert!(is_process_running(pid), "Process should be running");
++    assert!(is_process_running_via_child(&mut child), "Process should be running");
+
+     // Send SIGTERM
+     killpg(pgid, Signal::SIGTERM)?;
+@@ -418,7 +416,7 @@
+
+     // Process should now be terminated
+     assert!(
+-        !is_process_running(pid),
++        !is_process_running_via_child(&mut child),
+         "Process should be terminated after SIGKILL"
+     );
