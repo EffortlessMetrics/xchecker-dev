@@ -1,0 +1,4 @@
+## 2024-03-15 - [Prevent TOCTOU Memory Exhaustion in File Reading]
+**Vulnerability:** A Time-Of-Check to Time-Of-Use (TOCTOU) vulnerability where `fs::read_to_string` was called directly after checking `metadata().len()`. If the file was replaced or appended to between the check and read, an attacker could bypass the `max_file_size` limit and cause a Denial of Service (DoS) via memory exhaustion (OOM).
+**Learning:** Checking file size using metadata on a path (`fs::metadata(&path)`) and then separately opening the file to read its entirety leaves a window for an attacker to swap the file or increase its size.
+**Prevention:** Open the file descriptor first (`fs::File::open`), check the metadata on the open file, and strictly limit the bytes read using `std::io::Read::take(limit).read_to_string(&mut content)`. This ensures that even if the file grows, the application only reads up to the specified limit.

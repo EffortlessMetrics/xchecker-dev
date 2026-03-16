@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use xchecker_config::Selectors;
@@ -447,8 +448,12 @@ fn process_candidate_file(
     redactor: &SecretRedactor,
     cache: Option<&Arc<Mutex<InsightCache>>>,
 ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
+    // Open the file first to prevent TOCTOU vulnerability
+    let file = fs::File::open(&candidate.path)
+        .with_context(|| format!("Failed to open file: {}", candidate.path))?;
+
     // DoS protection: check file size before reading
-    let metadata = fs::metadata(&candidate.path)
+    let metadata = file.metadata()
         .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
     if !metadata.is_file() {
@@ -477,8 +482,9 @@ fn process_candidate_file(
     }
 
     // Read content
-    let content = fs::read_to_string(&candidate.path)
-        .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+    let mut content = String::new();
+    file.take(max_file_size).read_to_string(&mut content)
+        .with_context(|| format!("Failed to read file content: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading
     if redactor.has_secrets(&content, candidate.path.as_ref())? {
