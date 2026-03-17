@@ -1,0 +1,4 @@
+## 2024-03-17 - Prevent TOCTOU Memory Exhaustion in Packet Builder
+**Vulnerability:** The packet builder used `fs::read_to_string` to read files, which first allocates a string based on `metadata.len()` and then reads the content. This is vulnerable to Time-Of-Check to Time-Of-Use (TOCTOU) attacks where a file can grow concurrently between the metadata check and the read operation, leading to memory exhaustion DoS.
+**Learning:** `fs::read_to_string` is unsafe for reading untrusted files where size limits are critical. The `metadata()` check is insufficient if the file size changes before or during the read.
+**Prevention:** To prevent this, always open the file first with `fs::File::open`, check `file.metadata()`, allocate a string with `with_capacity`, and use `std::io::Read::take(limit).read_to_string(&mut content)` to enforce a hard limit on the read size. Add a post-read size check to handle cases where the file grew.
