@@ -447,8 +447,11 @@ fn process_candidate_file(
     redactor: &SecretRedactor,
     cache: Option<&Arc<Mutex<InsightCache>>>,
 ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
-    // DoS protection: check file size before reading
-    let metadata = fs::metadata(&candidate.path)
+    // DoS protection: open file first to avoid TOCTOU, then check size
+    let mut file = fs::File::open(&candidate.path)
+        .with_context(|| format!("Failed to open file: {}", candidate.path))?;
+
+    let metadata = file.metadata()
         .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
     if !metadata.is_file() {
@@ -476,8 +479,12 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
+    // Read content safely with a limit to prevent memory exhaustion
+    use std::io::Read;
+    let mut content = String::with_capacity(metadata.len() as usize);
+    (&mut file)
+        .take(max_file_size)
+        .read_to_string(&mut content)
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading
