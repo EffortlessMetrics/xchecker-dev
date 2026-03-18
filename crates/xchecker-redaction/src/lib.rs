@@ -561,15 +561,21 @@ impl SecretRedactor {
             return text.to_string();
         }
 
-        let mut redacted = text.to_string();
+        // ⚡ Bolt: Use Cow (Clone-on-Write) to defer memory allocation until a string
+        // actually needs to be replaced. If `replace_all` returns `Cow::Borrowed`, no
+        // allocation occurs, saving heap allocations when matches don't alter the string.
+        let mut redacted: std::borrow::Cow<str> = std::borrow::Cow::Borrowed(text);
 
         for index in matches.iter() {
             if let Some((_, regex)) = self.patterns_linear.get(index) {
-                redacted = regex.replace_all(&redacted, "***").to_string();
+                redacted = match regex.replace_all(&redacted, "***") {
+                    std::borrow::Cow::Owned(s) => std::borrow::Cow::Owned(s),
+                    std::borrow::Cow::Borrowed(_) => redacted,
+                };
             }
         }
 
-        redacted
+        redacted.into_owned()
     }
 
     /// Redact secrets from a vector of strings
