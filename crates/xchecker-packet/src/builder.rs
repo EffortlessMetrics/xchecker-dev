@@ -448,7 +448,22 @@ fn process_candidate_file(
     cache: Option<&Arc<Mutex<InsightCache>>>,
 ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
     // DoS protection: check file size before reading
-    let metadata = fs::metadata(&candidate.path)
+    // Open file first to prevent TOCTOU vulnerability
+    let file = match fs::File::open(&candidate.path) {
+        Ok(f) => f,
+        Err(e) => {
+            // Check metadata if opening fails to see if it's a directory
+            #[allow(clippy::collapsible_if)]
+            if let Ok(meta) = fs::metadata(&candidate.path) {
+                if meta.is_dir() {
+                    return Ok(None); // Skip directories gracefully
+                }
+            }
+            return Err(e).with_context(|| format!("Failed to open file: {}", candidate.path));
+        }
+    };
+
+    let metadata = file.metadata()
         .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
     if !metadata.is_file() {
@@ -476,8 +491,11 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
+    // Read content with a hard limit to prevent memory exhaustion DoS
+    let mut content = String::new();
+    use std::io::Read;
+    file.take(max_file_size)
+        .read_to_string(&mut content)
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading
