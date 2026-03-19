@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
 use regex::Regex;
 
@@ -134,15 +135,16 @@ impl FixupParser {
     /// Returns the content after the first marker if found.
     #[must_use]
     pub fn detect_fixup_markers(&self, content: &str) -> Option<String> {
-        // Look for "FIXUP PLAN:" or "needs fixups" markers
-        let fixup_plan_regex = Regex::new(r"(?i)FIXUP PLAN:").unwrap();
-        let needs_fixups_regex = Regex::new(r"(?i)needs fixups").unwrap();
+        static FIXUP_PLAN_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?i)FIXUP PLAN:").unwrap());
+        static NEEDS_FIXUPS_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?i)needs fixups").unwrap());
 
-        if let Some(mat) = fixup_plan_regex.find(content) {
+        if let Some(mat) = FIXUP_PLAN_REGEX.find(content) {
             return Some(content[mat.end()..].to_string());
         }
 
-        if let Some(mat) = needs_fixups_regex.find(content) {
+        if let Some(mat) = NEEDS_FIXUPS_REGEX.find(content) {
             return Some(content[mat.end()..].to_string());
         }
 
@@ -168,11 +170,10 @@ impl FixupParser {
     fn extract_diff_blocks(&self, content: &str) -> Result<Vec<UnifiedDiff>, FixupError> {
         let mut diffs = Vec::new();
 
-        // Regex to match fenced diff blocks: ```diff ... ```
-        // Use (?s) flag to make . match newlines
-        let diff_block_regex = Regex::new(r"(?s)```diff\n(.*?)\n```").unwrap();
+        static DIFF_BLOCK_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?s)```diff\n(.*?)\n```").unwrap());
 
-        for (block_index, captures) in diff_block_regex.captures_iter(content).enumerate() {
+        for (block_index, captures) in DIFF_BLOCK_REGEX.captures_iter(content).enumerate() {
             let diff_content = captures
                 .get(1)
                 .ok_or_else(|| FixupError::InvalidDiffFormat {
@@ -254,12 +255,12 @@ impl FixupParser {
         let mut current_hunk_lines: Vec<String> = Vec::new();
         let mut current_hunk_header: Option<((usize, usize), (usize, usize))> = None;
 
-        // Regex to match hunk headers: @@ -old_start,old_count +new_start,new_count @@
-        // Note: Optional count groups must come after their respective start numbers
-        let hunk_header_regex = Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap();
+        static HUNK_HEADER_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap()
+        });
 
         for line in lines {
-            if let Some(captures) = hunk_header_regex.captures(line) {
+            if let Some(captures) = HUNK_HEADER_REGEX.captures(line) {
                 // Save previous hunk if exists
                 if let Some((old_range, new_range)) = current_hunk_header {
                     hunks.push(DiffHunk {
