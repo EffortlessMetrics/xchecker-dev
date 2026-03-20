@@ -447,8 +447,25 @@ fn process_candidate_file(
     redactor: &SecretRedactor,
     cache: Option<&Arc<Mutex<InsightCache>>>,
 ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
+    use std::io::Read;
+
+    // Fix TOCTOU vulnerability: Open file first, then check metadata
+    let file = match fs::File::open(&candidate.path) {
+        Ok(f) => f,
+        Err(e) => {
+            // Check if it's a directory
+            #[allow(clippy::collapsible_if)]
+            if let Ok(metadata) = fs::metadata(&candidate.path) {
+                if metadata.is_dir() {
+                    return Ok(None);
+                }
+            }
+            return Err(anyhow::anyhow!("Failed to open file {}: {}", candidate.path, e));
+        }
+    };
+
     // DoS protection: check file size before reading
-    let metadata = fs::metadata(&candidate.path)
+    let metadata = file.metadata()
         .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
     if !metadata.is_file() {
@@ -476,9 +493,31 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
+    // Read content with a hard limit to prevent memory exhaustion
+    let mut content = String::with_capacity(metadata.len() as usize);
+    file.take(max_file_size + 1)
+        .read_to_string(&mut content)
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+    // Post-read size check to catch if file grew during read
+    if content.len() as u64 > max_file_size {
+        if candidate.priority == Priority::Upstream {
+            return Err(anyhow::anyhow!(
+                "Upstream file {} exceeds size limit of {} bytes (read: {}). \
+                 Critical context files must fit within the configured limit.",
+                candidate.path,
+                max_file_size,
+                content.len()
+            ));
+        }
+        tracing::warn!(
+            "Skipping file that grew during read: {} (read {} bytes > limit {})",
+            candidate.path,
+            content.len(),
+            max_file_size
+        );
+        return Ok(None);
+    }
 
     // Scan for secrets immediately after reading
     if redactor.has_secrets(&content, candidate.path.as_ref())? {
