@@ -5,6 +5,7 @@ use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
 use std::fs;
+use std::io::Read;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use xchecker_config::Selectors;
@@ -447,8 +448,22 @@ fn process_candidate_file(
     redactor: &SecretRedactor,
     cache: Option<&Arc<Mutex<InsightCache>>>,
 ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
-    // DoS protection: check file size before reading
-    let metadata = fs::metadata(&candidate.path)
+    // Secure file reading: open file first to prevent TOCTOU and DoS
+    let mut file = match fs::File::open(&candidate.path) {
+        Ok(f) => f,
+        Err(e) => {
+            // Gracefully handle if it's a directory or missing
+            #[allow(clippy::collapsible_if)]
+            if let Ok(metadata) = fs::metadata(&candidate.path) {
+                if metadata.is_dir() {
+                    return Ok(None);
+                }
+            }
+            return Err(anyhow::anyhow!("Failed to open file: {}: {}", candidate.path, e));
+        }
+    };
+
+    let metadata = file.metadata()
         .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
     if !metadata.is_file() {
@@ -476,8 +491,10 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
+    // Read content securely up to the limit
+    let mut content = String::new();
+    std::io::Read::take(&mut file, max_file_size)
+        .read_to_string(&mut content)
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
 
     // Scan for secrets immediately after reading

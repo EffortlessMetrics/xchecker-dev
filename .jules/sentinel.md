@@ -1,0 +1,4 @@
+## 2024-05-24 - [Fix TOCTOU vulnerability in packet builder]
+**Vulnerability:** A Time-Of-Check to Time-Of-Use (TOCTOU) vulnerability existed when reading files into the packet builder. `fs::metadata` was used to check file size before reading, but an attacker could replace the file with a much larger one or a malicious symlink right before `fs::read_to_string` was executed, causing memory exhaustion and a Denial of Service.
+**Learning:** This specific vulnerability pattern exists because checking properties of a path, and then reading from that path, creates a race condition on the file system.
+**Prevention:** To avoid this in the future, always open the file first using `fs::File::open` to obtain a file handle, then check the size using `file.metadata()`, and then securely read from that same handle up to the limit using `std::io::Read::take(limit).read_to_string()`.
