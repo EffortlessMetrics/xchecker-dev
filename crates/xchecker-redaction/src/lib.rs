@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result};
 use regex::{Regex, RegexSet};
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -561,15 +562,19 @@ impl SecretRedactor {
             return text.to_string();
         }
 
-        let mut redacted = text.to_string();
+        // Optimization: Use Cow to minimize allocations when replacing multiple patterns
+        let mut redacted = Cow::Borrowed(text);
 
         for index in matches.iter() {
             if let Some((_, regex)) = self.patterns_linear.get(index) {
-                redacted = regex.replace_all(&redacted, "***").to_string();
+                let next_redacted = regex.replace_all(&redacted, "***");
+                if let Cow::Owned(s) = next_redacted {
+                    redacted = Cow::Owned(s);
+                }
             }
         }
 
-        redacted
+        redacted.into_owned()
     }
 
     /// Redact secrets from a vector of strings
