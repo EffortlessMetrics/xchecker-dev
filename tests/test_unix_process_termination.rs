@@ -36,6 +36,15 @@ fn is_process_running(pid: u32) -> bool {
     kill(pid, None).is_ok()
 }
 
+/// Check if a process is still running using its child handle
+fn is_process_running_via_child(child: &mut tokio::process::Child) -> bool {
+    // try_wait() returns:
+    // Ok(Some(status)) if process exited
+    // Ok(None) if process is still running
+    // Err(e) if an error occurred
+    child.try_wait().unwrap().is_none()
+}
+
 /// Create a test script that spawns child processes
 fn create_test_script(script_path: &str, duration_secs: u64) -> Result<()> {
     use std::fs;
@@ -177,7 +186,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
 
     // Process should now be terminated
     assert!(
-        !is_process_running(pid),
+        !is_process_running_via_child(&mut child),
         "Process should be terminated after SIGKILL"
     );
 
@@ -230,7 +239,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
-        !is_process_running(pid),
+        !is_process_running_via_child(&mut child),
         "Process should be terminated after SIGTERM"
     );
 
@@ -284,7 +293,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is running
     assert!(
-        is_process_running(parent_pid),
+        is_process_running_via_child(&mut child),
         "Parent process should be running"
     );
 
@@ -299,7 +308,7 @@ async fn test_process_group_termination() -> Result<()> {
 
     // Verify parent is terminated
     assert!(
-        !is_process_running(parent_pid),
+        !is_process_running_via_child(&mut child),
         "Parent process should be terminated"
     );
 
@@ -327,7 +336,8 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -418,7 +428,7 @@ async fn test_timeout_grace_period() -> Result<()> {
 
     // Process should be terminated
     assert!(
-        !is_process_running(pid),
+        !is_process_running_via_child(&mut child),
         "Process should be terminated after SIGKILL"
     );
 
