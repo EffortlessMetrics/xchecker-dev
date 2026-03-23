@@ -145,3 +145,7 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+## 2026-03-23 - TOCTOU and Unbounded Memory Consumption in File Reading
+**Vulnerability:** The `process_candidate_file` function in `ContentSelector` used `fs::metadata(path)` followed by `fs::read_to_string(path)`, which introduces a Time-Of-Check to Time-Of-Use (TOCTOU) race condition. If a file grew between the metadata check and the read operation, it could lead to unbounded memory consumption (DoS).
+**Learning:** To safely read files with a size limit, open the file first with `fs::File::open`, check its size using the file handle's metadata (`file.metadata().len()`), and use `std::io::Read::take` to strictly bound the read operation. This prevents memory exhaustion even if the file is modified concurrently.
+**Prevention:** Always acquire a file handle first before checking metadata for size limits. Use bounded reads (e.g., `take()`) when reading user-controlled or potentially mutating files into memory.

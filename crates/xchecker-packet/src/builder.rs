@@ -4,7 +4,6 @@ use crate::{BudgetUsage, Packet};
 use anyhow::{Context, Result};
 use blake3::Hasher;
 use camino::{Utf8Path, Utf8PathBuf};
-use std::fs;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use xchecker_config::Selectors;
@@ -448,7 +447,12 @@ fn process_candidate_file(
     cache: Option<&Arc<Mutex<InsightCache>>>,
 ) -> Result<Option<(SelectedFile, String, usize, usize)>> {
     // DoS protection: check file size before reading
-    let metadata = fs::metadata(&candidate.path)
+    // Optimization: Open file once to avoid redundant path resolution and TOCTOU
+    let mut file = std::fs::File::open(&candidate.path)
+        .with_context(|| format!("Failed to open file: {}", candidate.path))?;
+
+    // Note: file.metadata() follows symlinks if opened via fs::File::open
+    let metadata = file.metadata()
         .with_context(|| format!("Failed to get file metadata: {}", candidate.path))?;
 
     if !metadata.is_file() {
@@ -476,9 +480,37 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
-        .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+    // Pre-allocate buffer to avoid reallocations
+    let mut content = String::with_capacity(metadata.len() as usize);
+
+    // Security: Use take() to enforce hard limit on read size
+    // This prevents DoS if the file grows concurrently (TOCTOU race)
+    std::io::Read::read_to_string(
+        &mut std::io::Read::take(&mut file, max_file_size + 1),
+        &mut content,
+    )
+    .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+    // Post-read size check: handles case where file grew during read
+    if content.len() as u64 > max_file_size {
+        if candidate.priority == Priority::Upstream {
+            return Err(anyhow::anyhow!(
+                "Upstream file {} exceeds size limit of {} bytes (read: {}). \
+                 Critical context files must fit within the configured limit.",
+                candidate.path,
+                max_file_size,
+                content.len()
+            ));
+        }
+
+        tracing::warn!(
+            "Skipping large file: {} ({} bytes > limit {}) - file grew during read",
+            candidate.path,
+            content.len(),
+            max_file_size
+        );
+        return Ok(None);
+    }
 
     // Scan for secrets immediately after reading
     if redactor.has_secrets(&content, candidate.path.as_ref())? {
