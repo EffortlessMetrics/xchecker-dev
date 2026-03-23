@@ -1,0 +1,3 @@
+## 2024-05-24 - Visual Hierarchy in TUI Empty States and Footers
+**Learning:** Secondary TUI empty states (like details panels) and help footers benefit from center alignment and `Color::DarkGray` to visually distinguish them from actionable content and establish a clear hierarchy.
+**Action:** Use `Alignment::Center` and `Color::DarkGray` for secondary empty states and footers across the TUI application.
