@@ -72,33 +72,57 @@ impl SourceResolver {
 
     /// Resolve a filesystem source
     pub fn resolve_filesystem(path: &PathBuf) -> Result<SourceContent, SourceError> {
-        if !path.exists() {
-            return Err(SourceError::FileSystemNotFound {
-                path: path.display().to_string(),
-            });
-        }
+        let not_found_err = || SourceError::FileSystemNotFound {
+            path: path.display().to_string(),
+        };
 
-        let content = if path.is_file() {
-            std::fs::read_to_string(path).map_err(|_| SourceError::FileSystemNotFound {
-                path: path.display().to_string(),
-            })?
-        } else if path.is_dir() {
-            format!(
-                "Directory source: {}\n\nThis would contain a summary of the directory contents and relevant files.",
-                path.display()
-            )
-        } else {
-            return Err(SourceError::FileSystemNotFound {
-                path: path.display().to_string(),
-            });
+        let file_result = std::fs::File::open(path);
+
+        let mut metadata_type_str = "file";
+        let content = match file_result {
+            Ok(mut file) => {
+                let metadata = file.metadata().map_err(|_| not_found_err())?;
+                if metadata.is_file() {
+                    if metadata.len() > 10 * 1024 * 1024 {
+                        return Err(SourceError::FileSystemNotFound {
+                            path: format!("{} (File too large, max 10MB)", path.display()),
+                        });
+                    }
+
+                    let mut content = String::new();
+                    use std::io::Read;
+                    (&mut file).take(10 * 1024 * 1024).read_to_string(&mut content)
+                        .map_err(|_| not_found_err())?;
+                    content
+                } else if metadata.is_dir() {
+                    metadata_type_str = "directory";
+                    format!(
+                        "Directory source: {}\n\nThis would contain a summary of the directory contents and relevant files.",
+                        path.display()
+                    )
+                } else {
+                    return Err(not_found_err());
+                }
+            }
+            Err(_) => {
+                // To avoid TOCTOU, we handle errors from open directly
+                // If opening failed because it's a directory, metadata check will tell us
+                let metadata = std::fs::metadata(path).map_err(|_| not_found_err())?;
+                if metadata.is_dir() {
+                    metadata_type_str = "directory";
+                    format!(
+                        "Directory source: {}\n\nThis would contain a summary of the directory contents and relevant files.",
+                        path.display()
+                    )
+                } else {
+                    return Err(not_found_err());
+                }
+            }
         };
 
         let mut metadata = std::collections::HashMap::new();
         metadata.insert("path".to_string(), path.display().to_string());
-        metadata.insert(
-            "type".to_string(),
-            if path.is_file() { "file" } else { "directory" }.to_string(),
-        );
+        metadata.insert("type".to_string(), metadata_type_str.to_string());
 
         Ok(SourceContent {
             source_type: SourceType::FileSystem { path: path.clone() },
