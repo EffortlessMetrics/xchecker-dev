@@ -1,0 +1,3 @@
+## 2024-05-14 - Visual Hierarchy in TUI Empty States
+**Learning:** Secondary or empty states in TUIs (like "No spec selected" in the details pane) can bleed visually into actionable components if not explicitly styled. Using center alignment and subdued colors (`DarkGray`) for secondary empty states establishes a clear visual hierarchy that helps users quickly differentiate non-actionable areas from actionable lists.
+**Action:** When designing or refactoring TUI empty states or static help footers, ensure they are center-aligned and styled with a distinct, subdued color (e.g., `Color::DarkGray`) to separate them from the primary content flow.
