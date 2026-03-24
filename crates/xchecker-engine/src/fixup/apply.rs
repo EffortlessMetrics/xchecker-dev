@@ -174,19 +174,34 @@ impl FixupParser {
 
         let mut file_warnings = Vec::new();
 
+        // Open file first to prevent TOCTOU vulnerabilities when checking metadata
+        let mut file = fs::File::open(target_path).map_err(|e| FixupError::TempCopyFailed {
+            file: diff.target_file.clone(),
+            reason: format!("Failed to open original file: {e}"),
+        })?;
+
+        // Get original file permissions/attributes before modification from the open handle
+        let original_metadata = file.metadata().map_err(|e| FixupError::TempCopyFailed {
+            file: diff.target_file.clone(),
+            reason: format!("Failed to get file metadata: {e}"),
+        })?;
+
         // Read original content with CRLF tolerance (FR-FS-005)
         // Line endings will be normalized during diff application
-        let original_content =
-            fs::read_to_string(target_path).map_err(|e| FixupError::TempCopyFailed {
+        // Protect against memory exhaustion DoS using a reasonable bounded limit (10MB)
+        if original_metadata.len() > 10 * 1024 * 1024 {
+            return Err(FixupError::TempCopyFailed {
+                file: diff.target_file.clone(),
+                reason: format!("File too large ({} bytes). Maximum allowed size is 10MB.", original_metadata.len()),
+            });
+        }
+
+        let mut original_content = String::new();
+        use std::io::Read;
+        (&mut file).take(10 * 1024 * 1024).read_to_string(&mut original_content)
+            .map_err(|e| FixupError::TempCopyFailed {
                 file: diff.target_file.clone(),
                 reason: format!("Failed to read original file: {e}"),
-            })?;
-
-        // Get original file permissions/attributes before modification
-        let original_metadata =
-            fs::metadata(target_path).map_err(|e| FixupError::TempCopyFailed {
-                file: diff.target_file.clone(),
-                reason: format!("Failed to get file metadata: {e}"),
             })?;
 
         #[cfg(unix)]
