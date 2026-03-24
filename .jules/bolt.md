@@ -1,7 +1,3 @@
 ## 2024-05-23 - RegexSet Pre-filtering for Secret Detection
 **Learning:** Iterating through 40+ complex regex patterns for secret detection on every file is a significant CPU bottleneck. The `regex::RegexSet` type allows compiling multiple patterns into a single automaton that can check for *any* match in a single pass (roughly equivalent to `pattern1|pattern2|...`).
 **Action:** When performing multi-pattern matching where the negative case (no match) is common, always use `RegexSet` to pre-filter content before running individual regexes for extraction/replacement. This reduced redaction overhead significantly.
-
-## 2026-03-23 - Statically Cached Function-Scoped Regex Compilation
-**Learning:** Recompiling regular expressions repeatedly inside tight loops or frequently invoked functions generates a heavy performance overhead. This is evident when calling `Regex::new(...).unwrap()` within functions like `summarize_requirements` or `detect_fixup_markers` each time they're called.
-**Action:** When a function repeatedly matches static string patterns, declare and assign the `Regex::new(...).unwrap()` graph within a `static LazyLock<Regex>` variable. If the pattern is purely internal to the function's logic, define the `LazyLock` inside the function body rather than cluttering the global module scope. This guarantees the regex is only compiled once, caching it statically across all invocations for the program's lifetime.
