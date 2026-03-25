@@ -51,6 +51,9 @@ impl ReceiptManager {
 
         for entry in fs::read_dir(&self.receipts_path)? {
             let entry = entry?;
+            if entry.file_type()?.is_symlink() {
+                continue;
+            }
             if let Some(filename) = entry.file_name().to_str()
                 && filename.starts_with(&format!("{phase_str}-"))
                 && filename.ends_with(".json")
@@ -87,6 +90,9 @@ impl ReceiptManager {
 
         for entry in fs::read_dir(&self.receipts_path)? {
             let entry = entry?;
+            if entry.file_type()?.is_symlink() {
+                continue;
+            }
             if let Some(filename) = entry.file_name().to_str()
                 && filename.ends_with(".json")
             {

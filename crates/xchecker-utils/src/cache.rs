@@ -578,6 +578,9 @@ impl InsightCache {
         if self.cache_dir.exists() {
             for entry in fs::read_dir(&self.cache_dir)? {
                 let entry = entry?;
+                if entry.file_type()?.is_symlink() {
+                    continue;
+                }
                 if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
                     fs::remove_file(entry.path())?;
                 }

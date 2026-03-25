@@ -590,6 +590,9 @@ impl ArtifactManager {
 
         for entry in fs::read_dir(&artifacts_dir)? {
             let entry = entry?;
+            if entry.file_type()?.is_symlink() {
+                continue;
+            }
             if entry.file_type()?.is_file()
                 && let Some(name) = entry.file_name().to_str()
             {
