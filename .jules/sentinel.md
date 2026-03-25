@@ -1,0 +1,4 @@
+## 2025-03-01 - Fix Symlink Traversal in File Walking
+**Vulnerability:** Symlink traversal was found where recursive/iterative file walking through `fs::read_dir` did not filter out symbolic links, allowing paths inside a sandbox to point to arbitrary files outside.
+**Learning:** `std::fs::read_dir` loops iterate over entries but do not automatically skip symlinks. Standard `.is_dir()` and `.is_file()` checks will transparently follow these links, causing security boundaries to be bypassed if `entry.file_type()?.is_symlink()` is not explicitly checked.
+**Prevention:** Whenever using `fs::read_dir` in security-sensitive or sandboxed contexts, explicitly filter out symlinks using `if entry.file_type()?.is_symlink() { continue; }` unless resolving them is intended and strictly validated.

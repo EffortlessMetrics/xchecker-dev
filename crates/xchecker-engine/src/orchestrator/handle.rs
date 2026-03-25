@@ -577,6 +577,7 @@ impl OrchestratorHandle {
                     let phase_prefix = format!("{}-", phase.as_str());
                     let mut receipt_files: Vec<_> = entries
                         .filter_map(|e| e.ok())
+                        .filter(|e| !e.file_type().is_ok_and(|ft| ft.is_symlink()))
                         .filter(|e| e.file_name().to_string_lossy().starts_with(&phase_prefix))
                         .collect();
 
