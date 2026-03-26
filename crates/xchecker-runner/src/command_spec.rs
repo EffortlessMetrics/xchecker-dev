@@ -249,6 +249,7 @@ impl CommandSpec {
     pub fn to_tokio_command(&self) -> TokioCommand {
         let mut cmd = TokioCommand::new(&self.program);
         cmd.args(&self.args);
+        cmd.kill_on_drop(true);
 
         if let Some(ref cwd) = self.cwd {
             cmd.current_dir(cwd);
