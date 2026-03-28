@@ -158,6 +158,9 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Wait a short time for process to spawn and set up traps
+    sleep(Duration::from_millis(1000)).await;
+
     // Verify process is running
     assert!(
         is_process_running_via_child(&mut child),
