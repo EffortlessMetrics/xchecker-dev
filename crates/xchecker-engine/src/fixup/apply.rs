@@ -174,19 +174,51 @@ impl FixupParser {
 
         let mut file_warnings = Vec::new();
 
-        // Read original content with CRLF tolerance (FR-FS-005)
-        // Line endings will be normalized during diff application
-        let original_content =
-            fs::read_to_string(target_path).map_err(|e| FixupError::TempCopyFailed {
-                file: diff.target_file.clone(),
-                reason: format!("Failed to read original file: {e}"),
-            })?;
+        // Open original file once to avoid TOCTOU race conditions
+        let mut file = match fs::File::open(target_path) {
+            Ok(f) => f,
+            Err(e) => {
+                #[allow(clippy::collapsible_if)]
+                if let Ok(meta) = fs::metadata(target_path) {
+                    if meta.is_dir() {
+                        return Err(FixupError::TempCopyFailed {
+                            file: diff.target_file.clone(),
+                            reason: "Target is a directory, not a file".to_string(),
+                        });
+                    }
+                }
+                return Err(FixupError::TempCopyFailed {
+                    file: diff.target_file.clone(),
+                    reason: format!("Failed to open original file: {e}"),
+                });
+            }
+        };
 
         // Get original file permissions/attributes before modification
-        let original_metadata =
-            fs::metadata(target_path).map_err(|e| FixupError::TempCopyFailed {
+        let original_metadata = file.metadata().map_err(|e| FixupError::TempCopyFailed {
+            file: diff.target_file.clone(),
+            reason: format!("Failed to get file metadata: {e}"),
+        })?;
+
+        // Prevent DoS memory exhaustion by limiting the maximum read size (FR-SEC-03)
+        let max_size = 10 * 1024 * 1024; // 10MB limit
+        if original_metadata.len() > max_size {
+            return Err(FixupError::TempCopyFailed {
                 file: diff.target_file.clone(),
-                reason: format!("Failed to get file metadata: {e}"),
+                reason: "File too large (exceeds 10MB limit)".to_string(),
+            });
+        }
+
+        // Read original content with CRLF tolerance (FR-FS-005)
+        // Line endings will be normalized during diff application
+        let mut original_content = String::with_capacity(original_metadata.len() as usize);
+        use std::io::Read;
+        (&mut file)
+            .take(max_size)
+            .read_to_string(&mut original_content)
+            .map_err(|e| FixupError::TempCopyFailed {
+                file: diff.target_file.clone(),
+                reason: format!("Failed to read original file: {e}"),
             })?;
 
         #[cfg(unix)]
