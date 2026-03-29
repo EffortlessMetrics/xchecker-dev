@@ -1,0 +1,3 @@
+## 2024-05-15 - [Explicit keyboard shortcuts discoverability]
+**Learning:** Explicitly documenting non-obvious keyboard shortcuts (like Home/End) directly in the UI footer significantly improves user discoverability and perceived accessibility, especially for users relying heavily on keyboard navigation. Center alignment for such footer elements establishes a clearer visual hierarchy in the TUI context.
+**Action:** When reviewing TUI components, always verify that all functional keyboard shortcuts are explicitly visible on the screen, rather than assuming users will try standard keybindings. Ensure help footers are center-aligned for better visual distinction from content areas.
