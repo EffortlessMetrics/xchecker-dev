@@ -163,8 +163,14 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
+    SecretPatternDef {
+        id: "openrouter_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"sk-or-v1-[a-f0-9]{64}",
+        description: "OpenRouter API keys",
+    },
     SecretPatternDef {
         id: "anthropic_api_key",
         category: "LLM Provider Tokens",
@@ -262,8 +268,26 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "OpenSSH format markers",
     },
     // =========================================================================
-    // Platform-Specific Tokens (13 patterns)
+    // Platform-Specific Tokens (16 patterns)
     // =========================================================================
+    SecretPatternDef {
+        id: "discord_token",
+        category: "Platform-Specific Tokens",
+        regex: r"[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{27,}",
+        description: "Discord bot tokens",
+    },
+    SecretPatternDef {
+        id: "square_access_token",
+        category: "Platform-Specific Tokens",
+        regex: r"sq0atp-[A-Za-z0-9\-_]{22}",
+        description: "Square access tokens",
+    },
+    SecretPatternDef {
+        id: "slack_webhook",
+        category: "Platform-Specific Tokens",
+        regex: r"https://hooks\.slack\.com/services/T[A-Za-z0-9_]{8,10}/B[A-Za-z0-9_]{8,10}/[A-Za-z0-9_]{24}",
+        description: "Slack webhooks",
+    },
     SecretPatternDef {
         id: "hashicorp_vault_token",
         category: "Platform-Specific Tokens",
@@ -1495,5 +1519,9 @@ mod tests {
         assert!(pattern_ids.contains(&"pypi_token".to_string()));
         assert!(pattern_ids.contains(&"nuget_key".to_string()));
         assert!(pattern_ids.contains(&"docker_auth".to_string()));
+        assert!(pattern_ids.contains(&"openrouter_api_key".to_string()));
+        assert!(pattern_ids.contains(&"discord_token".to_string()));
+        assert!(pattern_ids.contains(&"square_access_token".to_string()));
+        assert!(pattern_ids.contains(&"slack_webhook".to_string()));
     }
 }
