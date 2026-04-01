@@ -174,20 +174,56 @@ impl FixupParser {
 
         let mut file_warnings = Vec::new();
 
-        // Read original content with CRLF tolerance (FR-FS-005)
-        // Line endings will be normalized during diff application
-        let original_content =
-            fs::read_to_string(target_path).map_err(|e| FixupError::TempCopyFailed {
+        // Read original content securely, preventing TOCTOU and DoS attacks
+        let file = std::fs::File::open(target_path).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::IsADirectory
+                || std::fs::metadata(target_path).map(|m| m.is_dir()).unwrap_or(false)
+            {
+                FixupError::TempCopyFailed {
+                    file: diff.target_file.clone(),
+                    reason: "Target path is a directory".to_string(),
+                }
+            } else {
+                FixupError::TempCopyFailed {
+                    file: diff.target_file.clone(),
+                    reason: format!("Failed to open original file: {e}"),
+                }
+            }
+        })?;
+
+        // Get original file permissions/attributes before modification
+        let original_metadata = file.metadata().map_err(|e| FixupError::TempCopyFailed {
+            file: diff.target_file.clone(),
+            reason: format!("Failed to get file metadata: {e}"),
+        })?;
+
+        // Prevent DoS via memory exhaustion (10MB limit)
+        const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+        if original_metadata.len() > MAX_FILE_SIZE {
+            return Err(FixupError::TempCopyFailed {
+                file: diff.target_file.clone(),
+                reason: format!(
+                    "File size exceeds 10MB limit (size: {})",
+                    original_metadata.len()
+                ),
+            });
+        }
+
+        let mut original_content = String::with_capacity(original_metadata.len() as usize);
+        use std::io::Read;
+        file.take(MAX_FILE_SIZE + 1)
+            .read_to_string(&mut original_content)
+            .map_err(|e| FixupError::TempCopyFailed {
                 file: diff.target_file.clone(),
                 reason: format!("Failed to read original file: {e}"),
             })?;
 
-        // Get original file permissions/attributes before modification
-        let original_metadata =
-            fs::metadata(target_path).map_err(|e| FixupError::TempCopyFailed {
+        if original_content.len() as u64 > MAX_FILE_SIZE {
+            return Err(FixupError::TempCopyFailed {
                 file: diff.target_file.clone(),
-                reason: format!("Failed to get file metadata: {e}"),
-            })?;
+                reason: "File grew during read, exceeding 10MB limit".to_string(),
+            });
+        }
 
         #[cfg(unix)]
         let original_permissions = {
