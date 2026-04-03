@@ -549,7 +549,7 @@ impl InsightCache {
 
     /// Load cached insight from disk
     fn load_cached_insight(&self, cache_file: &Utf8Path) -> Result<CachedInsight> {
-        let content = fs::read_to_string(cache_file)
+        let content = crate::secure_read::secure_read_to_string(cache_file)
             .with_context(|| format!("Failed to read cache file: {cache_file}"))?;
 
         let cached: CachedInsight = serde_json::from_str(&content)
