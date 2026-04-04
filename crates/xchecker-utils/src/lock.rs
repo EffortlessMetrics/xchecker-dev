@@ -123,7 +123,7 @@ impl XCheckerLock {
             return Ok(None);
         }
 
-        let content = fs::read_to_string(&lock_path)?;
+        let content = crate::secure_read::secure_read_to_string(&lock_path)?;
         let lock: Self = serde_json::from_str(&content)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
@@ -424,7 +424,7 @@ impl FileLock {
         }
 
         let lock_content =
-            fs::read_to_string(&lock_path).map_err(|e| LockError::CorruptedLock {
+            crate::secure_read::secure_read_to_string(&lock_path).map_err(|e| LockError::CorruptedLock {
                 reason: format!("Failed to read lock file: {e}"),
             })?;
 
@@ -486,7 +486,7 @@ impl FileLock {
         const READ_RETRY_DELAY_MS: u64 = 10;
 
         for attempt in 0..MAX_READ_RETRIES {
-            let lock_content = match fs::read_to_string(lock_path) {
+            let lock_content = match crate::secure_read::secure_read_to_string(lock_path) {
                 Ok(content) => content,
                 Err(e) if e.kind() == io::ErrorKind::NotFound => {
                     // Lock was removed between create_new(AlreadyExists) and read.
@@ -1267,7 +1267,7 @@ mod tests {
 
         // Read raw JSON and verify format
         let lock_path = XCheckerLock::get_lock_path(spec_id);
-        let json_content = fs::read_to_string(&lock_path).unwrap();
+        let json_content = crate::secure_read::secure_read_to_string(&lock_path).unwrap();
 
         // Should be valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&json_content).unwrap();

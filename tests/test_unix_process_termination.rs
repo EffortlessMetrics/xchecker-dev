@@ -31,9 +31,18 @@ fn is_process_running(pid: u32) -> bool {
     use nix::sys::signal::kill;
     use nix::unistd::Pid;
 
-    let pid = Pid::from_raw(pid as i32);
+    let pid_raw = Pid::from_raw(pid as i32);
     // Signal 0 (None) doesn't send a signal but checks if the process exists
-    kill(pid, None).is_ok()
+    if kill(pid_raw, None).is_ok() {
+        // If it exists, check if it's a zombie (Z) or dead (X) via /proc
+        if let Ok(stat) = std::fs::read_to_string(format!("/proc/{}/stat", pid)) {
+            if let Some(state) = stat.split_whitespace().nth(2) {
+                return state != "Z" && state != "X";
+            }
+        }
+        return true;
+    }
+    false
 }
 
 /// Create a test script that spawns child processes
@@ -130,7 +139,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -327,7 +336,8 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
