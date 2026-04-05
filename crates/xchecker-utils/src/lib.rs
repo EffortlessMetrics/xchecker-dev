@@ -20,3 +20,4 @@ pub use xchecker_runner as runner;
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_support;
+pub mod secure_read;
