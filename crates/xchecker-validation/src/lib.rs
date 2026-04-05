@@ -28,6 +28,11 @@ static META_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     ]
 });
 
+/// RegexSet for efficiently pre-filtering meta-commentary patterns
+static META_SET: LazyLock<regex::RegexSet> = LazyLock::new(|| {
+    regex::RegexSet::new(META_PATTERNS.iter().map(|re| re.as_str())).unwrap()
+});
+
 /// Minimum line counts per phase
 fn min_lines_for_phase(phase: PhaseId) -> usize {
     match phase {
@@ -102,8 +107,9 @@ impl OutputValidator {
         // Get first 200 chars for pattern matching
         let prefix: String = content.chars().take(200).collect();
 
-        for pattern in META_PATTERNS.iter() {
-            if let Some(m) = pattern.find(&prefix) {
+        #[allow(clippy::collapsible_if)]
+        if let Some(match_index) = META_SET.matches(&prefix).into_iter().next() {
+            if let Some(m) = META_PATTERNS[match_index].find(&prefix) {
                 return Some(m.as_str().to_string());
             }
         }
