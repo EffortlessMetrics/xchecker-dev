@@ -177,7 +177,7 @@ impl FixupParser {
         // Read original content with CRLF tolerance (FR-FS-005)
         // Line endings will be normalized during diff application
         let original_content =
-            fs::read_to_string(target_path).map_err(|e| FixupError::TempCopyFailed {
+            xchecker_utils::secure_read::secure_read_to_string(target_path).map_err(|e| FixupError::TempCopyFailed {
                 file: diff.target_file.clone(),
                 reason: format!("Failed to read original file: {e}"),
             })?;
