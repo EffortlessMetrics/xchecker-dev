@@ -1,0 +1,3 @@
+## 2025-04-06 - Center TUI help text and add Home/End documentation
+**Learning:** For terminal user interfaces (TUIs), help footers often get overlooked if they aren't visually centered or missing documentation for available hotkeys, especially navigation keys like Home/End which are very useful for long lists.
+**Action:** Always ensure TUI help text is center-aligned and explicitly documents all actively implemented event loop hotkeys (e.g. `Home/End` for navigation) to improve discoverability.
