@@ -1,0 +1,4 @@
+## 2026-04-06 - [Mitigated TOCTOU and DoS via unbounded file reads]
+**Vulnerability:** Files were being opened using `std::fs::read_to_string`, which does not securely bind file metadata checks (TOCTOU risk) and lacks limits on file size, risking DoS when reading pseudo-files or very large files.
+**Learning:** `std::fs::read_to_string` internally uses `fs::metadata` stat semantics instead of bounding reads via an open file descriptor (`File::open`). This allowed symlink swapping (TOCTOU) between checking the file type and reading, or OOM by unbounded reads on pseudo-files in `/proc` that report 0 bytes but provide unbounded streams.
+**Prevention:** Always use `xchecker_utils::secure_read::secure_read_to_string` or a similar pattern: open the file descriptor (`File::open`), check metadata securely (`file.metadata()`), and bound the read using `std::io::Read::take()` with a static limit.
