@@ -241,7 +241,7 @@ fn cross_filesystem_copy_from_path(temp_path: &Path, target: &Utf8Path) -> Resul
 /// of CRLF line endings on Windows.
 #[allow(dead_code)] // Test utility for cross-platform testing
 pub fn read_file_with_crlf_tolerance(path: &Utf8Path) -> Result<String> {
-    let content = fs::read_to_string(path.as_std_path())
+    let content = crate::secure_read::secure_read_to_string(path.as_std_path())
         .with_context(|| format!("Failed to read file: {path}"))?;
 
     Ok(normalize_line_endings(&content))
@@ -293,7 +293,7 @@ mod tests {
 
         // Verify file exists and has correct content
         assert!(file_path.exists());
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         assert_eq!(read_content, content);
     }
 
@@ -309,7 +309,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify content has LF line endings
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         assert_eq!(read_content, "line1\nline2\nline3");
         assert!(!read_content.contains("\r\n"));
     }
@@ -326,7 +326,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(nested_path.exists());
 
-        let read_content = fs::read_to_string(nested_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(nested_path.as_std_path()).unwrap();
         assert_eq!(read_content, content);
     }
 
@@ -347,7 +347,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Verify new content
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         assert_eq!(read_content, new_content);
     }
 
@@ -381,7 +381,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(file_path.exists());
 
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         assert_eq!(read_content, "");
     }
 
@@ -398,7 +398,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(file_path.exists());
 
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         assert_eq!(read_content.len(), large_content.len());
     }
 
@@ -413,7 +413,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         assert_eq!(read_content, unicode_content);
     }
 
@@ -428,7 +428,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let read_content = fs::read_to_string(file_path.as_std_path()).unwrap();
+        let read_content = crate::secure_read::secure_read_to_string(file_path.as_std_path()).unwrap();
         // Note: \n will be preserved, but \r\n would be normalized
         assert!(read_content.contains("Special chars:"));
     }
