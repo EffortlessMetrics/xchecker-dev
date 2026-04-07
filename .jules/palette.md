@@ -1,0 +1,3 @@
+## 2025-04-07 - Enhance TUI Help Footer Discoverability
+**Learning:** Keyboard-only interfaces require explicit, complete documentation in a clear visual hierarchy. Hidden or undocumented shortcuts (like `Home/End` for list boundaries) frustrate users. When adding help text to TUI components, center-aligning the footer using `Alignment::Center` makes it clearly distinct from left-aligned content above it.
+**Action:** Always ensure *all* implemented keyboard event shortcuts (e.g. `KeyCode::Home`) are visible in the contextual help footer. Use `Alignment::Center` and distinct styling (like `Color::DarkGray`) to separate help text visually from main content.
