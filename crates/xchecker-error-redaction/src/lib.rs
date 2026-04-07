@@ -78,25 +78,35 @@
 ///
 /// The redacted error message with sensitive information removed.
 pub fn redact_error_message_for_logging(message: &str) -> String {
-    let mut redacted = message.to_string();
+    static API_KEY_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?:sk-|pk_|api_key|secret|Bearer )[a-zA-Z0-9_-]{20,}").unwrap()
+    });
+    static LONG_KEY_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"[a-zA-Z0-9_-]{32,}").unwrap()
+    });
+    static URL_WITH_CREDS_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"https?://[a-zA-Z0-9_]+:[^:@\s]+@").unwrap()
+    });
+    static PASSWORD_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?i)(password|pass|token)").unwrap()
+    });
+
+    let mut redacted: std::borrow::Cow<'_, str> = std::borrow::Cow::Borrowed(message);
 
     // Redact API keys (long alphanumeric strings with common prefixes)
     // Only redact strings that look like actual API keys (with prefixes like sk-, pk_, etc.)
     // Pattern: prefix followed by at least 20 alphanumeric characters
-    let api_key_regex =
-        regex::Regex::new(r"(?:sk-|pk_|api_key|secret|Bearer )[a-zA-Z0-9_-]{20,}").unwrap();
-    redacted = api_key_regex
-        .replace_all(&redacted, "[REDACTED_KEY]")
-        .to_string();
+    if let std::borrow::Cow::Owned(s) = API_KEY_REGEX.replace_all(&redacted, "[REDACTED_KEY]") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Also redact long alphanumeric strings that look like keys (without explicit prefix)
     // Pattern: 32+ alphanumeric/underscore/dash characters that look like a key
     // Only match standalone keys (not embedded in URLs or after @)
     // Manually check boundaries to handle hyphens correctly (which \b doesn't handle well)
-    let long_key_regex = regex::Regex::new(r"[a-zA-Z0-9_-]{32,}").unwrap();
     let mut replacements = Vec::new();
 
-    for mat in long_key_regex.find_iter(&redacted) {
+    for mat in LONG_KEY_REGEX.find_iter(&redacted) {
         let start = mat.start();
         let end = mat.end();
 
@@ -122,29 +132,38 @@ pub fn redact_error_message_for_logging(message: &str) -> String {
     }
 
     // Apply replacements in reverse order to preserve indices
-    for (start, end) in replacements.into_iter().rev() {
-        redacted.replace_range(start..end, "[REDACTED_KEY]");
+    if !replacements.is_empty() {
+        let mut s = redacted.into_owned();
+        for (start, end) in replacements.into_iter().rev() {
+            s.replace_range(start..end, "[REDACTED_KEY]");
+        }
+        redacted = std::borrow::Cow::Owned(s);
     }
 
     // Redact URLs with embedded credentials first to avoid breaking patterns
     // Pattern: `http://user:pass@host/path` or `https://token123:secret456@host/path`
-    let url_with_creds_regex = regex::Regex::new(r"https?://[a-zA-Z0-9_]+:[^:@\s]+@").unwrap();
-    redacted = url_with_creds_regex
-        .replace_all(&redacted, "[REDACTED]@")
-        .to_string();
+    if let std::borrow::Cow::Owned(s) = URL_WITH_CREDS_REGEX.replace_all(&redacted, "[REDACTED]@") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Redact authentication credentials (passwords, tokens)
     if redacted.contains("password") || redacted.contains("token") {
         // Redact common password patterns - simpler regex without character class issues
-        let password_regex = regex::Regex::new(r"(?i)(password|pass|token)").unwrap();
-        redacted = password_regex.replace_all(&redacted, "***").to_string();
+        if let std::borrow::Cow::Owned(s) = PASSWORD_REGEX.replace_all(&redacted, "***") {
+            redacted = std::borrow::Cow::Owned(s);
+        }
     }
 
     // Redact file paths that may contain user-specific data
     // Normalize Windows paths
-    redacted = redacted.replace(r"C:\\", r"\");
-    redacted = redacted.replace(r"D:\\", r"\");
-    redacted
+    if redacted.contains(r"C:\\") || redacted.contains(r"D:\\") {
+        let mut s = redacted.into_owned();
+        s = s.replace(r"C:\\", r"\");
+        s = s.replace(r"D:\\", r"\");
+        redacted = std::borrow::Cow::Owned(s);
+    }
+
+    redacted.into_owned()
 }
 
 /// Redact sensitive information from error messages for display.
@@ -176,25 +195,42 @@ pub fn redact_error_message(message: &str) -> String {
 ///
 /// The redacted error message with paths normalized.
 pub fn redact_paths(message: &str) -> String {
-    let mut redacted = message.to_string();
+    static UNIX_HOME_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"/(?:home|Users)/[^/\\\\]+").unwrap()
+    });
+    static WIN_HOME_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?i)(?:[A-Za-z]:)?\\\\Users\\\\[^\\\\/]+").unwrap()
+    });
+    static DRIVE_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"[A-Za-z]:\\\\").unwrap()
+    });
+
+    let mut redacted: std::borrow::Cow<'_, str> = std::borrow::Cow::Borrowed(message);
 
     // Redact Unix-style home directories first (e.g., /home/user, /Users/user)
-    let unix_home_regex = regex::Regex::new(r"/(?:home|Users)/[^/\\\\]+").unwrap();
-    redacted = unix_home_regex.replace_all(&redacted, "[HOME]").to_string();
+    if let std::borrow::Cow::Owned(s) = UNIX_HOME_REGEX.replace_all(&redacted, "[HOME]") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Redact Windows home directories, optionally with a drive letter
-    let win_home_regex = regex::Regex::new(r"(?i)(?:[A-Za-z]:)?\\\\Users\\\\[^\\\\/]+").unwrap();
-    redacted = win_home_regex.replace_all(&redacted, "[HOME]").to_string();
+    if let std::borrow::Cow::Owned(s) = WIN_HOME_REGEX.replace_all(&redacted, "[HOME]") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Redact Windows drive letters (C:\, D:\, etc.)
-    let drive_regex = regex::Regex::new(r"[A-Za-z]:\\\\").unwrap();
-    redacted = drive_regex.replace_all(&redacted, "[DRIVE]").to_string();
+    if let std::borrow::Cow::Owned(s) = DRIVE_REGEX.replace_all(&redacted, "[DRIVE]") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Replace path separators to avoid leaking remaining path structure
-    redacted = redacted.replace("\\", "[PATH]");
-    redacted = redacted.replace("/", "[PATH]");
+    if redacted.contains('\\') || redacted.contains('/') {
+        let mut s = redacted.into_owned();
+        s = s.replace('\\', "[PATH]");
+        s = s.replace('/', "[PATH]");
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
-    redacted
+    redacted.into_owned()
 }
 
 #[cfg(test)]
