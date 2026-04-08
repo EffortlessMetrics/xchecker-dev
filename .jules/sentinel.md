@@ -1,0 +1,4 @@
+## 2026-04-08 - Fixed TOCTOU Vulnerability in File Reading
+**Vulnerability:** Found multiple instances of `std::fs::read_to_string` which is vulnerable to Time-of-Check Time-of-Use (TOCTOU) race conditions and potential Denial of Service (DoS) via excessively large files.
+**Learning:** The xchecker application operates on files that could be modified concurrently or be replaced by symlinks to large/special files. Using `read_to_string` directly without bounds or metadata checks is unsafe.
+**Prevention:** Use a secure wrapper like `secure_read_to_string` that opens the file descriptor first, checks metadata (rejecting directories), and enforces a maximum read limit using `file.take(MAX_SIZE).read_to_string(&mut content)`.
