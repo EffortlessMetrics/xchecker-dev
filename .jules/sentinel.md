@@ -1,0 +1,4 @@
+## 2025-02-28 - [Performance & DoS Vulnerability in Regex Handling]
+**Vulnerability:** Dynamic regex compilation on every execution inside `redact_error_message_for_logging`, `redact_paths`, `summarize_requirements`, `summarize_design`, and `summarize_tasks` (CWE-400 / CPU Exhaustion DoS vulnerability).
+**Learning:** Calling `Regex::new` inside frequently-called or data-driven routines causes significant compilation overhead, leading to CPU exhaustion. It is a DoS vector if users can control error triggers.
+**Prevention:** Always use `std::sync::LazyLock` to statically cache compiled regular expressions. Also, minimize heap allocations via `std::borrow::Cow` during chained regex replacements to reduce memory allocation overhead.
