@@ -1,0 +1,3 @@
+## 2026-04-11 - TUI Help Footer UX Polish
+**Learning:** Terminal User Interfaces (TUI) often rely heavily on keyboard shortcuts. Users can easily miss shortcuts if they aren't explicitly documented. The visual hierarchy of a help footer is improved by center alignment.
+**Action:** Ensure all available keybindings (e.g., Home/End) are explicitly documented in help footers. Center align help footers to establish a clear visual hierarchy.
