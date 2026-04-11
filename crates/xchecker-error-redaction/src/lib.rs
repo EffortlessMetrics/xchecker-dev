@@ -78,25 +78,28 @@
 ///
 /// The redacted error message with sensitive information removed.
 pub fn redact_error_message_for_logging(message: &str) -> String {
-    let mut redacted = message.to_string();
+    let mut redacted = std::borrow::Cow::Borrowed(message);
 
     // Redact API keys (long alphanumeric strings with common prefixes)
     // Only redact strings that look like actual API keys (with prefixes like sk-, pk_, etc.)
     // Pattern: prefix followed by at least 20 alphanumeric characters
-    let api_key_regex =
-        regex::Regex::new(r"(?:sk-|pk_|api_key|secret|Bearer )[a-zA-Z0-9_-]{20,}").unwrap();
-    redacted = api_key_regex
-        .replace_all(&redacted, "[REDACTED_KEY]")
-        .to_string();
+    static API_KEY_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?:sk-|pk_|api_key|secret|Bearer )[a-zA-Z0-9_-]{20,}").unwrap()
+    });
+    if let std::borrow::Cow::Owned(s) = API_KEY_REGEX.replace_all(&redacted, "[REDACTED_KEY]") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Also redact long alphanumeric strings that look like keys (without explicit prefix)
     // Pattern: 32+ alphanumeric/underscore/dash characters that look like a key
     // Only match standalone keys (not embedded in URLs or after @)
     // Manually check boundaries to handle hyphens correctly (which \b doesn't handle well)
-    let long_key_regex = regex::Regex::new(r"[a-zA-Z0-9_-]{32,}").unwrap();
+    static LONG_KEY_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"[a-zA-Z0-9_-]{32,}").unwrap()
+    });
     let mut replacements = Vec::new();
 
-    for mat in long_key_regex.find_iter(&redacted) {
+    for mat in LONG_KEY_REGEX.find_iter(&redacted) {
         let start = mat.start();
         let end = mat.end();
 
@@ -122,29 +125,42 @@ pub fn redact_error_message_for_logging(message: &str) -> String {
     }
 
     // Apply replacements in reverse order to preserve indices
-    for (start, end) in replacements.into_iter().rev() {
-        redacted.replace_range(start..end, "[REDACTED_KEY]");
+    if !replacements.is_empty() {
+        let mut s = redacted.into_owned();
+        for (start, end) in replacements.into_iter().rev() {
+            s.replace_range(start..end, "[REDACTED_KEY]");
+        }
+        redacted = std::borrow::Cow::Owned(s);
     }
 
     // Redact URLs with embedded credentials first to avoid breaking patterns
     // Pattern: `http://user:pass@host/path` or `https://token123:secret456@host/path`
-    let url_with_creds_regex = regex::Regex::new(r"https?://[a-zA-Z0-9_]+:[^:@\s]+@").unwrap();
-    redacted = url_with_creds_regex
-        .replace_all(&redacted, "[REDACTED]@")
-        .to_string();
+    static URL_WITH_CREDS_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"https?://[a-zA-Z0-9_]+:[^:@\s]+@").unwrap()
+    });
+    if let std::borrow::Cow::Owned(s) = URL_WITH_CREDS_REGEX.replace_all(&redacted, "[REDACTED]@") {
+        redacted = std::borrow::Cow::Owned(s);
+    }
 
     // Redact authentication credentials (passwords, tokens)
     if redacted.contains("password") || redacted.contains("token") {
         // Redact common password patterns - simpler regex without character class issues
-        let password_regex = regex::Regex::new(r"(?i)(password|pass|token)").unwrap();
-        redacted = password_regex.replace_all(&redacted, "***").to_string();
+        static PASSWORD_REGEX: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+            regex::Regex::new(r"(?i)(password|pass|token)").unwrap()
+        });
+        if let std::borrow::Cow::Owned(s) = PASSWORD_REGEX.replace_all(&redacted, "***") {
+            redacted = std::borrow::Cow::Owned(s);
+        }
     }
 
     // Redact file paths that may contain user-specific data
     // Normalize Windows paths
-    redacted = redacted.replace(r"C:\\", r"\");
-    redacted = redacted.replace(r"D:\\", r"\");
-    redacted
+    if redacted.contains(r"C:\\") || redacted.contains(r"D:\\") {
+        let s = redacted.replace(r"C:\\", r"\").replace(r"D:\\", r"\");
+        redacted = std::borrow::Cow::Owned(s);
+    }
+
+    redacted.into_owned()
 }
 
 /// Redact sensitive information from error messages for display.
