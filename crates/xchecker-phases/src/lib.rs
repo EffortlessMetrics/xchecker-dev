@@ -832,7 +832,7 @@ Please conduct a thorough review of the specification artifacts and provide your
             .join("00-requirements.core.yaml");
 
         if requirements_md_path.exists() {
-            match xchecker_utils::secure_read::secure_read_to_string(&requirements_md_path) {
+            match std::fs::read_to_string(&requirements_md_path) {
                 Ok(requirements_content) => {
                     content.push_str("--- Requirements Document (00-requirements.md) ---\n");
                     content.push_str(&requirements_content);
@@ -854,7 +854,7 @@ Please conduct a thorough review of the specification artifacts and provide your
         }
 
         if requirements_yaml_path.exists() {
-            match xchecker_utils::secure_read::secure_read_to_string(&requirements_yaml_path) {
+            match std::fs::read_to_string(&requirements_yaml_path) {
                 Ok(yaml_content) => {
                     content
                         .push_str("--- Requirements Core Data (00-requirements.core.yaml) ---\n");
@@ -881,7 +881,7 @@ Please conduct a thorough review of the specification artifacts and provide your
         let design_yaml_path = ctx.spec_dir.join("artifacts").join("10-design.core.yaml");
 
         if design_md_path.exists() {
-            match xchecker_utils::secure_read::secure_read_to_string(&design_md_path) {
+            match std::fs::read_to_string(&design_md_path) {
                 Ok(design_content) => {
                     content.push_str("--- Design Document (10-design.md) ---\n");
                     content.push_str(&design_content);
@@ -903,7 +903,7 @@ Please conduct a thorough review of the specification artifacts and provide your
         }
 
         if design_yaml_path.exists() {
-            match xchecker_utils::secure_read::secure_read_to_string(&design_yaml_path) {
+            match std::fs::read_to_string(&design_yaml_path) {
                 Ok(yaml_content) => {
                     content.push_str("--- Design Core Data (10-design.core.yaml) ---\n");
                     content.push_str(&yaml_content);
@@ -929,7 +929,7 @@ Please conduct a thorough review of the specification artifacts and provide your
         let tasks_yaml_path = ctx.spec_dir.join("artifacts").join("20-tasks.core.yaml");
 
         if tasks_md_path.exists() {
-            match xchecker_utils::secure_read::secure_read_to_string(&tasks_md_path) {
+            match std::fs::read_to_string(&tasks_md_path) {
                 Ok(tasks_content) => {
                     content.push_str("--- Tasks Document (20-tasks.md) ---\n");
                     content.push_str(&tasks_content);
@@ -951,7 +951,7 @@ Please conduct a thorough review of the specification artifacts and provide your
         }
 
         if tasks_yaml_path.exists() {
-            match xchecker_utils::secure_read::secure_read_to_string(&tasks_yaml_path) {
+            match std::fs::read_to_string(&tasks_yaml_path) {
                 Ok(yaml_content) => {
                     content.push_str("--- Tasks Core Data (20-tasks.core.yaml) ---\n");
                     content.push_str(&yaml_content);

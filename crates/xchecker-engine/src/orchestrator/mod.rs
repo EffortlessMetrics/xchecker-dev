@@ -870,7 +870,7 @@ This is a generated requirements document for spec {}. The system will provide c
 
         // Read the receipt and verify packet evidence
         let receipt_path = exec_result.receipt_path.expect("Receipt path should exist");
-        let receipt_content = xchecker_utils::secure_read::secure_read_to_string(&receipt_path).expect("Should read receipt");
+        let receipt_content = std::fs::read_to_string(&receipt_path).expect("Should read receipt");
         let receipt: serde_json::Value =
             serde_json::from_str(&receipt_content).expect("Should parse receipt");
 

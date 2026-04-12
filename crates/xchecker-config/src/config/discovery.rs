@@ -500,7 +500,7 @@ impl Config {
 
     /// Load configuration from TOML file
     fn load_config_file(path: &Path) -> Result<TomlConfig, XCheckerError> {
-        match xchecker_utils::secure_read::secure_read_to_string(path) {
+        match std::fs::read_to_string(path) {
             Ok(content) => toml::from_str(&content).map_err(|e| {
                 XCheckerError::Config(ConfigError::InvalidFile(format!(
                     "Failed to parse TOML config file {}: {e}",

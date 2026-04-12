@@ -8,7 +8,7 @@ use std::path::Path;
 /// by opening the file descriptor first before inspecting metadata. It also prevents DoS
 /// via memory exhaustion by limiting the read to 10MB.
 pub fn secure_read_to_string<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
-    let file = File::open(path)?;
+    let mut file = File::open(path)?;
     let metadata = file.metadata()?;
 
     if metadata.is_dir() {
@@ -25,7 +25,7 @@ pub fn secure_read_to_string<P: AsRef<Path>>(path: P) -> std::io::Result<String>
     }
 
     let mut content = String::new();
-    file.take(MAX_SIZE).read_to_string(&mut content)?;
+    std::io::Read::take(&mut file, MAX_SIZE).read_to_string(&mut content)?;
 
     Ok(content)
 }

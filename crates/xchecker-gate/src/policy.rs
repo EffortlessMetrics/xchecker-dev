@@ -89,7 +89,7 @@ fn find_repo_root(start: &Path) -> Result<PathBuf> {
 
 /// Load policy from a TOML file
 pub fn load_policy_from_path(path: &Path) -> Result<GatePolicy> {
-    let content = xchecker_utils::secure_read::secure_read_to_string(path)
+    let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read policy file: {}", path.display()))?;
 
     let policy: GatePolicy = toml::from_str(&content)

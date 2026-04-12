@@ -58,7 +58,7 @@ impl Workspace {
 
     /// Load a workspace from a file
     pub fn load(path: &Path) -> Result<Self> {
-        let content = xchecker_utils::secure_read::secure_read_to_string(path)
+        let content = std::fs::read_to_string(path)
             .with_context(|| format!("Failed to read workspace file: {}", path.display()))?;
 
         let workspace: Self = serde_yaml::from_str(&content)

@@ -453,7 +453,7 @@ impl SandboxRoot {
 /// let path = root.join("src/lib.rs")?;
 ///
 /// // Use the full path for I/O operations
-/// let content = xchecker_utils::secure_read::secure_read_to_string(path.as_path())?;
+/// let content = std::fs::read_to_string(path.as_path())?;
 ///
 /// // Use the relative path for display or storage
 /// println!("File: {}", path.relative().display());
