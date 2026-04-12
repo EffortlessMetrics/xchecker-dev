@@ -57,7 +57,7 @@ fn pending_fixups_result_impl(base_path: &std::path::Path) -> PendingFixupsResul
     }
 
     // Read the review content
-    let review_content = match std::fs::read_to_string(&review_md_path) {
+    let review_content = match xchecker_utils::secure_read::secure_read_to_string(&review_md_path) {
         Ok(content) => content,
         Err(e) => {
             // File exists but can't be read - this is unexpected

@@ -18,7 +18,7 @@ pub fn pending_fixups_for_spec(base_path: &Path) -> PendingFixupsStats {
     }
 
     // Read the review content
-    let review_content = match std::fs::read_to_string(&review_md_path) {
+    let review_content = match xchecker_utils::secure_read::secure_read_to_string(&review_md_path) {
         Ok(content) => content,
         Err(_) => return PendingFixupsStats::default(),
     };

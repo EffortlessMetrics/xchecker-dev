@@ -1992,7 +1992,7 @@ fn check_and_display_fixup_targets(spec_id: &str) -> Result<()> {
     }
 
     // Read the review content
-    let review_content = match std::fs::read_to_string(&review_md_path) {
+    let review_content = match xchecker_utils::secure_read::secure_read_to_string(&review_md_path) {
         Ok(content) => content,
         Err(_) => return Ok(()), // Can't read review file, skip fixup check
     };

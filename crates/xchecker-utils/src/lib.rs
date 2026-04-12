@@ -4,6 +4,7 @@ pub mod canonicalization;
 pub mod error;
 pub mod exit_codes;
 pub use xchecker_lock as lock;
+pub mod secure_read;
 pub mod logging;
 pub mod paths;
 pub mod process_memory;
