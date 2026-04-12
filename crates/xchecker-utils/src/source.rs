@@ -79,7 +79,7 @@ impl SourceResolver {
         }
 
         let content = if path.is_file() {
-            std::fs::read_to_string(path).map_err(|_| SourceError::FileSystemNotFound {
+            crate::secure_read::secure_read_to_string(path).map_err(|_| SourceError::FileSystemNotFound {
                 path: path.display().to_string(),
             })?
         } else if path.is_dir() {
