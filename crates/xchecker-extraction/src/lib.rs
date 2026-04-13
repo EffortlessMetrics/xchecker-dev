@@ -13,6 +13,7 @@
 //! Future B3.1 will add structured extraction of full requirement/design objects.
 
 use regex::Regex;
+use std::sync::LazyLock;
 
 /// Summary statistics extracted from a requirements markdown document
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -73,32 +74,36 @@ pub struct TasksSummary {
 /// ```
 #[must_use]
 pub fn summarize_requirements(markdown: &str) -> RequirementsSummary {
-    let mut summary = RequirementsSummary::default();
+    static USER_STORY_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)^\s*\*\*User\s+Story[:\*]").unwrap());
+    static EARS_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?im)(WHEN\s+.+\s+THEN\s+.+\s+SHALL|GIVEN\s+.+\s+WHEN\s+.+\s+THEN)").unwrap()
+    });
+    static NFR_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?im)(^\s*\*\*NFR[-\s]|\bNFR-\w+\b|^\s*\*\*Non-Functional)").unwrap()
+    });
+    static REQ_HEADING_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)^\s*#{2,3}\s+Requirement\s+\d+").unwrap());
 
-    // Match user story patterns: **User Story:** or **User Story**:
-    let user_story_re = Regex::new(r"(?im)^\s*\*\*User\s+Story[:\*]").unwrap();
-    summary.user_story_count = user_story_re.find_iter(markdown).count();
-
-    // Match EARS-style acceptance criteria: WHEN ... THEN ... SHALL
-    // Also match simpler patterns: GIVEN/WHEN/THEN or numbered criteria with SHALL
-    let ears_re =
-        Regex::new(r"(?im)(WHEN\s+.+\s+THEN\s+.+\s+SHALL|GIVEN\s+.+\s+WHEN\s+.+\s+THEN)").unwrap();
-    summary.acceptance_criteria_count = ears_re.find_iter(markdown).count();
-
-    // Match NFR patterns: **NFR-*, NFR-*, **Non-Functional*
-    let nfr_re = Regex::new(r"(?im)(^\s*\*\*NFR[-\s]|\bNFR-\w+\b|^\s*\*\*Non-Functional)").unwrap();
-    summary.nfr_count = nfr_re.find_iter(markdown).count();
-
-    // Match requirement headings: ### Requirement N or ## Requirement N (allow leading whitespace)
-    let req_heading_re = Regex::new(r"(?im)^\s*#{2,3}\s+Requirement\s+\d+").unwrap();
-    summary.requirement_count = req_heading_re.find_iter(markdown).count();
-
-    // If no formal requirement headings, try to count by user story count
-    if summary.requirement_count == 0 && summary.user_story_count > 0 {
-        summary.requirement_count = summary.user_story_count;
+    RequirementsSummary {
+        // Match user story patterns: **User Story:** or **User Story**:
+        user_story_count: USER_STORY_RE.find_iter(markdown).count(),
+        // Match EARS-style acceptance criteria: WHEN ... THEN ... SHALL
+        // Also match simpler patterns: GIVEN/WHEN/THEN or numbered criteria with SHALL
+        acceptance_criteria_count: EARS_RE.find_iter(markdown).count(),
+        // Match NFR patterns: **NFR-*, NFR-*, **Non-Functional*
+        nfr_count: NFR_RE.find_iter(markdown).count(),
+        // Match requirement headings: ### Requirement N or ## Requirement N (allow leading whitespace)
+        requirement_count: {
+            let count = REQ_HEADING_RE.find_iter(markdown).count();
+            // If no formal requirement headings, try to count by user story count
+            if count == 0 {
+                USER_STORY_RE.find_iter(markdown).count()
+            } else {
+                count
+            }
+        },
     }
-
-    summary
 }
 
 /// Extract summary metadata from a design markdown document
@@ -119,31 +124,29 @@ pub fn summarize_requirements(markdown: &str) -> RequirementsSummary {
 /// ```
 #[must_use]
 pub fn summarize_design(markdown: &str) -> DesignSummary {
-    let mut summary = DesignSummary::default();
+    static ARCH_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)^\s*#{1,3}\s+(Architecture|System\s+Architecture)").unwrap());
+    static COMPONENT_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)^\s*#{2,3}\s+(Component[:\s]|[A-Z]\w+\s+Component)").unwrap());
+    static INTERFACE_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?im)^\s*#{2,3}\s+(Interface[:\s]|[A-Z]\w+\s+(API|Interface))").unwrap()
+    });
+    static MODEL_RE: LazyLock<Regex> = LazyLock::new(|| {
+        Regex::new(r"(?im)^\s*#{2,3}\s+(Data\s+Model|Model[:\s]|Schema[:\s]|Entity[:\s])").unwrap()
+    });
 
-    // Check for architecture section (allow leading whitespace from indented doc content)
-    let arch_re = Regex::new(r"(?im)^\s*#{1,3}\s+(Architecture|System\s+Architecture)").unwrap();
-    summary.has_architecture = arch_re.is_match(markdown);
-
-    // Check for mermaid diagrams
-    summary.has_diagrams = markdown.contains("```mermaid");
-
-    // Count components: ### Component: X or ## Component: X or ### X Component
-    let component_re =
-        Regex::new(r"(?im)^\s*#{2,3}\s+(Component[:\s]|[A-Z]\w+\s+Component)").unwrap();
-    summary.component_count = component_re.find_iter(markdown).count();
-
-    // Count interfaces: ### Interface: X or ## Interface: X or ### X API
-    let interface_re =
-        Regex::new(r"(?im)^\s*#{2,3}\s+(Interface[:\s]|[A-Z]\w+\s+(API|Interface))").unwrap();
-    summary.interface_count = interface_re.find_iter(markdown).count();
-
-    // Count data models: ## Data Model or ### Model: or ### Schema:
-    let model_re =
-        Regex::new(r"(?im)^\s*#{2,3}\s+(Data\s+Model|Model[:\s]|Schema[:\s]|Entity[:\s])").unwrap();
-    summary.data_model_count = model_re.find_iter(markdown).count();
-
-    summary
+    DesignSummary {
+        // Check for architecture section (allow leading whitespace from indented doc content)
+        has_architecture: ARCH_RE.is_match(markdown),
+        // Check for mermaid diagrams
+        has_diagrams: markdown.contains("```mermaid"),
+        // Count components: ### Component: X or ## Component: X or ### X Component
+        component_count: COMPONENT_RE.find_iter(markdown).count(),
+        // Count interfaces: ### Interface: X or ## Interface: X or ### X API
+        interface_count: INTERFACE_RE.find_iter(markdown).count(),
+        // Count data models: ## Data Model or ### Model: or ### Schema:
+        data_model_count: MODEL_RE.find_iter(markdown).count(),
+    }
 }
 
 /// Extract summary metadata from a tasks markdown document
@@ -164,25 +167,25 @@ pub fn summarize_design(markdown: &str) -> DesignSummary {
 /// ```
 #[must_use]
 pub fn summarize_tasks(markdown: &str) -> TasksSummary {
-    let mut summary = TasksSummary::default();
+    static TASK_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)^\s*#{2,3}\s+Task\s+\d+").unwrap());
+    static SUBTASK_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?m)^\s*[-*]\s+\[[ xX]\]").unwrap());
+    static MILESTONE_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)^\s*#{2,3}\s+Milestone").unwrap());
+    static DEP_RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"(?im)(Depends\s+on:|Dependencies:)").unwrap());
 
-    // Count tasks: ## Task N or ### Task N (allow leading whitespace from indented doc content)
-    let task_re = Regex::new(r"(?im)^\s*#{2,3}\s+Task\s+\d+").unwrap();
-    summary.task_count = task_re.find_iter(markdown).count();
-
-    // Count subtasks: checkbox items - [ ] or - [x]
-    let subtask_re = Regex::new(r"(?m)^\s*[-*]\s+\[[ xX]\]").unwrap();
-    summary.subtask_count = subtask_re.find_iter(markdown).count();
-
-    // Count milestones: ## Milestone or ### Milestone
-    let milestone_re = Regex::new(r"(?im)^\s*#{2,3}\s+Milestone").unwrap();
-    summary.milestone_count = milestone_re.find_iter(markdown).count();
-
-    // Count dependencies: "Depends on:" or "Dependencies:"
-    let dep_re = Regex::new(r"(?im)(Depends\s+on:|Dependencies:)").unwrap();
-    summary.dependency_count = dep_re.find_iter(markdown).count();
-
-    summary
+    TasksSummary {
+        // Count tasks: ## Task N or ### Task N (allow leading whitespace from indented doc content)
+        task_count: TASK_RE.find_iter(markdown).count(),
+        // Count subtasks: checkbox items - [ ] or - [x]
+        subtask_count: SUBTASK_RE.find_iter(markdown).count(),
+        // Count milestones: ## Milestone or ### Milestone
+        milestone_count: MILESTONE_RE.find_iter(markdown).count(),
+        // Count dependencies: "Depends on:" or "Dependencies:"
+        dependency_count: DEP_RE.find_iter(markdown).count(),
+    }
 }
 
 #[cfg(test)]
