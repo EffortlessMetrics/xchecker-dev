@@ -98,6 +98,8 @@ async fn test_process_group_creation() -> Result<()> {
 
     // Wait for signal handlers to register
     sleep(Duration::from_millis(1000)).await;
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
     // Check that the process is running
     assert!(is_process_running(pid), "Process should be running");
 
@@ -152,6 +154,11 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
     // Wait for signal handlers to register
     sleep(Duration::from_millis(1000)).await;
 
@@ -219,6 +226,11 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
     // Wait for signal handlers to register
     sleep(Duration::from_millis(1000)).await;
 
@@ -397,6 +409,11 @@ async fn test_timeout_grace_period() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
     // Wait for signal handlers to register
     sleep(Duration::from_millis(1000)).await;
 
@@ -468,6 +485,11 @@ async fn test_terminate_already_dead_process() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
+    // Wait for signal handlers to register
+    sleep(Duration::from_millis(1000)).await;
     // Wait for signal handlers to register
     sleep(Duration::from_millis(1000)).await;
 
