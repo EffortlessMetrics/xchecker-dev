@@ -157,11 +157,14 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Give process time to register signal handlers
+    sleep(Duration::from_millis(1000)).await;
+
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
 
     // Wait a short time
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should still be running (it ignored SIGTERM)
     assert!(
@@ -173,7 +176,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     killpg(pgid, Signal::SIGKILL)?;
 
     // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should now be terminated
     assert!(
@@ -222,11 +225,14 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Give process time to register signal handlers
+    sleep(Duration::from_millis(1000)).await;
+
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
 
     // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
@@ -280,7 +286,7 @@ async fn test_process_group_termination() -> Result<()> {
     let parent_pid = child.id().expect("Failed to get parent PID");
 
     // Wait a bit for child processes to spawn
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Verify parent is running
     assert!(
@@ -295,7 +301,7 @@ async fn test_process_group_termination() -> Result<()> {
     killpg(pgid, Signal::SIGKILL)?;
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Verify parent is terminated
     assert!(
@@ -394,6 +400,9 @@ async fn test_timeout_grace_period() -> Result<()> {
     // Verify process is running
     assert!(is_process_running(pid), "Process should be running");
 
+    // Give process time to register signal handlers
+    sleep(Duration::from_millis(1000)).await;
+
     // Simulate the timeout sequence from Runner
     // 1. Send SIGTERM
     let _ = killpg(pgid, Signal::SIGTERM);
@@ -414,7 +423,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should be terminated
     assert!(
