@@ -79,8 +79,16 @@ impl SourceResolver {
         }
 
         let content = if path.is_file() {
-            std::fs::read_to_string(path).map_err(|_| SourceError::FileSystemNotFound {
-                path: path.display().to_string(),
+            crate::secure_read::secure_read_to_string(path).map_err(|e| {
+                if e.kind() == std::io::ErrorKind::InvalidData && e.to_string().contains("exceeds maximum allowed size") {
+                    SourceError::FileTooLarge {
+                        path: path.display().to_string(),
+                    }
+                } else {
+                    SourceError::FileSystemNotFound {
+                        path: path.display().to_string(),
+                    }
+                }
             })?
         } else if path.is_dir() {
             format!(

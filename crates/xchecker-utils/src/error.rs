@@ -661,6 +661,9 @@ pub enum SourceError {
     #[error("Filesystem path not found: {path}")]
     FileSystemNotFound { path: String },
 
+    #[error("File is too large (max 10MB): {path}")]
+    FileTooLarge { path: String },
+
     #[error("Filesystem access denied: {path}")]
     FileSystemAccessDenied { path: String },
 
@@ -694,6 +697,9 @@ impl UserFriendlyError for SourceError {
             }
             Self::FileSystemNotFound { path } => {
                 format!("Path '{path}' does not exist")
+            }
+            Self::FileTooLarge { path } => {
+                format!("File '{path}' is too large to read (max 10MB)")
             }
             Self::FileSystemAccessDenied { path } => {
                 format!("Access denied to path '{path}'")
@@ -729,6 +735,9 @@ impl UserFriendlyError for SourceError {
             }
             Self::FileSystemNotFound { .. } => {
                 Some("Filesystem source resolution requires the specified path to exist and be accessible.".to_string())
+            }
+            Self::FileTooLarge { .. } => {
+                Some("For security and performance reasons, files loaded into memory are limited to 10MB to prevent Denial of Service via memory exhaustion.".to_string())
             }
             Self::FileSystemAccessDenied { .. } => {
                 Some("File system permissions must allow read access to the specified directory.".to_string())
@@ -797,6 +806,11 @@ impl UserFriendlyError for SourceError {
                 "Check the path spelling and case sensitivity".to_string(),
                 "Use an absolute path to avoid confusion".to_string(),
                 "Verify you're in the correct working directory".to_string(),
+            ],
+            Self::FileTooLarge { path } => vec![
+                format!("Check the file size: ls -lh '{}'", path),
+                "Ensure you are pointing to a source file, not a compiled binary or large artifact".to_string(),
+                "If intended, consider breaking the file down into smaller chunks".to_string(),
             ],
             Self::FileSystemAccessDenied { path } => vec![
                 format!("Check permissions: ls -la '{}'", path),
