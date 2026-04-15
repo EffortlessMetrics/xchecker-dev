@@ -32,6 +32,10 @@ fn is_process_running(pid: u32) -> bool {
     use nix::unistd::Pid;
 
     let pid = Pid::from_raw(pid as i32);
+    // Wait for the OS to reap the process (prevent zombies from returning true for kill(0))
+    let mut status = 0;
+    unsafe { libc::waitpid(pid.as_raw(), &mut status, libc::WNOHANG) };
+
     // Signal 0 (None) doesn't send a signal but checks if the process exists
     kill(pid, None).is_ok()
 }
@@ -199,7 +203,10 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh")
+        .arg("-c")
+        .arg("trap 'exit 0' TERM; while true; do sleep 1; done") // Gracefully exit on SIGTERM
+        .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -378,7 +385,10 @@ async fn test_timeout_grace_period() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh")
+        .arg("-c")
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM
+        .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
