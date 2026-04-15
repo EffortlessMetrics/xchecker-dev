@@ -32,7 +32,7 @@ use super::{CommandSpec, ProcessOutput, ProcessRunner};
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker_utils::runner::{WslRunner, ProcessRunner, CommandSpec};
+/// use crate::{WslRunner, ProcessRunner, CommandSpec};
 /// use std::time::Duration;
 ///
 /// let runner = WslRunner::new();
@@ -55,7 +55,7 @@ impl WslRunner {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker_utils::runner::WslRunner;
+    /// use crate::WslRunner;
     ///
     /// let runner = WslRunner::new();
     /// ```
@@ -73,7 +73,7 @@ impl WslRunner {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker_utils::runner::WslRunner;
+    /// use crate::WslRunner;
     ///
     /// let runner = WslRunner::with_distro("Ubuntu-22.04");
     /// ```
