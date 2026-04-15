@@ -31,7 +31,7 @@ use super::{CommandSpec, ProcessOutput, ProcessRunner};
 /// # Example
 ///
 /// ```rust,no_run
-/// use xchecker_utils::runner::{NativeRunner, ProcessRunner, CommandSpec};
+/// use crate::{NativeRunner, ProcessRunner, CommandSpec};
 /// use std::time::Duration;
 ///
 /// let runner = NativeRunner::new();
@@ -51,7 +51,7 @@ impl NativeRunner {
     /// # Example
     ///
     /// ```rust
-    /// use xchecker_utils::runner::NativeRunner;
+    /// use crate::NativeRunner;
     ///
     /// let runner = NativeRunner::new();
     /// ```
