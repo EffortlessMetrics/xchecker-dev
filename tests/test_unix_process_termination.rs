@@ -158,7 +158,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     );
 
     // Wait to let process start up and register signals
-    sleep(Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Send SIGTERM (process will ignore it)
     killpg(pgid, Signal::SIGTERM)?;
@@ -226,7 +226,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     );
 
     // Wait to let process start up and register signals
-    sleep(Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Send SIGTERM
     killpg(pgid, Signal::SIGTERM)?;
@@ -286,7 +286,7 @@ async fn test_process_group_termination() -> Result<()> {
     let parent_pid = child.id().expect("Failed to get parent PID");
 
     // Wait a bit for child processes to spawn
-    sleep(Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Verify parent is running
     assert!(
@@ -402,7 +402,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     assert!(is_process_running(pid), "Process should be running");
 
     // Wait to let process start up and register signals
-    sleep(Duration::from_millis(1000)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Simulate the timeout sequence from Runner
     // 1. Send SIGTERM
