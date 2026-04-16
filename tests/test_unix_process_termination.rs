@@ -196,7 +196,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("sh").arg("-c").arg("trap '' TERM; while true; do sleep 1; done").to_tokio_command();
+    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
