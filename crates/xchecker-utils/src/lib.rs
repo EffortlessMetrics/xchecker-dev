@@ -8,6 +8,7 @@ pub mod logging;
 pub mod paths;
 pub mod process_memory;
 pub mod ring_buffer;
+pub mod secure_read;
 pub mod source;
 pub mod spec_id;
 pub mod types;
