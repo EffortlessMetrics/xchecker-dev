@@ -1,0 +1,38 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -152,6 +152,8 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    sleep(Duration::from_millis(1000)).await;
++
+     // Verify process is running
+     assert!(
+         is_process_running(pid),
+@@ -216,6 +218,8 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    sleep(Duration::from_millis(1000)).await;
++
+     // Verify process is running
+     assert!(
+         is_process_running(pid),
+@@ -279,6 +283,8 @@
+         }
+     }
+
++    sleep(Duration::from_millis(1000)).await;
++
+     // Start script
+     let mut child = cmd.spawn()?;
+     let pid = child.id().expect("Failed to get child PID");
+@@ -404,6 +410,8 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    sleep(Duration::from_millis(1000)).await;
++
+     // Verify process is running
+     assert!(
+         is_process_running(pid),

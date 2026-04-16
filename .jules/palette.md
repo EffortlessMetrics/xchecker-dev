@@ -1,0 +1,3 @@
+## 2024-04-16 - Center align block titles in TUI to fix title formatting
+**Learning:** When center-aligning Ratatui `Paragraph` widgets (e.g., TUI help footers), apply `Line::from(" Title ").alignment(Alignment::Left)` to the block title to prevent the title text from incorrectly inheriting the block's content center alignment. Ensure all available keyboard shortcuts (e.g., Home/End) are explicitly documented in the help text to improve discoverability.
+**Action:** Use `.alignment(Alignment::Center)` on the Paragraph and `.title(Line::from(" Help ").alignment(Alignment::Left))` on the Block to fix title alignment when centering TUI help footers. Ensure Home/End are included in the footer shortcut help.

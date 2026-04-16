@@ -1,0 +1,11 @@
+--- test_unix_process_termination.rs
++++ test_unix_process_termination.rs
+@@ -283,6 +287,8 @@
+         }
+     }
+
++    sleep(Duration::from_millis(1000)).await;
++
+     // Start script
+     let mut child = cmd.spawn()?;
+     let pid = child.id().expect("Failed to get child PID");
