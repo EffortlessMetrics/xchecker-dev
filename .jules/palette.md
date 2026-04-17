@@ -1,0 +1,3 @@
+## 2024-04-17 - TUI Help Footer Consistency
+**Learning:** Ratatui block content inherits block attributes, such as text alignment. TUI help footers need to establish visual hierarchy through center-alignment but left-align block titles for visual framing. Also, context-dependent inputs must be explicitly presented (e.g. `Esc` handling based on active modal layer), and obscure but active keybinds (e.g., Home/End) must be documented to improve discoverability.
+**Action:** When creating UI layout elements like TUI footers, apply `Alignment::Center` to the content `Paragraph` and explicit `Alignment::Left` within a `Line` to override for the `Block` title. Always document full context-specific shortcuts explicitly visible.
