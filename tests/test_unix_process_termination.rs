@@ -230,7 +230,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     killpg(pgid, Signal::SIGTERM)?;
 
     // Wait for graceful termination
-    sleep(Duration::from_millis(2000)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
