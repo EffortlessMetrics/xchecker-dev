@@ -177,14 +177,14 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Wait a short time for termination
     sleep(Duration::from_millis(2000)).await;
 
+    // Clean up (this reaps the zombie process so kill(pid, 0) will fail)
+    let _ = child.wait().await;
+
     // Process should now be terminated
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -232,14 +232,14 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Wait for graceful termination
     sleep(Duration::from_millis(1000)).await;
 
+    // Clean up (this reaps the zombie process)
+    let _ = child.wait().await;
+
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGTERM"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -303,14 +303,14 @@ async fn test_process_group_termination() -> Result<()> {
     // Wait for termination
     sleep(Duration::from_millis(1000)).await;
 
+    // Clean up
+    let _ = child.wait().await;
+
     // Verify parent is terminated
     assert!(
         !is_process_running(parent_pid),
         "Parent process should be terminated"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -425,14 +425,14 @@ async fn test_timeout_grace_period() -> Result<()> {
     // Wait for termination
     sleep(Duration::from_millis(1000)).await;
 
+    // Clean up
+    let _ = child.wait().await;
+
     // Process should be terminated
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
