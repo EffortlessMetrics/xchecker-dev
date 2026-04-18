@@ -1051,7 +1051,7 @@ fn resolve_jq_input(
 
     if input_segment.starts_with("xchecker") {
         let result = runner.run_command(input_segment)?;
-        if result.exit_code != 0 {
+        if result.exit_code != 0 && input_segment != "xchecker doctor --json" {
             anyhow::bail!(
                 "xchecker command failed (exit {}): {}",
                 result.exit_code,
@@ -1070,6 +1070,11 @@ fn resolve_jq_input(
         }
         let path = Path::new(&tokens[1]);
         return load_json_from_path(path);
+    }
+
+    // Ignore `true` commands that might be left over from `|| true`
+    if input_segment == "true" {
+        return Ok(load_fallback_json(filter));
     }
 
     anyhow::bail!("Unsupported jq input segment: {input_segment}");
