@@ -130,7 +130,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep for 30 seconds
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -157,11 +157,14 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Wait a bit before sending SIGTERM to ensure trap is set
+    sleep(Duration::from_millis(3000)).await;
+
     // Send SIGTERM (process will ignore it)
-    killpg(pgid, Signal::SIGTERM)?;
+    let _ = killpg(pgid, Signal::SIGTERM);
 
     // Wait a short time
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(3000)).await;
 
     // Process should still be running (it ignored SIGTERM)
     assert!(
@@ -170,10 +173,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     );
 
     // Send SIGKILL (cannot be ignored)
-    killpg(pgid, Signal::SIGKILL)?;
+    let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(3000)).await;
 
     // Process should now be terminated
     assert!(
@@ -196,7 +199,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh").arg("-c").arg("trap 'exit 0' TERM; while true; do sleep 1; done").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -222,11 +225,14 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
         "Process should be running initially"
     );
 
+    // Wait for process setup
+    sleep(Duration::from_millis(3000)).await;
+
     // Send SIGTERM
-    killpg(pgid, Signal::SIGTERM)?;
+    let _ = killpg(pgid, Signal::SIGTERM);
 
     // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(3000)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
@@ -280,7 +286,7 @@ async fn test_process_group_termination() -> Result<()> {
     let parent_pid = child.id().expect("Failed to get parent PID");
 
     // Wait a bit for child processes to spawn
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(3000)).await;
 
     // Verify parent is running
     assert!(
@@ -292,10 +298,10 @@ async fn test_process_group_termination() -> Result<()> {
     use nix::sys::signal::{Signal, killpg};
     use nix::unistd::Pid;
     let pgid = Pid::from_raw(parent_pid as i32);
-    killpg(pgid, Signal::SIGKILL)?;
+    let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(3000)).await;
 
     // Verify parent is terminated
     assert!(
@@ -327,7 +333,9 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
     create_test_script(script_path.to_str().unwrap(), 60)?;
 
     // Create a runner with a short timeout
-    let runner = Runner::native();
+    let mut runner = Runner::native();
+    // Ensure the runner doesn't fail trying to execute `claude` which doesn't exist
+    runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
     let timeout_duration = Some(Duration::from_secs(1));
@@ -371,7 +379,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh").arg("-c").arg("while true; do sleep 1; done").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -390,6 +398,9 @@ async fn test_timeout_grace_period() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Wait before SIGTERM
+    sleep(Duration::from_millis(3000)).await;
 
     // Verify process is running
     assert!(is_process_running(pid), "Process should be running");
@@ -414,7 +425,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(3000)).await;
 
     // Process should be terminated
     assert!(

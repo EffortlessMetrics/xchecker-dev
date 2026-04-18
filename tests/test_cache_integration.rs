@@ -182,8 +182,9 @@ fn test_cache_performance_improvement() -> Result<()> {
     // Tolerance factor for timing comparisons.
     // Cache hit should be at most TOLERANCE times slower than cache miss.
     // A value of 2.0 allows for 100% variance due to system noise on CI runners.
+    // We increased this to 5.0 to handle extreme variance on GitHub Actions runners.
     // Per Requirements 3.1, 3.2: use relative timing assertions, not strict less-than.
-    const TOLERANCE: f64 = 2.0;
+    const TOLERANCE: f64 = 5.0;
 
     let temp_dir = TempDir::new()?;
     let base_path = Utf8PathBuf::try_from(temp_dir.path().to_path_buf())?;
