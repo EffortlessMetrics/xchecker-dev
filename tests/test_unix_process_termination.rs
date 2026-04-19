@@ -128,7 +128,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("bash")
+    let mut cmd = CommandSpec::new("sh")
         .arg("-c")
         .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM
         .to_tokio_command();
@@ -197,7 +197,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("bash")
+    let mut cmd = CommandSpec::new("sh")
         .arg("-c")
         .arg("trap 'exit 0' TERM; while true; do sleep 1; done")
         .to_tokio_command();
@@ -334,7 +334,6 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
 
     // Create a runner with a short timeout
     let mut runner = Runner::native();
-    // Ensure the runner doesn't fail with "No such file or directory" when spawning
     runner.wsl_options.claude_path = Some("bash".to_string());
 
     // Execute with a very short timeout (1 second)
@@ -342,7 +341,7 @@ async fn test_runner_timeout_terminates_process_group() -> Result<()> {
 
     let result = runner
         .execute_claude(
-            &[script_path.to_str().unwrap().to_string()],
+            &["bash".to_string(), script_path.to_str().unwrap().to_string()],
             "",
             timeout_duration,
         )
@@ -379,7 +378,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process
-    let mut cmd = CommandSpec::new("bash")
+    let mut cmd = CommandSpec::new("sh")
         .arg("-c")
         .arg("trap '' TERM; while true; do sleep 1; done")
         .to_tokio_command();
