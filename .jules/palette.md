@@ -1,0 +1,3 @@
+## 2024-04-20 - TUI Help Footer Visual Hierarchy and Discoverability
+**Learning:** Center-aligning TUI help footers establishes a clear visual hierarchy while keeping block titles left-aligned prevents them from incorrectly inheriting the center alignment. Documenting all keyboard shortcuts, including context-dependent ones like Esc, improves discoverability.
+**Action:** When implementing TUI help footers, center-align the content with `Color::DarkGray`, explicitly left-align the block title using `Line::from(" Title ").alignment(Alignment::Left)`, and ensure all event loop shortcuts are documented.
