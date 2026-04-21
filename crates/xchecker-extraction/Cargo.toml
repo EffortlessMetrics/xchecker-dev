@@ -11,4 +11,4 @@ categories.workspace = true
 keywords.workspace = true
 
 [dependencies]
-regex = { workspace = true }
+regex.workspace = true
