@@ -1,0 +1,77 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -130,8 +130,8 @@
+     // Spawn a process that ignores SIGTERM (to test SIGKILL)
+     let mut cmd = CommandSpec::new("sh")
+         .arg("-c")
+-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
++        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, loop
+         .to_tokio_command();
+     cmd.stdin(Stdio::null())
+         .stdout(Stdio::null())
+@@ -150,6 +150,9 @@
+     let mut child = cmd.spawn()?;
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
++
++    // Allow signal handler registration
++    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+     // Verify process is running
+@@ -196,7 +199,9 @@
+     use nix::unistd::Pid;
+
+     // Spawn a process that handles SIGTERM gracefully
+-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
++    let mut cmd = CommandSpec::new("sh")
++        .arg("-c")
++        .arg("trap 'exit 0' TERM; while true; do sleep 1; done")
++        .to_tokio_command();
+     cmd.stdin(Stdio::null())
+         .stdout(Stdio::null())
+@@ -216,6 +221,9 @@
+     let mut child = cmd.spawn()?;
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
++
++    // Allow signal handler registration
++    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+     // Verify process is running
+@@ -280,6 +288,9 @@
+     let parent_pid = child.id().expect("Failed to get parent PID");
+
++    // Allow script to start spawning children
++    tokio::time::sleep(Duration::from_millis(1000)).await;
++
+     // Wait for the script to print its children's PIDs
+     let stdout = child.stdout.take().unwrap();
+     let mut reader = tokio::io::BufReader::new(stdout);
+@@ -340,6 +351,7 @@
+
+     // Need to tell the runner to use our mock script
+     runner.options.claude_path = Some("bash".to_string());
++    runner.wsl_options.claude_path = Some("bash".to_string());
+
+     // Use a very short timeout so we trigger the termination logic quickly
+     let timeout = Duration::from_millis(50);
+@@ -371,7 +383,10 @@
+     use nix::unistd::Pid;
+
+     // Spawn a process
+-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
++    let mut cmd = CommandSpec::new("sh")
++        .arg("-c")
++        .arg("trap '' TERM; while true; do sleep 1; done")
++        .to_tokio_command();
+     cmd.stdin(Stdio::null())
+         .stdout(Stdio::null())
+@@ -391,6 +406,9 @@
+     let mut child = cmd.spawn()?;
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
++
++    // Allow signal handler registration
++    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+     // Verify process is running

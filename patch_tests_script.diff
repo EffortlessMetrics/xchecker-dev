@@ -1,0 +1,17 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -44,11 +44,11 @@
+     let script_content = format!(
+         r#"#!/bin/bash
+ # Test script that spawns child processes
+-sleep {} &
++while true; do sleep 1; done &
+ CHILD1=$!
+-sleep {} &
++while true; do sleep 1; done &
+ CHILD2=$!
+-sleep {} &
++while true; do sleep 1; done &
+ CHILD3=$!
+ echo "Parent PID: $$"
+ echo "Child PIDs: $CHILD1 $CHILD2 $CHILD3"
