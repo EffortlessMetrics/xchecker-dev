@@ -37,24 +37,23 @@ fn is_process_running(pid: u32) -> bool {
 }
 
 /// Create a test script that spawns child processes
-fn create_test_script(script_path: &str, duration_secs: u64) -> Result<()> {
+fn create_test_script(script_path: &str, _duration_secs: u64) -> Result<()> {
     use std::fs;
     use std::os::unix::fs::PermissionsExt;
 
     let script_content = format!(
         r#"#!/bin/bash
 # Test script that spawns child processes
-sleep {} &
+while true; do sleep 1; done &
 CHILD1=$!
-sleep {} &
+while true; do sleep 1; done &
 CHILD2=$!
-sleep {} &
+while true; do sleep 1; done &
 CHILD3=$!
 echo "Parent PID: $$"
 echo "Child PIDs: $CHILD1 $CHILD2 $CHILD3"
 wait
 "#,
-        duration_secs, duration_secs, duration_secs
     );
 
     fs::write(script_path, script_content)?;
@@ -130,7 +129,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep for 30 seconds
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -150,6 +149,12 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Verify process is running
     assert!(
@@ -216,6 +221,12 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
     // Verify process is running
     assert!(
         is_process_running(pid),
@@ -278,6 +289,12 @@ async fn test_process_group_termination() -> Result<()> {
 
     let mut child = cmd.spawn()?;
     let parent_pid = child.id().expect("Failed to get parent PID");
+
+    // Allow script to start spawning children
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Allow script to start spawning children
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Wait a bit for child processes to spawn
     sleep(Duration::from_millis(500)).await;
@@ -391,6 +408,12 @@ async fn test_timeout_grace_period() -> Result<()> {
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
     // Verify process is running
     assert!(is_process_running(pid), "Process should be running");
 
@@ -459,6 +482,12 @@ async fn test_terminate_already_dead_process() -> Result<()> {
     let mut child = cmd.spawn()?;
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
+
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
+
+    // Allow signal handler registration
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Wait for process to exit
     let _ = child.wait().await;
