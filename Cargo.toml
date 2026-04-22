@@ -221,6 +221,7 @@ strum = { workspace = true, optional = true }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 serde_yaml = { workspace = true }
+nix = { workspace = true, features = ["signal"] }
 
 [target.'cfg(unix)'.dependencies]
 # Platform Dependencies (coarse minima)
