@@ -76,7 +76,7 @@ wait
 #[tokio::test]
 async fn test_process_group_creation() -> Result<()> {
     // Create a simple command that will run long enough for us to check
-    let mut cmd = CommandSpec::new("sleep").arg("10").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh").arg("10").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -196,7 +196,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh").arg("-c").arg("while true; do sleep 1; done").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -371,7 +371,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh").arg("-c").arg("while true; do sleep 1; done").to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
