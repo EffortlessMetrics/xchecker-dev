@@ -1,0 +1,4 @@
+## 2024-04-22 - TOCTOU Vulnerability in File Reading
+**Vulnerability:** `process_candidate_file` in `crates/xchecker-packet/src/builder.rs` reads file metadata (`fs::metadata`), validates file size, and then reads file content (`fs::read_to_string`). This creates a Time-of-Check to Time-of-Use (TOCTOU) race condition where a file could be swapped or grown between the metadata check and read, leading to a Denial of Service (memory exhaustion).
+**Learning:** Checking metadata via path and then reading via path is unsafe for files that can be modified concurrently. `fs::read_to_string` loads the entire file into memory based on its size at the time of reading, bypassing earlier size checks.
+**Prevention:** Open the file first (`File::open`), check its metadata via the file handle (`file.metadata()`), and read with a hard limit using `Read::take()` (e.g., `file.take(limit).read_to_string(&mut buffer)`).
