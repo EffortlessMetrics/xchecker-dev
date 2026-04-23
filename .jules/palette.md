@@ -1,0 +1,3 @@
+## 2024-05-24 - Accurate Context-Dependent Help Text
+**Learning:** Keyboard shortcuts like `Esc` often have context-dependent behavior (e.g., going back vs. quitting). Failing to reflect this accurately in the help text creates a frustrating, unpredictable UX. Additionally, center-aligning help footer text improves visual balance, but in Ratatui, titles must be explicitly left-aligned to prevent inheriting the block's content alignment.
+**Action:** Always document context-dependent key behaviors explicitly (like `Esc/q: Quit` on main view, `Esc: Back` on details view). When center-aligning Ratatui Paragraphs, explicitly set the block title alignment to Left using `Line::from(" Title ").alignment(Alignment::Left)`.
