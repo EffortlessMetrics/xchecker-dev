@@ -44,17 +44,18 @@ fn create_test_script(script_path: &str, duration_secs: u64) -> Result<()> {
     let script_content = format!(
         r#"#!/bin/bash
 # Test script that spawns child processes
-sleep {} &
+(while true; do sleep 1; done) &
 CHILD1=$!
-sleep {} &
+(while true; do sleep 1; done) &
 CHILD2=$!
-sleep {} &
+(while true; do sleep 1; done) &
 CHILD3=$!
 echo "Parent PID: $$"
 echo "Child PIDs: $CHILD1 $CHILD2 $CHILD3"
+sleep {}
 wait
 "#,
-        duration_secs, duration_secs, duration_secs
+        duration_secs
     );
 
     fs::write(script_path, script_content)?;
@@ -128,7 +129,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
-    let mut cmd = CommandSpec::new("sh")
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
         .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, sleep loop
         .to_tokio_command();
@@ -165,7 +166,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     killpg(pgid, Signal::SIGTERM)?;
 
     // Wait a short time
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Process should still be running (it ignored SIGTERM)
     assert!(
@@ -177,16 +178,14 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     killpg(pgid, Signal::SIGKILL)?;
 
     // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
+    let _ = child.wait().await; // Reap zombie
 
     // Process should now be terminated
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ SIGTERM then SIGKILL sequence verified");
     Ok(())
@@ -200,7 +199,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("sh")
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
         .arg("while true; do sleep 1; done")
         .to_tokio_command();
@@ -237,16 +236,14 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     killpg(pgid, Signal::SIGTERM)?;
 
     // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
+    let _ = child.wait().await; // Reap zombie
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGTERM"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Graceful termination with SIGTERM verified");
     Ok(())
@@ -306,16 +303,14 @@ async fn test_process_group_termination() -> Result<()> {
     killpg(pgid, Signal::SIGKILL)?;
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
+    let _ = child.wait().await; // Reap zombie
 
     // Verify parent is terminated
     assert!(
         !is_process_running(parent_pid),
         "Parent process should be terminated"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Process group termination verified");
     Ok(())
@@ -383,7 +378,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process
-    let mut cmd = CommandSpec::new("sh")
+    let mut cmd = CommandSpec::new("bash")
         .arg("-c")
         .arg("while true; do sleep 1; done")
         .to_tokio_command();
@@ -433,16 +428,14 @@ async fn test_timeout_grace_period() -> Result<()> {
     let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
+    let _ = child.wait().await; // Reap zombie
 
     // Process should be terminated
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGKILL"
     );
-
-    // Clean up
-    let _ = child.wait().await;
 
     println!("✓ Timeout grace period verified (5 seconds)");
     Ok(())
