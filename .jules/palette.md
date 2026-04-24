@@ -1,0 +1,3 @@
+## 2024-04-24 - Accurate Keyboard Shortcut Discoverability in TUIs
+**Learning:** Help footers in terminal user interfaces often fall out of sync with actual event loop implementations (e.g., Home/End navigation), obscuring available features from users and decreasing accessibility. Furthermore, context-dependent actions (like Esc meaning "Quit" on main view vs "Back" on detail view) must be explicitly communicated.
+**Action:** Always cross-reference help footers with the main event loop `KeyCode` matches to ensure 1:1 parity between documented and active shortcuts, particularly for context-sensitive keys.
