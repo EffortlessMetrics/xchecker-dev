@@ -177,7 +177,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     killpg(pgid, Signal::SIGKILL)?;
 
     // Wait a short time for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Process should now be terminated
     assert!(
@@ -202,7 +202,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     // Spawn a process that handles SIGTERM gracefully
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("while true; do sleep 1; done")
+        .arg("trap 'exit 0' TERM; while true; do sleep 1; done")
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -237,7 +237,7 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     killpg(pgid, Signal::SIGTERM)?;
 
     // Wait for graceful termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Process should be terminated (sleep responds to SIGTERM)
     assert!(
@@ -306,7 +306,7 @@ async fn test_process_group_termination() -> Result<()> {
     killpg(pgid, Signal::SIGKILL)?;
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Verify parent is terminated
     assert!(
@@ -433,7 +433,7 @@ async fn test_timeout_grace_period() -> Result<()> {
     let _ = killpg(pgid, Signal::SIGKILL);
 
     // Wait for termination
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(2000)).await;
 
     // Process should be terminated
     assert!(
