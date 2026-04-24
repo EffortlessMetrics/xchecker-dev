@@ -130,7 +130,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     // Spawn a process that ignores SIGTERM (to test SIGKILL)
     let mut cmd = CommandSpec::new("sh")
         .arg("-c")
-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
+        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, wait in a loop
         .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -148,6 +148,10 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     }
 
     let mut child = cmd.spawn()?;
+
+    // Give the signal trap time to register
+    sleep(Duration::from_millis(1000)).await;
+
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
@@ -196,7 +200,10 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process that handles SIGTERM gracefully
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh")
+        .arg("-c")
+        .arg("while true; do sleep 1; done")
+        .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -213,6 +220,10 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     }
 
     let mut child = cmd.spawn()?;
+
+    // Give the process time to spawn and setup
+    sleep(Duration::from_millis(1000)).await;
+
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
@@ -280,7 +291,7 @@ async fn test_process_group_termination() -> Result<()> {
     let parent_pid = child.id().expect("Failed to get parent PID");
 
     // Wait a bit for child processes to spawn
-    sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(1000)).await;
 
     // Verify parent is running
     assert!(
@@ -371,7 +382,10 @@ async fn test_timeout_grace_period() -> Result<()> {
     use nix::unistd::Pid;
 
     // Spawn a process
-    let mut cmd = CommandSpec::new("sleep").arg("30").to_tokio_command();
+    let mut cmd = CommandSpec::new("sh")
+        .arg("-c")
+        .arg("while true; do sleep 1; done")
+        .to_tokio_command();
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -388,6 +402,10 @@ async fn test_timeout_grace_period() -> Result<()> {
     }
 
     let mut child = cmd.spawn()?;
+
+    // Give process time to spawn and setup
+    sleep(Duration::from_millis(1000)).await;
+
     let pid = child.id().expect("Failed to get child PID");
     let pgid = Pid::from_raw(pid as i32);
 
