@@ -44,6 +44,9 @@ fn setup_test_environment(test_name: &str) -> TimeoutTestEnv {
 
     // Create spec directory structure
     let spec_id = format!("test-timeout-{}", test_name);
+    // SandboxRoot expects the directory to be under the isolated home dir context
+    let home = std::env::var("HOME").unwrap();
+    std::fs::create_dir_all(format!("{}/.xchecker/specs/{}", home, spec_id)).unwrap();
     let orchestrator = PhaseOrchestrator::new(&spec_id).unwrap();
 
     TimeoutTestEnv {
