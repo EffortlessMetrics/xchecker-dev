@@ -36,7 +36,7 @@ struct TimeoutTestEnv {
 
 /// Helper to set up test environment with isolated home
 fn setup_test_environment(test_name: &str) -> TimeoutTestEnv {
-    let temp_dir = TempDir::new().unwrap();
+    let temp_dir = xchecker::paths::with_isolated_home();
     let cwd_guard = test_support::CwdGuard::new(temp_dir.path()).unwrap();
 
     // Create base .xchecker/specs directory structure (PhaseOrchestrator expects this to exist)
