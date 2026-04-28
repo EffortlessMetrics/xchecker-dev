@@ -1,0 +1,3 @@
+## 2025-04-28 - TUI Help Footer Alignment and Context-Aware 'Esc' Text
+**Learning:** In Ratatui TUI interfaces, `Paragraph` block titles inherit the block's text alignment unless explicitly overridden. When center-aligning help text, the "Help" title can inadvertently move to the center. Additionally, context-dependent keybinds (like 'Esc' exiting the app vs. going back) must be accurately reflected in help footers to avoid user confusion.
+**Action:** When center-aligning a widget's text, apply `Line::from(" Title ").alignment(Alignment::Left)` to its surrounding block title to keep the title left-aligned. Ensure help footers accurately describe the context-dependent actions of keyboard bindings (e.g., "Esc/q: Quit" vs "Esc: Back").
