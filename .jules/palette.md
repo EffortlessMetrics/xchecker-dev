@@ -1,0 +1,3 @@
+## 2025-05-02 - Accurate Context-Dependent Help Text
+**Learning:** Keyboard navigation hints must accurately reflect all implemented keybindings (like Home/End) and context-dependent behaviors (like Esc quitting vs going back) to prevent user confusion. Additionally, when center-aligning help text, the block title must be explicitly left-aligned using `Line::from(...).alignment(Alignment::Left)` to prevent it from inheriting the content's center alignment.
+**Action:** Always verify help footers against the active event loop logic and ensure block titles maintain correct alignment when content alignment changes.
