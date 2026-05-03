@@ -1,0 +1,3 @@
+## 2024-05-03 - TUI Help Footer Context and Alignment
+**Learning:** Ratatui `Paragraph` widgets configured with center alignment incorrectly inherit that alignment to their block titles. Furthermore, keyboard shortcuts in TUIs often have hidden functionality (like Home/End) or context-dependent behaviors (like Esc) that are not communicated to the user, leading to confusing UX.
+**Action:** Use `Line::from(" Title ").alignment(Alignment::Left)` for block titles to override paragraph center alignment, and ensure all active navigation shortcuts are accurately documented in context-aware help footers.
