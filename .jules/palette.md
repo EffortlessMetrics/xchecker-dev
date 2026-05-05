@@ -1,0 +1,4 @@
+## 2024-05-05 - TUI Help Footer Alignment and Shortcut Visibility
+
+**Learning:** When developing or modifying TUI applications, always ensure that any keyboard shortcuts implemented in the event loop (such as Home, End, or context-dependent Esc behavior) are explicitly advertised in the UI's help footers to maintain discoverability and accessibility. Additionally, when center-aligning Ratatui Paragraph widgets (e.g., TUI help footers), apply `Line::from(" Title ").alignment(Alignment::Left)` to the block title to prevent the title text from incorrectly inheriting the block's content center alignment.
+**Action:** Always check the event loop in TUI applications to ensure all keyboard shortcuts are visible in help footers. Use `Alignment::Left` for block titles when center-aligning Paragraph content.
