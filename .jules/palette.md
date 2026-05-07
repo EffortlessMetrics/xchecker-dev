@@ -1,0 +1,3 @@
+## 2024-05-07 - Ensure TUI Help Footers Advertise All Event-Loop Shortcuts
+**Learning:** In Ratatui applications, missing shortcut advertisements (like Home/End or context-dependent Esc behavior) lead to poor keyboard accessibility. Furthermore, center-aligning Paragraph widgets inadvertently center-aligns their Block titles unless explicitly styled with `Line::from("Title").alignment(Alignment::Left)`.
+**Action:** Always verify all keyboard shortcuts bound in the event loop are explicitly listed in the help footer. Use `Line::from(" Title ").alignment(Alignment::Left)` for block titles when center-aligning Paragraph content.
