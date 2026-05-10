@@ -184,6 +184,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "OpenAI Legacy API keys",
     },
     SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Gemini API keys",
+    },
+    SecretPatternDef {
         id: "huggingface_token",
         category: "LLM Provider Tokens",
         regex: r"hf_[A-Za-z0-9]{34}",
