@@ -125,13 +125,15 @@ impl ReceiptManager {
 /// # Examples
 ///
 /// ```
+/// use xchecker_receipt::add_rename_retry_warning;
+///
 /// let mut warnings = vec![];
-/// xchecker_engine::receipt::add_rename_retry_warning(&mut warnings, Some(3));
+/// add_rename_retry_warning(&mut warnings, Some(3));
 /// assert_eq!(warnings.len(), 1);
 /// assert_eq!(warnings[0], "rename_retry_count: 3");
 ///
 /// let mut warnings2 = vec![];
-/// xchecker_engine::receipt::add_rename_retry_warning(&mut warnings2, None);
+/// add_rename_retry_warning(&mut warnings2, None);
 /// assert_eq!(warnings2.len(), 0);
 /// ```
 #[allow(dead_code)] // Receipt utility for tracking atomic write retries
