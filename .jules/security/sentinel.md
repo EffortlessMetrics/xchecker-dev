@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-02-12 - TOCTOU Vulnerability in Packet Assembly
+
+**Vulnerability:** `process_candidate_file` checked file sizes via `fs::metadata(path)` and later read the file using `fs::read_to_string(path)`. This gap allows for a Time-Of-Check to Time-Of-Use (TOCTOU) race condition where a file could be swapped or grow after the size check but before reading, potentially causing memory exhaustion or reading unintended data.
+**Learning:** Checking file metadata by path and then reading by path is vulnerable to race conditions.
+**Prevention:** Open the file via `File::open` first, then call `.metadata()` on the open file descriptor to ensure the metadata matches the file you will actually read. Use `file.take(limit).read_to_string()` to strictly bound the memory usage even if the file grows during the read.
