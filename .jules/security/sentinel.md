@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2025-02-15 - Missing Gemini API Keys in Secret Detection
+
+**Vulnerability:** The default secret detection patterns were missing Gemini API keys (`AIzaSy...`). Because `xchecker` interacts with LLMs including Gemini, missing this pattern leaves users vulnerable to leaking their API keys.
+**Learning:** When adding support for new LLM providers, always ensure their specific API key formats are added to `DEFAULT_SECRET_PATTERNS`.
+**Prevention:** Add provider-specific keys (like `gemini_api_key` with format `AIzaSy[A-Za-z0-9_-]{33}`) to the redaction library immediately when integrating new services.
