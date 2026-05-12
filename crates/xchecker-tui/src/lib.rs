@@ -463,7 +463,7 @@ fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
         ];
 
         let empty = Paragraph::new(empty_text)
-            .block(Block::default().borders(Borders::ALL).title(" Specs "))
+            .block(Block::default().borders(Borders::ALL).title(Line::from(" Specs ").alignment(Alignment::Left)))
             .alignment(Alignment::Center)
             .wrap(Wrap { trim: true });
         f.render_widget(empty, area);
@@ -680,12 +680,13 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
     let help_text = if app.show_details {
         "Esc: Back  q: Quit"
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        "↑/k: Up  ↓/j: Down  Home/End: Top/Bottom  Enter: Details  q: Quit"
     };
 
     let footer = Paragraph::new(help_text)
         .style(Style::default().fg(Color::DarkGray))
-        .block(Block::default().borders(Borders::ALL).title(" Help "));
+        .block(Block::default().borders(Borders::ALL).title(Line::from(" Help ").alignment(Alignment::Left)))
+        .alignment(Alignment::Center);
     f.render_widget(footer, area);
 }
 
