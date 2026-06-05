@@ -163,8 +163,14 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
+    SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Google Gemini API keys",
+    },
     SecretPatternDef {
         id: "anthropic_api_key",
         category: "LLM Provider Tokens",
@@ -1461,6 +1467,7 @@ mod tests {
         assert!(pattern_ids.contains(&"jwt_token".to_string()));
 
         // LLM Provider Tokens
+        assert!(pattern_ids.contains(&"gemini_api_key".to_string()));
         assert!(pattern_ids.contains(&"anthropic_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
