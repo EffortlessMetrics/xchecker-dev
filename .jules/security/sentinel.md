@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-06-06 - CPU Exhaustion DoS via Dynamic Regex Compilation
+
+**Vulnerability:** The extraction functions (`summarize_requirements`, `summarize_design`, `summarize_tasks`) were dynamically compiling regular expressions on every invocation using `Regex::new(...).unwrap()`.
+**Learning:** In high-traffic extraction paths, dynamic compilation introduces a significant CPU exhaustion bottleneck. An attacker supplying numerous large markdown payloads could trigger excessive Regex compilation overhead, leading to a Denial of Service (DoS) due to resource exhaustion (CWE-400).
+**Prevention:** Always statically cache compiled regexes using `std::sync::LazyLock` in frequently executed code paths. Keep the static `LazyLock` variables inside the function scope to maintain encapsulation and avoid module-level pollution.
