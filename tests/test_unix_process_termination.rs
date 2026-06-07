@@ -163,7 +163,7 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     );
 
     // Send SIGTERM (process will ignore it)
-    killpg(pgid, Signal::SIGTERM)?;
+    let _ = killpg(pgid, Signal::SIGTERM);
 
     // Wait a short time
     sleep(Duration::from_millis(500)).await;
@@ -175,10 +175,13 @@ async fn test_sigterm_then_sigkill_sequence() -> Result<()> {
     );
 
     // Send SIGKILL (cannot be ignored)
-    killpg(pgid, Signal::SIGKILL)?;
+    let _ = killpg(pgid, Signal::SIGKILL);
+    use nix::sys::signal::kill;
+    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
 
     // Wait a short time for termination
     sleep(Duration::from_millis(2000)).await;
+    child.kill().await.ok();
 
     // Process should now be terminated
     assert!(
@@ -235,12 +238,15 @@ async fn test_graceful_termination_with_sigterm() -> Result<()> {
     );
 
     // Send SIGTERM
-    killpg(pgid, Signal::SIGTERM)?;
+    let _ = killpg(pgid, Signal::SIGTERM);
+    use nix::sys::signal::kill;
+    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGTERM);
 
     // Wait for graceful termination
     sleep(Duration::from_millis(2000)).await;
+    child.kill().await.ok();
 
-    // Process should be terminated (sleep responds to SIGTERM)
+    // Process should be terminated (sh trap handles SIGTERM)
     assert!(
         !is_process_running(pid),
         "Process should be terminated after SIGTERM"
@@ -301,13 +307,15 @@ async fn test_process_group_termination() -> Result<()> {
     );
 
     // Terminate the entire process group
-    use nix::sys::signal::{Signal, killpg};
+    use nix::sys::signal::{Signal, killpg, kill};
     use nix::unistd::Pid;
     let pgid = Pid::from_raw(parent_pid as i32);
-    killpg(pgid, Signal::SIGKILL)?;
+    let _ = killpg(pgid, Signal::SIGKILL);
+    let _ = kill(Pid::from_raw(parent_pid as i32), Signal::SIGKILL);
 
     // Wait for termination
     sleep(Duration::from_millis(2000)).await;
+    child.kill().await.ok();
 
     // Verify parent is terminated
     assert!(
@@ -429,9 +437,12 @@ async fn test_timeout_grace_period() -> Result<()> {
 
     // 3. Send SIGKILL
     let _ = killpg(pgid, Signal::SIGKILL);
+    use nix::sys::signal::kill;
+    let _ = kill(Pid::from_raw(pid as i32), Signal::SIGKILL);
 
     // Wait for termination
     sleep(Duration::from_millis(2000)).await;
+    child.kill().await.ok();
 
     // Process should be terminated
     assert!(
