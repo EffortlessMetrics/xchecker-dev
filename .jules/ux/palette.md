@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2024-05-20 - [TUI Help Discoverability & Alignment]
+**Learning:** Undocumented keyboard shortcuts (like Home/End) reduce accessibility, and center-aligning Ratatui Paragraphs inadvertently center-aligns the block title, leading to inconsistent UI headers.
+**Action:** Always advertise all implemented keyboard shortcuts in the TUI footer, and apply `Line::from(" Title ").alignment(Alignment::Left)` to block titles when center-aligning the content inside them.
