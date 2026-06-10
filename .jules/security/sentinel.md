@@ -145,3 +145,8 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-06-10 - DoS via Dynamic Regex Compilation in Error Redaction
+**Vulnerability:** In `xchecker-error-redaction`, `regex::Regex::new()` was called dynamically for every error message redacted. In high-traffic scenarios or log flooding, this could cause a CPU exhaustion bottleneck / DoS vulnerability (CWE-400).
+**Learning:** Dynamically compiling regular expressions on every call is computationally expensive. Attackers could trigger errors at a high rate to exhaust server resources.
+**Prevention:** Always wrap `Regex::new().unwrap()` in `std::sync::LazyLock` for frequently executed code paths to statically cache them. Declare the `static` block inside the function scope to maintain encapsulation.
