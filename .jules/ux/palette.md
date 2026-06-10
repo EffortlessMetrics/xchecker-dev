@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2026-01-24 - [Discoverable TUI Keybindings]
+**Learning:** Keyboard shortcuts implemented in event loops remain undiscoverable unless explicitly advertised, degrading accessibility. Also, block titles inherit the block's text alignment unless explicitly overridden.
+**Action:** Always explicitly list supported keybindings (like Home/End) in the UI's help footer, and use `Line::from(" Title ").alignment(Alignment::Left)` on block titles when center-aligning block content.
