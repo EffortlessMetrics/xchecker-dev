@@ -163,8 +163,14 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
+    SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Google Gemini API keys",
+    },
     SecretPatternDef {
         id: "anthropic_api_key",
         category: "LLM Provider Tokens",
@@ -1117,6 +1123,23 @@ mod tests {
     }
 
     #[test]
+    fn test_gemini_api_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        // Gemini API keys start with AIzaSy followed by 33 characters
+        let token = "AIzaSy_abcdefghijklmnopqrstuvwxyz123456";
+        let content = format!("export GEMINI_API_KEY={}", token);
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pattern_id, "gemini_api_key");
+
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+        assert!(result.has_secrets);
+        assert!(result.content.contains("[REDACTED:gemini_api_key]"));
+        assert!(!result.content.contains(token));
+    }
+
+    #[test]
     fn test_huggingface_token_detection() {
         let redactor = SecretRedactor::new().unwrap();
         // Hugging Face tokens are 34 alphanumeric characters after "hf_"
@@ -1461,6 +1484,7 @@ mod tests {
         assert!(pattern_ids.contains(&"jwt_token".to_string()));
 
         // LLM Provider Tokens
+        assert!(pattern_ids.contains(&"gemini_api_key".to_string()));
         assert!(pattern_ids.contains(&"anthropic_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
