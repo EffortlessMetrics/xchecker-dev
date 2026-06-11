@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use regex::Regex;
+use std::sync::LazyLock;
 
 use crate::error::FixupError;
 use crate::paths::{SandboxConfig, SandboxError, SandboxPath, SandboxRoot};
@@ -135,8 +136,12 @@ impl FixupParser {
     #[must_use]
     pub fn detect_fixup_markers(&self, content: &str) -> Option<String> {
         // Look for "FIXUP PLAN:" or "needs fixups" markers
-        let fixup_plan_regex = Regex::new(r"(?i)FIXUP PLAN:").unwrap();
-        let needs_fixups_regex = Regex::new(r"(?i)needs fixups").unwrap();
+        static FIXUP_PLAN_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?i)FIXUP PLAN:").unwrap());
+        let fixup_plan_regex = &*FIXUP_PLAN_REGEX;
+        static NEEDS_FIXUPS_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?i)needs fixups").unwrap());
+        let needs_fixups_regex = &*NEEDS_FIXUPS_REGEX;
 
         if let Some(mat) = fixup_plan_regex.find(content) {
             return Some(content[mat.end()..].to_string());
@@ -170,7 +175,9 @@ impl FixupParser {
 
         // Regex to match fenced diff blocks: ```diff ... ```
         // Use (?s) flag to make . match newlines
-        let diff_block_regex = Regex::new(r"(?s)```diff\n(.*?)\n```").unwrap();
+        static DIFF_BLOCK_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?s)```diff\n(.*?)\n```").unwrap());
+        let diff_block_regex = &*DIFF_BLOCK_REGEX;
 
         for (block_index, captures) in diff_block_regex.captures_iter(content).enumerate() {
             let diff_content = captures
@@ -256,7 +263,9 @@ impl FixupParser {
 
         // Regex to match hunk headers: @@ -old_start,old_count +new_start,new_count @@
         // Note: Optional count groups must come after their respective start numbers
-        let hunk_header_regex = Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap();
+        static HUNK_HEADER_REGEX: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@").unwrap());
+        let hunk_header_regex = &*HUNK_HEADER_REGEX;
 
         for line in lines {
             if let Some(captures) = hunk_header_regex.captures(line) {
