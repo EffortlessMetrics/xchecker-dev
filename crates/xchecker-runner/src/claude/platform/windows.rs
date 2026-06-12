@@ -1,4 +1,4 @@
-use crate::error::RunnerError;
+use xchecker_runner::error::RunnerError;
 use std::time::Duration;
 
 pub(crate) async fn terminate_process_windows(pid: u32) -> Result<(), RunnerError> {

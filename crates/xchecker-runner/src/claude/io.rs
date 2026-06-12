@@ -5,7 +5,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::{Child, ChildStderr, ChildStdout};
 use tokio::time::timeout;
 
-use crate::ring_buffer::RingBuffer;
+use xchecker_runner::ring_buffer::RingBuffer;
 
 #[derive(Debug)]
 pub(crate) enum PipeReadError {

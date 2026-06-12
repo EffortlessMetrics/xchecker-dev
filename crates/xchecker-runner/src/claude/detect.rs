@@ -1,6 +1,6 @@
-use crate::command_spec::CommandSpec;
-use crate::error::RunnerError;
-use crate::types::RunnerMode;
+use xchecker_runner::command_spec::CommandSpec;
+use xchecker_runner::error::RunnerError;
+use xchecker_runner::types::RunnerMode;
 use std::process::Stdio;
 
 use super::exec::Runner;
@@ -163,9 +163,9 @@ impl Runner {
 #[cfg(test)]
 mod tests {
     use super::Runner;
-    use crate::claude::WslOptions;
-    use crate::error::RunnerError;
-    use crate::types::RunnerMode;
+    use xchecker_runner::claude::WslOptions;
+    use xchecker_runner::error::RunnerError;
+    use xchecker_runner::types::RunnerMode;
 
     #[test]
     fn test_runner_description() {

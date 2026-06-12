@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2026-01-24 - [TUI Keyboard Accessibility]
+**Learning:** Keyboard shortcuts implemented in the event loop are completely hidden from users if not explicitly advertised in the UI's help footer, reducing discoverability and accessibility. Furthermore, aligning TUI paragraphs can incorrectly center block titles if not explicitly set.
+**Action:** Always ensure implemented shortcuts are visible in help text. Use `Line::from(" Title ").alignment(Alignment::Left)` when center-aligning `Paragraph` content to prevent incorrect title inheritance.

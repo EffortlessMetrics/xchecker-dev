@@ -1,4 +1,4 @@
-use crate::command_spec::CommandSpec;
+use xchecker_runner::command_spec::CommandSpec;
 use std::env;
 
 use super::exec::Runner;

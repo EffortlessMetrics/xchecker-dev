@@ -1,7 +1,7 @@
 use std::process::Stdio;
 
-use crate::error::RunnerError;
-use crate::types::RunnerMode;
+use xchecker_runner::error::RunnerError;
+use xchecker_runner::types::RunnerMode;
 
 use super::exec::Runner;
 

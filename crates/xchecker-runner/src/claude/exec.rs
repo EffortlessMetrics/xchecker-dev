@@ -3,9 +3,9 @@ use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::time::timeout;
 
-use crate::error::RunnerError;
-use crate::ring_buffer::RingBuffer;
-use crate::types::RunnerMode;
+use xchecker_runner::error::RunnerError;
+use xchecker_runner::ring_buffer::RingBuffer;
+use xchecker_runner::types::RunnerMode;
 
 use super::io::{PipeReadError, drain_pipes, read_pipes_until_exit};
 use super::platform;
@@ -330,9 +330,9 @@ fn map_pipe_error(runner_used: RunnerMode, error: PipeReadError) -> RunnerError 
 #[cfg(test)]
 mod tests {
     use super::Runner;
-    use crate::claude::BufferConfig;
-    use crate::claude::WslOptions;
-    use crate::types::RunnerMode;
+    use xchecker_runner::claude::BufferConfig;
+    use xchecker_runner::claude::WslOptions;
+    use xchecker_runner::types::RunnerMode;
 
     #[test]
     fn test_runner_creation() {
