@@ -1,4 +1,4 @@
-use crate::error::RunnerError;
+use xchecker_runner::error::RunnerError;
 use std::time::Duration;
 
 use super::CommandSpec;
@@ -75,8 +75,8 @@ impl ProcessOutput {
 /// # Example
 ///
 /// ```rust
-/// use xchecker_utils::runner::{ProcessRunner, CommandSpec, ProcessOutput};
-/// use xchecker_utils::error::RunnerError;
+/// use xchecker_runner::{ProcessRunner, CommandSpec, ProcessOutput};
+/// use xchecker_runner::RunnerError;
 /// use std::time::Duration;
 ///
 /// struct SimpleRunner;

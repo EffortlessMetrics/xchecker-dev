@@ -1,5 +1,5 @@
-use crate::ndjson::NdjsonResult;
-use crate::types::RunnerMode;
+use xchecker_runner::ndjson::NdjsonResult;
+use xchecker_runner::types::RunnerMode;
 
 /// Configuration options for WSL execution
 #[derive(Debug, Clone, Default)]
@@ -85,8 +85,8 @@ impl ClaudeResponse {
 #[cfg(test)]
 mod tests {
     use super::{BufferConfig, ClaudeResponse, WslOptions};
-    use crate::ndjson::NdjsonResult;
-    use crate::types::RunnerMode;
+    use xchecker_runner::ndjson::NdjsonResult;
+    use xchecker_runner::types::RunnerMode;
 
     #[test]
     fn test_wsl_options_default() {

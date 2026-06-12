@@ -1,4 +1,4 @@
-use crate::error::RunnerError;
+use xchecker_runner::error::RunnerError;
 
 /// RAII wrapper for Windows Job Object handle
 ///

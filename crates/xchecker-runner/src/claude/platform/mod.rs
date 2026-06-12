@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::error::RunnerError;
+use xchecker_runner::error::RunnerError;
 
 #[cfg(unix)]
 mod unix;
