@@ -145,3 +145,11 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-06-12 - Missing LLM Provider Tokens for Gemini and OpenRouter
+
+**Vulnerability:** The default secret detection patterns missed Gemini and OpenRouter API keys. Given that `xchecker` is an LLM-orchestration tool and OpenRouter / Gemini are valid configuration options, accidental inclusion of these keys is a high-probability risk.
+
+**Learning:** When building tools that integrate with specific 3rd-party services (like LLMs), always prioritize secret detection for those specific services' credentials. Generic patterns like GCP API keys do not correctly cover the specific length constraint of Gemini keys (`AIzaSy`), and OpenRouter keys (`sk-or-v1-...`) are entirely missing.
+
+**Prevention:** Regularly audit secret detection patterns against the specific integrations used by the tool and its users. Check the config validation code to see which providers are supported.

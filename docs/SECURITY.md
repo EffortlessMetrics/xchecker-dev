@@ -21,7 +21,7 @@ The SecretRedactor component detects and blocks secrets before they reach Claude
 ### Default Secret Patterns
 
 <!-- BEGIN GENERATED:DEFAULT_SECRET_PATTERNS -->
-xchecker includes **45 default secret patterns** across 8 categories.
+xchecker includes **47 default secret patterns** across 8 categories.
 
 #### AWS Credentials (5 patterns)
 
@@ -70,14 +70,16 @@ xchecker includes **45 default secret patterns** across 8 categories.
 | `jwt_token` | `eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*` | JSON Web Tokens |
 | `oauth_token` | `(?i)(?:access_token\|refresh_token)[=:][A-Za-z0-9._-]{20,}` | OAuth tokens |
 
-#### LLM Provider Tokens (4 patterns)
+#### LLM Provider Tokens (6 patterns)
 
 | Pattern ID | Regex | Description |
 |------------|-------|-------------|
 | `anthropic_api_key` | `sk-ant-api03-[A-Za-z0-9_-]{20,}` | Anthropic API keys |
+| `gemini_api_key` | `AIzaSy[A-Za-z0-9_-]{33}` | Gemini API keys |
 | `huggingface_token` | `hf_[A-Za-z0-9]{34}` | Hugging Face access tokens |
 | `openai_api_key` | `sk-(?:proj\|org)-[A-Za-z0-9_-]{20,}` | OpenAI Project/Org API keys |
 | `openai_legacy_key` | `sk-[A-Za-z0-9]{48}` | OpenAI Legacy API keys |
+| `openrouter_api_key` | `sk-or-v1-[a-zA-Z0-9]{64}` | OpenRouter API keys |
 
 #### Platform-Specific Tokens (13 patterns)
 
