@@ -175,6 +175,10 @@ pub fn openai_legacy_key() -> String {
     format!("sk-{}", make_from(ALNUM, 48, 50))
 }
 
+pub fn gemini_api_key() -> String {
+    format!("AIzaSy{}", make_from(BASE64_URL, 33, 51))
+}
+
 pub fn aws_access_key_id() -> String {
     format!("AKIA{}", make_from(ALNUM_UPPER, 16, 14))
 }

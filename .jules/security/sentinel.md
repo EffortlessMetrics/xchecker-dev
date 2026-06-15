@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-01-25 - Missing Gemini Provider API Keys in Secret Detection
+
+**Vulnerability:** The default secret detection patterns missed Gemini API keys.
+**Learning:** We need to add API keys for all LLM providers that xchecker supports, such as Gemini.
+**Prevention:** Regularly audit secret detection patterns against the integrations used by the tool.
