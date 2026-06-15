@@ -189,6 +189,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         regex: r"hf_[A-Za-z0-9]{34}",
         description: "Hugging Face access tokens",
     },
+    SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Gemini API keys",
+    },
     // =========================================================================
     // Database Connection URLs (5 patterns)
     // =========================================================================
@@ -1465,6 +1471,7 @@ mod tests {
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
         assert!(pattern_ids.contains(&"huggingface_token".to_string()));
+        assert!(pattern_ids.contains(&"gemini_api_key".to_string()));
 
         // Database URLs
         assert!(pattern_ids.contains(&"postgres_url".to_string()));
