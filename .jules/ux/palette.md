@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2024-06-17 - [TUI Keyboard Discoverability]
+**Learning:** Keyboard shortcuts implemented in TUI event loops (like Home/End or context-dependent Esc) are invisible to users if not explicitly advertised in the UI, reducing accessibility and usability.
+**Action:** Always ensure that all functional keyboard shortcuts are clearly listed in the UI's help footers to maintain discoverability.
