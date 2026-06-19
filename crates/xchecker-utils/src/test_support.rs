@@ -159,6 +159,10 @@ pub fn pypi_token() -> String {
 }
 
 // LLM Provider Tokens
+pub fn gemini_api_key() -> String {
+    format!("AIzaSy{}", make_from(BASE64_URL, 33, 51))
+}
+
 pub fn anthropic_api_key() -> String {
     format!("sk-ant-api03-{}", make_from(BASE64_URL, 95, 47))
 }
