@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-06-20 - Adding Gemini API Key Pattern
+
+**Vulnerability:** Default secret detection patterns missed Google Gemini API keys.
+**Learning:** Google Gemini API keys are distinguishable from GCP API keys because they start with `AIzaSy` instead of just `AIza` followed by random characters. When adding a specific pattern, we should carefully update overlapping patterns (like `gcp_api_key`) to not match the new one. In Rust `regex`, since lookarounds are not supported, we can construct a pattern using alternations to match any valid character sequence except the specific one. Alternatively, we can let both patterns match, as the redactor will handle it by safely overwriting the string with the redaction tag. Modifying existing patterns to exclude the prefix of the new pattern (e.g., explicitly excluding `s` or `S` after `AIza`) without alternation is flawed and will leak legitimate keys.
+**Prevention:** Always verify if new patterns overlap with existing ones. If they do, and the redaction mechanism allows multiple matches, it's safer to let them overlap than to construct a flawed exclusion pattern. If exclusion is necessary without lookarounds, use a robust combination of alternations. Always test with real-world examples and edge cases to ensure no legitimate secrets are leaked.

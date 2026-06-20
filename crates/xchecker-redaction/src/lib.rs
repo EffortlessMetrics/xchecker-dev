@@ -163,7 +163,7 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
     SecretPatternDef {
         id: "anthropic_api_key",
@@ -188,6 +188,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         category: "LLM Provider Tokens",
         regex: r"hf_[A-Za-z0-9]{34}",
         description: "Hugging Face access tokens",
+    },
+    SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Google Gemini API keys",
     },
     // =========================================================================
     // Database Connection URLs (5 patterns)
@@ -1117,6 +1123,17 @@ mod tests {
     }
 
     #[test]
+    fn test_gemini_api_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        let token = "AIzaSyBcDeFgHiJkLmNoPqRsTuVwXyZ01234567";
+        let content = format!("GEMINI_API_KEY={}", token);
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(matches.len() >= 1);
+        // It matches both gcp_api_key and gemini_api_key
+        assert!(matches.iter().any(|m| m.pattern_id == "gemini_api_key"));
+    }
+
+    #[test]
     fn test_huggingface_token_detection() {
         let redactor = SecretRedactor::new().unwrap();
         // Hugging Face tokens are 34 alphanumeric characters after "hf_"
@@ -1465,6 +1482,7 @@ mod tests {
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
         assert!(pattern_ids.contains(&"huggingface_token".to_string()));
+        assert!(pattern_ids.contains(&"gemini_api_key".to_string()));
 
         // Database URLs
         assert!(pattern_ids.contains(&"postgres_url".to_string()));

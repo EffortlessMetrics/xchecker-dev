@@ -21,7 +21,7 @@ The SecretRedactor component detects and blocks secrets before they reach Claude
 ### Default Secret Patterns
 
 <!-- BEGIN GENERATED:DEFAULT_SECRET_PATTERNS -->
-xchecker includes **45 default secret patterns** across 8 categories.
+xchecker includes **46 default secret patterns** across 8 categories.
 
 #### AWS Credentials (5 patterns)
 
@@ -56,7 +56,7 @@ xchecker includes **45 default secret patterns** across 8 categories.
 
 | Pattern ID | Regex | Description |
 |------------|-------|-------------|
-| `gcp_api_key` | `AIza[0-9A-Za-z_-]{35}` | Google API keys |
+| `gcp_api_key` | `AIza[a-rt-zA-RT-Z0-9_-][0-9A-Za-z_-]{34}` | Google API keys |
 | `gcp_oauth_client_secret` | `(?i)client_secret[=:][A-Za-z0-9_-]{24,}` | OAuth client secrets |
 | `gcp_service_account_key` | `-----BEGIN (RSA )?PRIVATE KEY-----` | Service account private key markers |
 
@@ -70,11 +70,12 @@ xchecker includes **45 default secret patterns** across 8 categories.
 | `jwt_token` | `eyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*` | JSON Web Tokens |
 | `oauth_token` | `(?i)(?:access_token\|refresh_token)[=:][A-Za-z0-9._-]{20,}` | OAuth tokens |
 
-#### LLM Provider Tokens (4 patterns)
+#### LLM Provider Tokens (5 patterns)
 
 | Pattern ID | Regex | Description |
 |------------|-------|-------------|
 | `anthropic_api_key` | `sk-ant-api03-[A-Za-z0-9_-]{20,}` | Anthropic API keys |
+| `gemini_api_key` | `AIzaSy[A-Za-z0-9_-]{33}` | Google Gemini API keys |
 | `huggingface_token` | `hf_[A-Za-z0-9]{34}` | Hugging Face access tokens |
 | `openai_api_key` | `sk-(?:proj\|org)-[A-Za-z0-9_-]{20,}` | OpenAI Project/Org API keys |
 | `openai_legacy_key` | `sk-[A-Za-z0-9]{48}` | OpenAI Legacy API keys |
