@@ -189,6 +189,12 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         regex: r"hf_[A-Za-z0-9]{34}",
         description: "Hugging Face access tokens",
     },
+    SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Gemini API keys",
+    },
     // =========================================================================
     // Database Connection URLs (5 patterns)
     // =========================================================================
@@ -667,26 +673,41 @@ impl SecretRedactor {
         let lines: Vec<&str> = content.lines().collect();
 
         // Replace secrets with redaction markers
+        let mut current_line_idx = usize::MAX;
+        let mut current_redacted_line = String::new();
+        // Keep track of the start index of the last replacement on the current line.
+        // Since we process right-to-left, we should only replace if `end <= last_replaced_start`.
+        // If it overlaps, we skip it to avoid panicking on modified string indices.
+        let mut last_replaced_start = usize::MAX;
+
         for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
+            let line_idx = secret_match.line_number - 1;
+            if let Some(original_line) = lines.get(line_idx) {
+                if current_line_idx != line_idx {
+                    if current_line_idx != usize::MAX {
+                        let line_start = content.lines().take(current_line_idx).map(|l| l.len() + 1).sum::<usize>();
+                        let line_end = line_start + lines[current_line_idx].len();
+                        redacted_content.replace_range(line_start..line_end, &current_redacted_line);
+                    }
+                    current_line_idx = line_idx;
+                    current_redacted_line = original_line.to_string();
+                    last_replaced_start = usize::MAX;
+                }
+
                 let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
-
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
-
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
+                // Only replace if it doesn't overlap with a replacement we already made to the right
+                if start < original_line.len() && end <= original_line.len() && end <= last_replaced_start {
+                    let marker = format!("[REDACTED:{}]", secret_match.pattern_id);
+                    current_redacted_line.replace_range(start..end, &marker);
+                    last_replaced_start = start;
                 }
             }
+        }
+
+        if current_line_idx != usize::MAX {
+            let line_start = content.lines().take(current_line_idx).map(|l| l.len() + 1).sum::<usize>();
+            let line_end = line_start + lines[current_line_idx].len();
+            redacted_content.replace_range(line_start..line_end, &current_redacted_line);
         }
 
         Ok(RedactionResult {
@@ -1131,6 +1152,23 @@ mod tests {
         let result = redactor.redact_content(&content, "test.txt").unwrap();
         assert!(result.has_secrets);
         assert!(result.content.contains("[REDACTED:huggingface_token]"));
+        assert!(!result.content.contains(token));
+    }
+
+    #[test]
+    fn test_gemini_api_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        // Gemini API keys start with AIzaSy followed by 33 characters
+        let token = "AIzaSyA_B-C_D-E_F-G_H-I_J-K_L-M_N-O_P_Q";
+        let content = format!("export GEMINI_API_KEY={}", token);
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        assert!(matches.iter().any(|m| m.pattern_id == "gemini_api_key"));
+
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+        assert!(result.has_secrets);
+        // Note: It might be redacted as [REDACTED:gcp_api_key] if they overlap and GCP is processed first
+        assert!(result.content.contains("[REDACTED:gemini_api_key]") || result.content.contains("[REDACTED:gcp_api_key]"));
         assert!(!result.content.contains(token));
     }
 

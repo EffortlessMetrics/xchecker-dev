@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-01-25 - Overlapping Secret Pattern Overwrites
+
+**Vulnerability:** The secret redactor's replacement loop was processing replacements sequentially using original file indexes but substituting entire line blocks. When multiple secrets existed on the same line (e.g., overlapping API keys), the second replacement would overwrite the first redaction with unredacted text and panic due to invalid offsets.
+**Learning:** Text replacements that alter line length invalidate original string offsets. Replacing the entire line based on original file indexes causes subsequent replacements on that line to corrupt output or panic.
+**Prevention:** Always perform multiple substring replacements per line from right-to-left (reverse index order) to preserve earlier string offsets, and track modified lines individually before replacing them in the main buffer.
