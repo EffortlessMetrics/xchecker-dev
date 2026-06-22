@@ -15,8 +15,6 @@
 use regex::Regex;
 use std::sync::LazyLock;
 
-// Performance Optimization: Cache Regex compilation to avoid recompiling on every call.
-// This eliminates a significant overhead, as Regex::new is computationally expensive.
 static USER_STORY_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?im)^\s*\*\*User\s+Story[:\*]").unwrap());
 static EARS_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?im)(WHEN\s+.+\s+THEN\s+.+\s+SHALL|GIVEN\s+.+\s+WHEN\s+.+\s+THEN)").unwrap());
 static NFR_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?im)(^\s*\*\*NFR[-\s]|\bNFR-\w+\b|^\s*\*\*Non-Functional)").unwrap());
