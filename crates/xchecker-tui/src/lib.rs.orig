@@ -680,7 +680,7 @@ fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
     let help_text = if app.show_details {
         "Esc: Back  q: Quit"
     } else {
-        "Home/End: Top/Bottom  ↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
     };
 
     let footer = Paragraph::new(help_text)
