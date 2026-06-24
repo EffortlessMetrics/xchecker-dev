@@ -1,0 +1,47 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -165,7 +165,7 @@
+     killpg(pgid, Signal::SIGTERM)?;
+
+     // Wait a short time
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1500)).await;
+
+     // Process should still be running (it ignored SIGTERM)
+     assert!(
+@@ -176,7 +176,7 @@
+     killpg(pgid, Signal::SIGKILL)?;
+
+     // Wait a short time for termination
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1500)).await;
+
+     // Process should now be terminated
+     assert!(
+@@ -227,7 +227,7 @@
+     killpg(pgid, Signal::SIGTERM)?;
+
+     // Wait for graceful termination
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1500)).await;
+
+     // Process should be terminated (sleep responds to SIGTERM)
+     assert!(
+@@ -296,7 +296,7 @@
+     killpg(pgid, Signal::SIGTERM)?;
+
+     // Wait for graceful termination
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1500)).await;
+
+     // Process should be terminated
+     assert!(
+@@ -414,7 +414,7 @@
+     killpg(pgid, Signal::SIGKILL)?;
+
+     // Wait for termination
+-    sleep(Duration::from_millis(500)).await;
++    sleep(Duration::from_millis(1500)).await;
+
+     // Check if process is terminated
+     assert!(

@@ -1,0 +1,25 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -141,7 +141,7 @@
+     // Spawn a process that ignores SIGTERM (to test SIGKILL)
+     let mut cmd = CommandSpec::new("sh")
+         .arg("-c")
+-        .arg("trap '' TERM; sleep 30") // Ignore SIGTERM, sleep for 30 seconds
++        .arg("trap '' TERM; while true; do sleep 1; done") // Ignore SIGTERM, wait forever
+         .to_tokio_command();
+     cmd.stdin(Stdio::null())
+         .stdout(Stdio::null())
+@@ -176,10 +176,14 @@
+
+     // Process should still be running (it ignored SIGTERM)
+     assert!(
+         is_process_running(pid),
+         "Process should still be running after SIGTERM"
+     );
+
++    // Important: for 'sh -c "while true; do sleep 1; done"', the process group receives the kill signal.
++    // sleep might be interrupted, but the while loop restarts it.
++    // So SIGTERM has no effect, which is exactly what we want.
++
+     // Send SIGKILL (cannot be ignored)
+     killpg(pgid, Signal::SIGKILL)?;
