@@ -1,0 +1,24 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -31,8 +31,20 @@
+     use nix::sys::signal::kill;
+     use nix::unistd::Pid;
++    use nix::sys::wait::{waitpid, WaitPidFlag, WaitStatus};
+
+-    let pid = Pid::from_raw(pid as i32);
++    let nix_pid = Pid::from_raw(pid as i32);
++
++    match waitpid(nix_pid, Some(WaitPidFlag::WNOHANG)) {
++        Ok(WaitStatus::StillAlive) => return true,
++        Ok(WaitStatus::Exited(..)) | Ok(WaitStatus::Signaled(..)) => return false,
++        Ok(_) => return true,
++        Err(nix::errno::Errno::ECHILD) => return false,
++        Err(_) => {}
++    }
++
+     // Signal 0 (None) doesn't send a signal but checks if the process exists
+-    kill(pid, None).is_ok()
++    kill(nix_pid, None).is_ok()
+ }
+
+ /// Create a test script that spawns child processes

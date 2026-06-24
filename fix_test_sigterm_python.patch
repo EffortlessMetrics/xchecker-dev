@@ -1,0 +1,30 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -143,10 +143,10 @@
+     let mut cmd = CommandSpec::new("python3")
+         .arg("-c")
+-        .arg("import signal, time\ndef h(s,f): pass\nsignal.signal(signal.SIGTERM, h)\nwhile True: time.sleep(1)")
++        .arg("import signal, time, sys\ndef h(s,f): pass\nsignal.signal(signal.SIGTERM, h)\nsys.stdout.write('ready\\n')\nsys.stdout.flush()\nwhile True: time.sleep(1)")
+         .to_tokio_command();
+     cmd.stdin(Stdio::null())
+-        .stdout(Stdio::null())
++        .stdout(std::process::Stdio::piped())
+         .stderr(Stdio::null());
+
+     {
+@@ -164,6 +164,16 @@
+     let pid = child.id().expect("Failed to get child PID");
+     let pgid = Pid::from_raw(pid as i32);
+
++    // Wait for the python script to actually start up and set the signal handler
++    use tokio::io::AsyncBufReadExt;
++    if let Some(stdout) = child.stdout.take() {
++        let mut reader = tokio::io::BufReader::new(stdout);
++        let mut line = String::new();
++        let _ = reader.read_line(&mut line).await;
++    } else {
++        sleep(Duration::from_millis(500)).await;
++    }
++
+     // Verify process is running
+     assert!(

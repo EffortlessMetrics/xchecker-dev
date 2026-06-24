@@ -1,0 +1,18 @@
+--- tests/test_unix_process_termination.rs
++++ tests/test_unix_process_termination.rs
+@@ -37,8 +37,13 @@
+     match waitpid(nix_pid, Some(WaitPidFlag::WNOHANG)) {
+         Ok(WaitStatus::StillAlive) => return true,
+         Ok(WaitStatus::Exited(..)) | Ok(WaitStatus::Signaled(..)) => return false,
+         Ok(_) => return true, // Stopped or continued
+         Err(nix::errno::Errno::ECHILD) => return false, // Process doesn't exist
+         Err(_) => {} // Fall through to kill check
+     }
+
+     // Signal 0 (None) doesn't send a signal but checks if the process exists
+-    kill(nix_pid, None).is_ok()
++    match kill(nix_pid, None) {
++        Ok(_) => true,
++        Err(e) => e != nix::errno::Errno::ESRCH,
++    }
+ }
