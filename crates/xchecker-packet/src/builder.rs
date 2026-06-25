@@ -476,9 +476,22 @@ fn process_candidate_file(
         return Ok(None);
     }
 
-    // Read content
-    let content = fs::read_to_string(&candidate.path)
+    // Read content safely with a hard limit to prevent TOCTOU DoS
+    let file = fs::File::open(&candidate.path)
+        .with_context(|| format!("Failed to open file: {}", candidate.path))?;
+    let mut content = String::with_capacity(metadata.len() as usize);
+    use std::io::Read;
+    file.take(max_file_size + 1)
+        .read_to_string(&mut content)
         .with_context(|| format!("Failed to read file: {}", candidate.path))?;
+
+    if content.len() > max_file_size as usize {
+        return Err(anyhow::anyhow!(
+            "File {} grew beyond the size limit ({} bytes) during reading. Possible TOCTOU attack.",
+            candidate.path,
+            max_file_size
+        ));
+    }
 
     // Scan for secrets immediately after reading
     if redactor.has_secrets(&content, candidate.path.as_ref())? {
