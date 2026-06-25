@@ -145,3 +145,8 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-01-25 - TOCTOU Vulnerability in File Reading
+**Vulnerability:** A TOCTOU (Time-Of-Check to Time-Of-Use) race condition existed in `PacketBuilder::build` where the file size was checked against a budget limit using `fs::metadata` before the content was read via `fs::read_to_string` without a limit. This could result in unbounded memory allocation if the file grew after the check, leading to an OOM DoS attack.
+**Learning:** Using `fs::read_to_string` on potentially untrusted or concurrently modified files can lead to memory exhaustion. File size checks before reading are insufficient against race conditions unless a hard limit is enforced during the actual read operation.
+**Prevention:** Use `File::open` and `std::io::Read::take(limit)` to enforce a hard bound on the number of bytes read into memory, preventing OOM even if the file changes after the metadata check.
