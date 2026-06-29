@@ -163,13 +163,19 @@ pub static DEFAULT_SECRET_PATTERNS: &[SecretPatternDef] = &[
         description: "JSON Web Tokens",
     },
     // =========================================================================
-    // LLM Provider Tokens (4 patterns)
+    // LLM Provider Tokens (5 patterns)
     // =========================================================================
     SecretPatternDef {
         id: "anthropic_api_key",
         category: "LLM Provider Tokens",
         regex: r"sk-ant-api03-[A-Za-z0-9_-]{20,}",
         description: "Anthropic API keys",
+    },
+    SecretPatternDef {
+        id: "gemini_api_key",
+        category: "LLM Provider Tokens",
+        regex: r"AIzaSy[A-Za-z0-9_-]{33}",
+        description: "Google Gemini API keys",
     },
     SecretPatternDef {
         id: "openai_api_key",
@@ -663,29 +669,36 @@ impl SecretRedactor {
                 .then_with(|| b.column_range.0.cmp(&a.column_range.0))
         });
 
-        let mut redacted_content = content.to_string();
-        let lines: Vec<&str> = content.lines().collect();
+        // Group matches by line number
+        let mut matches_by_line: std::collections::BTreeMap<usize, Vec<&SecretMatch>> = std::collections::BTreeMap::new();
+        for m in &sorted_matches {
+            matches_by_line.entry(m.line_number).or_default().push(m);
+        }
 
-        // Replace secrets with redaction markers
-        for secret_match in &sorted_matches {
-            if let Some(line) = lines.get(secret_match.line_number - 1) {
-                let (start, end) = secret_match.column_range;
-                if start < line.len() && end <= line.len() {
-                    let before = &line[..start];
-                    let after = &line[end..];
-                    let redacted_line =
-                        format!("{}[REDACTED:{}]{}", before, secret_match.pattern_id, after);
+        let mut redacted_content = String::with_capacity(content.len());
+        for (i, line) in content.split('\n').enumerate() {
+            let line_number = i + 1;
+            if i > 0 {
+                redacted_content.push('\n');
+            }
+            if let Some(line_matches) = matches_by_line.get(&line_number) {
+                // Ensure matches for this line are sorted in reverse column order (right to left)
+                // They should already be mostly reverse sorted due to the global sort, but we guarantee it
+                let mut local_matches = line_matches.clone();
+                local_matches.sort_by(|a, b| b.column_range.0.cmp(&a.column_range.0));
 
-                    // Replace the line in the content
-                    let line_start = content
-                        .lines()
-                        .take(secret_match.line_number - 1)
-                        .map(|l| l.len() + 1) // +1 for newline
-                        .sum::<usize>();
-                    let line_end = line_start + line.len();
-
-                    redacted_content.replace_range(line_start..line_end, &redacted_line);
+                let mut redacted_line = line.to_string();
+                for m in local_matches {
+                    let (start, end) = m.column_range;
+                    if start < redacted_line.len() && end <= redacted_line.len() {
+                        let before = &redacted_line[..start];
+                        let after = &redacted_line[end..];
+                        redacted_line = format!("{}[REDACTED:{}]{}", before, m.pattern_id, after);
+                    }
                 }
+                redacted_content.push_str(&redacted_line);
+            } else {
+                redacted_content.push_str(line);
             }
         }
 
@@ -1117,6 +1130,24 @@ mod tests {
     }
 
     #[test]
+    fn test_gemini_api_key_detection() {
+        let redactor = SecretRedactor::new().unwrap();
+        // Gemini API keys start with AIzaSy followed by 33 characters
+        let token = "AIzaSy_abcdefghijklmnopqrstuvwxyz012345";
+        let content = format!("export GEMINI_API_KEY={}", token);
+
+        let matches = redactor.scan_for_secrets(&content, "test.txt").unwrap();
+        // Due to overlap with GCP keys which also start with AIza, both might match
+        assert!(!matches.is_empty());
+        assert!(matches.iter().any(|m| m.pattern_id == "gemini_api_key"));
+
+        let result = redactor.redact_content(&content, "test.txt").unwrap();
+        assert!(result.has_secrets);
+        assert!(result.content.contains("[REDACTED:gemini_api_key]") || result.content.contains("[REDACTED:gcp_api_key]"));
+        assert!(!result.content.contains(token));
+    }
+
+    #[test]
     fn test_huggingface_token_detection() {
         let redactor = SecretRedactor::new().unwrap();
         // Hugging Face tokens are 34 alphanumeric characters after "hf_"
@@ -1462,6 +1493,7 @@ mod tests {
 
         // LLM Provider Tokens
         assert!(pattern_ids.contains(&"anthropic_api_key".to_string()));
+        assert!(pattern_ids.contains(&"gemini_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_api_key".to_string()));
         assert!(pattern_ids.contains(&"openai_legacy_key".to_string()));
         assert!(pattern_ids.contains(&"huggingface_token".to_string()));
