@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-01-25 - Missing Gemini API Keys in Secret Detection
+
+**Vulnerability:** The default secret detection patterns missed Gemini API keys.
+**Learning:** When modifying text redaction logic (e.g., `SecretRedactor::redact_content`), be aware that replacing substrings alters line length and invalidates original offsets. Multiple secret matches on the same line must be batched and processed from right-to-left (reverse column order) within that specific line buffer.
+**Prevention:** Batch multiple secret matches on the same line and process from right-to-left within that specific line buffer.
