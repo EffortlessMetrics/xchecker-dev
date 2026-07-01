@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - TUI Keybindings UX Learning
+**Learning:** Terminal/TUI applications benefit immensely from adopting common navigation keybindings (Vim-like h/l, g/G, and standard directional arrow keys) because users have strong muscle memory for these interaction models. Exposing hidden or undocumented features (like Home/End) directly in the help UI significantly improves discoverability.
+**Action:** When working on TUI crates or CLI tools in Rust, verify that directional movement maps naturally to master-detail UI paradigms (Right/l to drill down, Left/h to back out) and explicitly document all available navigation mappings in the footer/help UI.
