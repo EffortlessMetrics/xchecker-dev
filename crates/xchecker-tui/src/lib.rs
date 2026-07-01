@@ -317,21 +317,27 @@ where
                         app.select_next();
                     }
                 }
-                KeyCode::Home => {
+                KeyCode::Home | KeyCode::Char('g') => {
                     if !app.show_details {
                         app.select_first();
                     }
                 }
-                KeyCode::End => {
+                KeyCode::End | KeyCode::Char('G') => {
                     if !app.show_details {
                         app.select_last();
                     }
                 }
-                KeyCode::Enter => app.toggle_details(),
-                KeyCode::Esc => {
+                KeyCode::Enter | KeyCode::Right | KeyCode::Char('l') => {
+                    if key.code == KeyCode::Enter {
+                        app.toggle_details();
+                    } else if !app.show_details {
+                        app.show_details = true;
+                    }
+                }
+                KeyCode::Esc | KeyCode::Left | KeyCode::Char('h') => {
                     if app.show_details {
                         app.show_details = false;
-                    } else {
+                    } else if key.code == KeyCode::Esc {
                         return Ok(());
                     }
                 }
@@ -678,9 +684,9 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 /// Render the footer with help text
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
     let help_text = if app.show_details {
-        "Esc: Back  q: Quit"
+        "Esc/←/h: Back  q: Quit"
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        "↑/k: Up  ↓/j: Down  Enter/→/l: Details  Home/End/g/G: First/Last  q: Quit"
     };
 
     let footer = Paragraph::new(help_text)
