@@ -145,3 +145,9 @@
 
 **Files Changed:**
 - `crates/xchecker-utils/src/redaction.rs`
+
+## 2026-01-25 - Extraneous Artifacts Blocking Security PRs
+
+**Learning:** When developing and testing security enhancements (like new regex patterns or patching code), it is common to create temporary Python scripts, bash scripts, or scratchpad files (e.g., `patch_lib.py`, `run_tests.sh`). If these files are left in the repository root when a code review is requested, they will be flagged as repository pollution and block the submission, even if the core security fix is perfect.
+
+**Action:** Always strictly clean up and delete any temporary scripts or artifacts (e.g., using `rm patch_lib.py patch_receipt.py run_tests.sh test_llm_secrets.rs`) *before* requesting a code review or submitting the PR. Ensure the working directory is clean of development byproducts.
