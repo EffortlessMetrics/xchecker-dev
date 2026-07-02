@@ -20,7 +20,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap},
+    widgets::{Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, Wrap},
 };
 use std::io;
 use std::path::Path;
@@ -531,7 +531,8 @@ fn render_specs_list(f: &mut Frame, app: &TuiApp, area: Rect) {
                 .bg(Color::DarkGray)
                 .add_modifier(Modifier::BOLD),
         )
-        .highlight_symbol("▶ ");
+        .highlight_symbol("▶ ")
+        .highlight_spacing(HighlightSpacing::Always);
 
     f.render_stateful_widget(list, area, &mut app.list_state.clone());
 }

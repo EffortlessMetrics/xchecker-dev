@@ -19,7 +19,7 @@ xchecker-utils = { workspace = true }
 anyhow = { workspace = true }
 chrono = { workspace = true }
 crossterm = { workspace = true }
-ratatui = { workspace = true }
+ratatui = { workspace = true, features = ["all-widgets"] }
 
 [dev-dependencies]
 # For testing
