@@ -677,13 +677,32 @@ fn render_details(f: &mut Frame, app: &TuiApp, area: Rect) {
 
 /// Render the footer with help text
 fn render_footer(f: &mut Frame, app: &TuiApp, area: Rect) {
-    let help_text = if app.show_details {
-        "Esc: Back  q: Quit"
+    let key_style = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::BOLD);
+    let help_line = if app.show_details {
+        Line::from(vec![
+            Span::styled("Esc", key_style),
+            Span::raw(": Back  "),
+            Span::styled("q", key_style),
+            Span::raw(": Quit"),
+        ])
     } else {
-        "↑/k: Up  ↓/j: Down  Enter: Details  q: Quit"
+        Line::from(vec![
+            Span::styled("↑/k", key_style),
+            Span::raw(": Up  "),
+            Span::styled("↓/j", key_style),
+            Span::raw(": Down  "),
+            Span::styled("Home/End", key_style),
+            Span::raw(": First/Last  "),
+            Span::styled("Enter", key_style),
+            Span::raw(": Details  "),
+            Span::styled("q", key_style),
+            Span::raw(": Quit"),
+        ])
     };
 
-    let footer = Paragraph::new(help_text)
+    let footer = Paragraph::new(help_line)
         .style(Style::default().fg(Color::DarkGray))
         .block(Block::default().borders(Borders::ALL).title(" Help "));
     f.render_widget(footer, area);
