@@ -10,3 +10,7 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+
+## 2024-05-19 - Keyboard Shortcut Hints in TUI Footer
+**Learning:** Adding explicit keyboard shortcuts (like Home/End) to help text makes CLI/TUI tools much more discoverable and accessible for keyboard users.
+**Action:** Always document full keyboard navigation shortcuts in TUI footers or help menus.
