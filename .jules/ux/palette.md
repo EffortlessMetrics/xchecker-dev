@@ -10,3 +10,6 @@
 
 **Learning:** Dense text outputs in CLI tools are hard to scan. Users miss the overall status when it's just another line of text.
 **Action:** Use emojis (e.g., 🩺) for immediate context recognition and horizontal separators (e.g., ─────) to visually distinguish the summary/result from the detailed logs.
+## 2026-07-04 - [TUI Keyboard Discoverability]
+**Learning:** Terminal User Interfaces (TUIs) often bury keyboard shortcuts in low-contrast footer text, making them hard to discover and slowing down new users.
+**Action:** Use high-contrast formatting (e.g., bright colors and bold text) specifically for the key binding itself (e.g., "Esc", "Enter"), while keeping the description in a muted tone to establish a strong visual hierarchy.
